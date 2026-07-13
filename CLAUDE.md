@@ -119,7 +119,8 @@ client/
   - `--green-*`는 이름은 그대로지만 각 테마의 **강조색 스케일**로 재정의됨(그린→블루 등). 채팅/서피스용으로 `--sunken`(채팅 패널·입력), `--bubble`(받은 말풍선), `--chip`(옅은 배지) 추가
   - SCSS 컴파일타임 변수(`$green-dark` 등)를 색상 위치에서 쓰면 테마가 안 먹으니 항상 `var(--x)` 사용
 - 전환 UI: `client/js/shared/themeManager.js`가 우측 하단 위젯(접속자 위젯 위)으로 주입. 선택값은 `localStorage('pg-theme')`에 저장하고 `<html data-theme>`로 적용
-- 깜빡임 방지: `views/layouts/base.pug`와 `client/index.html`의 `<head>` 인라인 스크립트가 CSS 로드 전에 `data-theme`를 먼저 설정
+- **화면 투명도**: 테마 버튼 옆 슬라이더로 전체 화면(`<html>`) 투명도를 30~100%로 조절(몰래 하는 컨셉—덜 눈에 띄게). `localStorage('pg-opacity')`에 저장. 위젯을 항상 조작할 수 있도록 최소 30%로 제한
+- 깜빡임 방지: `views/layouts/base.pug`와 `client/index.html`의 `<head>` 인라인 스크립트가 CSS 로드 전에 `data-theme`와 투명도를 먼저 설정
 - 모든 페이지에서 `themeManager.js`와 `online-widget.js`를 로드(base.pug scripts 블록 + index.html)
 
 ## 테트리스 — 멀티플레이어 규칙

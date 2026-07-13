@@ -5,7 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>파티 게임즈</title>
   <script>
-    try { var t = localStorage.getItem('pg-theme'); if (t && t !== 'green') document.documentElement.dataset.theme = t; } catch (e) {}
+    try {
+      var t = localStorage.getItem('pg-theme'); if (t && t !== 'green') document.documentElement.dataset.theme = t;
+      var o = parseInt(localStorage.getItem('pg-opacity'), 10);
+      if (Number.isFinite(o) && o >= 30 && o < 100) document.documentElement.style.opacity = o / 100;
+    } catch (e) {}
   </script>
   <link rel="stylesheet" href="/css/index.css" />
 </head>
