@@ -130,6 +130,7 @@ client/
   - `set_answer { answer }`: 방장이 게임 화면 안에서 제시어를 내면 `intermission` → `playing`
 - 제시어를 맞혀도 대기실로 나가지 않는다. 라운드가 끝나면 `intermission`으로 돌아가 **방장이 그 방 안에서 연속으로 다음 제시어를 낸다** (점수/승수 누적, 자동 복귀 타이머 없음)
 - 제시어는 자모 단위로 분해 (`jamoLogic.js`의 `decompose`): 초성/받침 쌍자음도 낱개로 분해 (ㄲ→ㄱㄱ 등)
+- 키보드에는 쌍자음(ㄲㄸㅃㅆㅉ) 키가 없다. 기본 자음을 두 번 눌러 표현한다(ㄱㄱ=ㄲ). 배열은 표준 두벌식 순서 + 중앙 정렬 (`jamo.js`의 `KEY_ROWS`)
 - 참가자는 최대 5회 시도, 각 시도는 Wordle 방식으로 자모 단위 채점 (`judge`): green(정확한 위치)/yellow(포함되지만 위치 다름)/black(불포함)
 - 정답 시 점수 = `max(1, 6 - 시도 횟수)`, 승수 +1. 첫 정답자가 나오거나 참가자 전원이 소진하면 라운드 종료
 - 정답/우승자는 `intermission`에서만 `safeState`에 포함해 공개(`answer`/`winnerName`/`hasResult`). `playing` 중에는 마스킹되어 참가자에게 노출되지 않는다
