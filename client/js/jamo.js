@@ -48,6 +48,7 @@ import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
   const btnSetAnswer   = $('btn-set-answer');
   const jamoWaitNotice = $('jamo-wait-notice');
   const jamoBoards     = $('jamo-boards');
+  const jamoMyKeyboard = $('jamo-my-keyboard');
   const jamoGuessRow   = $('jamo-guess-row');
   const inputGuess     = $('input-guess');
   const btnSubmitGuess = $('btn-submit-guess');
@@ -204,20 +205,17 @@ import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
       `;
       card.appendChild(header);
 
-      if (!isMe && attempts.length === 0) {
-        const hint = document.createElement('div');
-        hint.className = 'jamo-hidden-hint';
-        hint.textContent = '아직 제출한 답이 없습니다.';
-        card.appendChild(hint);
-      }
-
       attempts.forEach((a, idx) => card.appendChild(renderAttemptRow(a, idx, answerLength)));
       for (let r = attempts.length; r < MAX_ATTEMPTS; r++) card.appendChild(renderEmptyRow(answerLength));
 
-      if (isMe && state.keyboardVisible) card.appendChild(renderKeyboard(gameState.myKeyboard || {}));
-
       jamoBoards.appendChild(card);
     });
+
+    // ── 내 키보드 (보드 카드 밖에 별도로 렌더 → 카드 크기 통일) ────────────
+    const showKeyboard = !isSpectator && !iAmHost && state.keyboardVisible && participants.some(p => p.id === myId);
+    jamoMyKeyboard.style.display = showKeyboard ? 'flex' : 'none';
+    jamoMyKeyboard.innerHTML = '';
+    if (showKeyboard) jamoMyKeyboard.appendChild(renderKeyboard(gameState.myKeyboard || {}));
 
     const me = participants.find(p => p.id === myId);
     const canGuess = !isSpectator && !iAmHost && state.state === 'playing' && me && !me.solved && (me.attemptCount || 0) < MAX_ATTEMPTS;
