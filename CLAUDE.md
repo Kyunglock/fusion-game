@@ -12,28 +12,34 @@
 | `/` (default) | 악어 이빨 뽑기 | `rooms_update` |
 | `/bomb` | 폭탄 돌리기 | `bomb_rooms_update` |
 | `/tetris` | 테트리스 | `tetris_rooms_update` |
+| `/jamo` | 자모 워들 | `jamo_rooms_update` |
 
 ## 파일 구조
 ```
 src/
+  config.js              ← 게임별 설정 상수 (인원 제한, 타이머 등)
+  routes/
+    auth.js              ← /api/auth, /api/me, /api/me/username, /api/me/avatar (세션 기반)
   shared/
-    roomManager.js      ← 범용 방 관리 팩토리 (createRoomManager)
-    socketHandlers.js   ← 공통 소켓 핸들러 등록 (registerCommonHandlers)
-  game/{crocodile,bomb,tetris}/
-    rooms.js            ← createRoomManager() 호출 + 게임별 설정/함수
-    socket.js           ← registerCommonHandlers() + 게임 고유 핸들러만
+    roomManager.js       ← 범용 방 관리 팩토리 (createRoomManager)
+    socketHandlers.js    ← 공통 소켓 핸들러 등록 (registerCommonHandlers)
+  game/{crocodile,bomb,tetris,jamo}/
+    rooms.js             ← createRoomManager() 호출 + 게임별 설정/함수
+    socket.js            ← registerCommonHandlers() + 게임 고유 핸들러만
+    jamoLogic.js         ← (jamo 전용) 한글 자모 분해/판정 순수 로직 (decompose, judge, keyboardFromAttempts)
 
 views/
   layouts/base.pug      ← 공통 HTML head, script, 채팅 포함
   mixins/
     lobby.pug           ← +lobby() 로비 화면
-    waiting.pug         ← +waitingRoom() 대기실
+    waiting.pug         ← +waitingRoom() 대기실 (게임별 host 전용 UI는 block 슬롯으로 주입 가능)
     chat.pug            ← 채팅 패널 + FAB
     overlays.pug        ← +aloneOverlay(), +resultOverlay(), +spectatorGame
   pages/
     crocodile.pug       ← extends base + 게임 고유 UI
     bomb.pug
     tetris.pug
+    jamo.pug             ← +waitingRoom() 블록으로 방장 제시어 입력 UI 주입
 
 client/
   js/
@@ -43,13 +49,16 @@ client/
       lobbyRenderer.js  ← renderRoomList, renderSpectatorList, renderWaiting
       uiHelpers.js      ← triggerFlash, triggerShake, 카운트다운, aloneOverlay
       authCheck.js      ← /api/me 호출 + 세션 정보 표시
+    index.js            ← 홈(로비 선택) 페이지 로직, 각 네임스페이스 방 개수 표시
+    online-widget.js    ← 우측 하단 접속자 위젯
     crocodile.js        ← 게임 고유 로직 (이빨 렌더링, 턴 타이머)
     bomb.js             ← 게임 고유 로직 (폭탄 패스, 위험 표시)
     tetris.js           ← 테트리스 엔진 + 게임 고유 UI
+    jamo.js              ← 자모 보드/키보드 렌더링, 답 제출
     utils.js            ← escHtml, showError
   partials/
     crocodile-svg.html  ← 악어 SVG (서버에서 읽어 Pug 변수로 주입)
-  scss/{crocodile,bomb,tetris}.scss  ← @use 'components' 공통 임포트
+  scss/{crocodile,bomb,tetris,jamo}.scss  ← @use 'components' 공통 임포트
   scss/_components.scss              ← 공통 UI 컴포넌트
   scss/_variables.scss
   scss/_base.scss
@@ -84,14 +93,15 @@ client/
 - `GET /crocodile` → Pug 렌더링 (`views/pages/crocodile.pug`)
 - `GET /bomb` → Pug 렌더링 (`views/pages/bomb.pug`)
 - `GET /tetris` → Pug 렌더링 (`views/pages/tetris.pug`)
-- 기존 정적 HTML 파일은 제거 가능 (Pug로 대체됨)
+- `GET /jamo` → Pug 렌더링 (`views/pages/jamo.pug`)
+- 기존 정적 HTML 파일은 제거 가능 (Pug로 대체됨). 단, 홈(로비 선택) 페이지인 `client/index.html`은 정적 파일로 유지
 
 ## 관전 시스템
 - 방 생성 시 `allowSpectators: true` 기본값
 - 로비에서 방장이 토글 가능 (`toggle_spectator_allowed` 이벤트)
 - 게임 중인 방에 `join_as_spectator`로 입장 → `spectate_start` 수신
 - 관전자는 `spectators[]` 배열에 별도 저장 (players[]와 분리)
-- CSS 클래스 `is-spectating` (악어/폭탄) 또는 `spectating` (테트리스) 로 인터랙션 비활성화
+- CSS 클래스 `is-spectating` (악어/폭탄/자모) 또는 `spectating` (테트리스) 로 인터랙션 비활성화
 - `member_joined` 이벤트 → 채팅 시스템 메시지로 표시 (`chat-system-msg`)
 - 방 목록에 게임 중인 방도 표시 (관전 허용된 것만)
 
@@ -100,6 +110,7 @@ client/
 - 아바타 없는 유저는 `playerAvatarEmojis` Map으로 임시 이모지 부여
   - 악어/폭탄: `['🐊','🦁','🐸','🦊']`
   - 테트리스: `['🟦','🟧','🟥','🟩']`
+  - 자모 워들: `['🔤','🔡','🔠','📝']`
 
 ## 테트리스 — 멀티플레이어 규칙
 - 최소 2명, 최대 4명
@@ -110,6 +121,17 @@ client/
 - **홀드 (좌측 Ctrl)**: 현재 블럭을 보관, 다시 불러오기 가능 (한 블럭당 1회)
 - 탈락자는 보드 페이드, 마지막 1명이 우승
 - 관전자는 보드·컨트롤 숨김 (`#screen-game.spectating`)
+
+## 자모 워들 — 게임 규칙
+- 최소 2명(방장 + 참가자 1명), 최대 8명
+- 방장이 대기실에서 제시어를 입력하고 게임을 시작 (`start_game { answer }`)
+- 제시어는 자모 단위로 분해 (`jamoLogic.js`의 `decompose`): 초성/받침 쌍자음도 낱개로 분해 (ㄲ→ㄱㄱ 등)
+- 참가자는 최대 5회 시도, 각 시도는 Wordle 방식으로 자모 단위 채점 (`judge`): green(정확한 위치)/yellow(포함되지만 위치 다름)/black(불포함)
+- 정답 시 점수 = `max(1, 6 - 시도 횟수)`, 승수 +1. 전원 5회 소진 시 무승부로 라운드 종료
+- **방장은 테스트로 답을 제출할 수 있지만 정답을 맞혀도 게임 종료/점수/승수에 영향 없음**
+- 참가자는 자신의 시도는 전체 공개, 다른 참가자의 시도는 색깔 결과만 보이고 단어/자모는 마스킹됨. 방장·관전자는 전체 열람 가능 (`socket.js`의 `emitGameState`가 뷰어별로 개인화된 `jamo_state` 이벤트 전송)
+- 방장이 대기실에서 참가자 키보드(자모별 최고 등급 색상) 노출 여부 토글 가능 (`toggle_keyboard_visible`)
+- 라운드 종료 후 6초 뒤 자동으로 대기실 복귀 (점수/승수는 유지, 시도 기록만 초기화)
 
 ## CSS 빌드
 ```bash
