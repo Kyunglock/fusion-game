@@ -429,9 +429,9 @@
   padding: 10px;
   background: var(--bg);
   border-radius: 10px;
-  // 키보드는 카드 폭을 벌리지 않고(=intrinsic 폭 0), 보드가 정한 폭 안에서 접히게 한다.
   box-sizing: border-box;
-  width: 0;
+  // 카드가 보드보다 넓으면(긴 제시어) 키보드를 카드 폭에 맞춰 늘리고,
+  // 좁으면 카드가 키보드 한 줄 폭까지 늘어나 키가 줄바꿈되지 않게 한다.
   min-width: 100%;
 }
 
@@ -446,7 +446,7 @@
   display: flex;
   gap: 4px;
   margin-bottom: 4px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap; // 키보드 각 줄은 항상 한 줄로
   justify-content: center;
 }
 
@@ -454,6 +454,7 @@
   min-width: 26px;
   height: 28px;
   padding: 0 5px;
+  flex-shrink: 0;
   border-radius: 6px;
   background: var(--card);
   border: 1px solid var(--border);
