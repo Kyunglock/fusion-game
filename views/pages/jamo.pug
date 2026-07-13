@@ -1,0 +1,34 @@
+extends ../layouts/base
+include ../mixins/lobby
+include ../mixins/waiting
+include ../mixins/overlays
+
+block overlays
+  #error-toast
+  #join-toast
+
+block content
+  +lobby({ logoEmoji: '🔤', title: '자모 워들', titleClass: 'title-jamo', subtitle: '숨겨진 낱말을 자모로 맞혀보세요! 🔡' })
+
+  +waitingRoom({ subtext: '방장이 제시어를 정하면 참가자들이 자모로 맞힙니다' })
+    #jamo-host-setup(style="display:none")
+      label(for="input-answer") 제시어 (참가자에게는 숨겨집니다)
+      input#input-answer(type="text" placeholder="예: 자연, 월드컵, 아무말" maxlength="20" autocomplete="off")
+      label.toggle-row
+        input#input-keyboard-toggle(type="checkbox" checked)
+        span 참가자 키보드 보이기
+
+  #screen-game.screen
+    +spectatorGame
+
+    #jamo-banner
+    #jamo-scoreboard
+
+    #jamo-boards
+
+    #jamo-guess-row
+      input#input-guess(type="text" placeholder="답 입력" maxlength="20" autocomplete="off")
+      button#btn-submit-guess.btn.btn-primary 제출
+
+  +aloneOverlay('🔤💨')
+  +resultOverlay({ emoji: '🎉', title: '정답!' })

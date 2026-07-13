@@ -1,0 +1,285 @@
+@use 'variables' as *;
+@use 'base';
+@use 'components';
+
+// ── Pages ─────────────────────────────────────────────────────────────────────
+.page {
+  display: none;
+  min-height: 100vh;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+
+  &.active { display: flex; }
+}
+
+// ── Site header ───────────────────────────────────────────────────────────────
+.site-logo {
+  font-size: clamp(2rem, 7vw, 3rem);
+  font-weight: 900;
+  color: var(--green-light);
+  letter-spacing: -1.5px;
+  text-shadow: 0 2px 12px rgba(74, 184, 102, 0.4);
+  text-align: center;
+  line-height: 1;
+}
+
+.site-tagline {
+  margin-top: 8px;
+  font-size: 0.88rem;
+  color: var(--green-pale);
+  opacity: 0.65;
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+// ── Auth note ─────────────────────────────────────────────────────────────────
+.auth-note {
+  text-align: center;
+  font-size: 0.76rem;
+  color: $muted;
+  margin-top: 12px;
+}
+
+// ── User bar ──────────────────────────────────────────────────────────────────
+.user-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 40px;
+  padding: 8px 16px;
+  margin-bottom: 24px;
+  width: 100%;
+  max-width: 640px;
+
+  .avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--green-mid), var(--green-dark));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    flex-shrink: 0;
+    overflow: hidden;
+
+    img { width: 100%; height: 100%; object-fit: cover; }
+  }
+
+  .nick-info {
+    flex: 1;
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  .nick {
+    font-weight: 700;
+    color: var(--green-light);
+    font-size: 0.95rem;
+    white-space: nowrap;
+  }
+}
+
+.btn-edit-profile {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: $muted;
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.2s, color 0.2s;
+
+  &:hover {
+    border-color: var(--green-light);
+    color: var(--green-light);
+  }
+}
+
+// ── Profile modal ─────────────────────────────────────────────────────────────
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 500;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+
+  &.show { display: flex; }
+}
+
+.modal-card {
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  padding: 32px 28px;
+  width: 100%;
+  max-width: 360px;
+  animation: pop-in 0.25s cubic-bezier(0.17, 0.84, 0.44, 1);
+
+  @keyframes pop-in {
+    from { transform: scale(0.9); opacity: 0; }
+    to   { transform: scale(1);   opacity: 1; }
+  }
+}
+
+.modal-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--green-light);
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.label-hint {
+  color: $muted;
+  font-weight: 400;
+  font-size: 0.8em;
+}
+
+// ── Avatar preview (modal) ─────────────────────────────────────────────────────
+.avatar-preview-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.avatar-preview {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--green-mid), var(--green-dark));
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.2rem;
+  overflow: hidden;
+
+  img { width: 100%; height: 100%; object-fit: cover; }
+}
+
+.avatar-upload-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px;
+  border: 1.5px dashed var(--border);
+  border-radius: 12px;
+  color: var(--green-pale);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+  margin-bottom: 8px;
+
+  &:hover {
+    border-color: var(--green-light);
+    color: var(--green-light);
+  }
+
+  input[type="file"] { display: none; }
+}
+
+.avatar-hint {
+  text-align: center;
+  font-size: 0.72rem;
+  color: $muted;
+  margin-bottom: 20px;
+}
+
+// ── Game grid ─────────────────────────────────────────────────────────────────
+.section-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: $muted;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+  width: 100%;
+  max-width: 640px;
+}
+
+.game-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  width: 100%;
+  max-width: 640px;
+}
+
+.game-card {
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: 18px;
+  padding: 20px 12px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  text-decoration: none;
+  color: var(--text);
+  transition: border-color 0.2s, transform 0.15s, box-shadow 0.15s;
+  position: relative;
+  overflow: hidden;
+
+  &:hover:not(.disabled) {
+    border-color: var(--green-light);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(74, 184, 102, 0.2);
+  }
+
+  &:active:not(.disabled) { transform: scale(0.97); }
+
+  &.disabled {
+    cursor: default;
+    opacity: 0.4;
+    filter: grayscale(0.5);
+  }
+}
+
+.game-icon { font-size: 2.4rem; line-height: 1; }
+.game-name { font-size: 0.85rem; font-weight: 700; text-align: center; line-height: 1.3; }
+.game-desc { font-size: 0.7rem; color: $muted; text-align: center; line-height: 1.4; }
+
+.room-count {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--green-light);
+  background: rgba(74, 184, 102, 0.12);
+  border: 1px solid rgba(74, 184, 102, 0.25);
+  border-radius: 20px;
+  padding: 2px 9px;
+  min-height: 18px;
+  line-height: 14px;
+  transition: opacity 0.3s;
+
+  &:empty { display: none; }
+}
+
+.badge {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  font-size: 0.57rem;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  padding: 2px 7px;
+  border-radius: 20px;
+  text-transform: uppercase;
+
+  &-new  { background: linear-gradient(135deg, var(--green-mid), var(--green-dark)); color: $white; }
+  &-soon { background: #1c3a28; color: $muted; border: 1px solid var(--border); }
+}

@@ -1,0 +1,32 @@
+extends ../layouts/base
+include ../mixins/lobby
+include ../mixins/waiting
+include ../mixins/overlays
+
+block overlays
+  #flash-overlay
+  #error-toast
+  #join-toast
+
+block content
+  +lobby({ logoImg: '/images/crocodile.png', title: '악어 이빨 뽑기', titleClass: 'title-croc', subtitle: '누가 함정 이빨을 눌를까요? 🐊' })
+
+  +waitingRoom()
+
+  #screen-game.screen
+    +spectatorGame
+    #turn-banner ...
+    #turn-timer.turn-timer
+
+    #disconnected-notice(style="display:none;width:100%;max-width:600px;background:#9d0208;border-radius:12px;padding:12px 20px;text-align:center;font-weight:700;")
+      span#disconnected-msg
+      button#btn-return-lobby.btn.btn-secondary(style="margin:8px 0 0;width:auto;padding:8px 18px;font-size:0.88rem;") 대기실로 돌아가기
+
+    #player-row
+
+    #croc-wrapper
+      | !{crocodileSvg}
+      #teeth-grid
+
+  +aloneOverlay('🐊💨')
+  +resultOverlay({ emoji: '😱', title: '게임 오버!' })

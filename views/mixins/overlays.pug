@@ -1,0 +1,21 @@
+mixin aloneOverlay(emoji)
+  #alone-overlay
+    #alone-card
+      .alone-emoji= emoji || '💨'
+      .alone-title 혼자 남았습니다
+      #alone-msg.alone-msg 상대방이 방을 나갔습니다.
+      #alone-countdown 3
+
+mixin resultOverlay(defaults)
+  #result-overlay
+    #result-card
+      #result-emoji.result-emoji= (defaults && defaults.emoji) || '😱'
+      #result-title.result-title= (defaults && defaults.title) || '게임 오버!'
+      #result-sub.result-sub
+      #result-countdown.result-countdown
+
+mixin spectatorGame
+  #spectator-banner(style="display:none") 👀 관전 중
+  #spectator-list-game(style="display:none")
+    span.spectator-game-label 👀 관전자
+    #spectator-names-game

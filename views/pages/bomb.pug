@@ -1,0 +1,29 @@
+extends ../layouts/base
+include ../mixins/lobby
+include ../mixins/waiting
+include ../mixins/overlays
+
+block overlays
+  #flash-overlay
+  #error-toast
+  #join-toast
+
+block content
+  +lobby({ logoEmoji: '💣', title: '폭탄 돌리기', titleClass: 'title-croc', subtitle: '폭발 전에 얼른 넘겨라! 💥' })
+
+  +waitingRoom()
+
+  #screen-game.screen
+    +spectatorGame
+    #holder-banner ...
+
+    #player-row
+
+    #bomb-display
+      #bomb-emoji 💣
+
+    button#btn-pass.btn 패스!
+    p#pass-hint 스페이스바를 눌러도 패스할 수 있어요
+
+  +aloneOverlay('💣💨')
+  +resultOverlay({ emoji: '💥', title: '폭발!' })

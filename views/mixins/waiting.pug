@@ -1,0 +1,25 @@
+mixin waitingRoom(opts)
+  #screen-waiting.screen
+    .card.fade-in
+      h2(style="text-align:center;margin-bottom:16px;font-size:1.3rem;color:var(--green-light);") 대기실
+      if opts && opts.subtext
+        p(style="text-align:center;font-size:0.78rem;color:var(--muted);margin-bottom:16px;")= opts.subtext
+
+      ul#player-list.player-list
+
+      #spectator-section(style="display:none")
+        .spectator-section-label 👀 관전자
+        ul#spectator-list-waiting.spectator-list
+
+      #spectator-toggle-wrap(style="display:none")
+        label.spectator-toggle-label
+          span 관전 허용
+          button#btn-toggle-spectator.spectator-toggle-btn(data-enabled="true") ON
+
+      block
+
+      p#waiting-hint.waiting-hint 준비 완료를 눌러주세요.
+
+      button#btn-ready.btn.btn-ready(style="display:none") 준비 완료
+      button#btn-start.btn.btn-primary(style="display:none") 게임 시작
+      button#btn-leave-lobby.btn.btn-secondary(style="margin-top:4px") 나가기

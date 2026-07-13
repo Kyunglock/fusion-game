@@ -1,0 +1,9 @@
+node_modules/
+.env
+*.db
+*.db-shm
+*.db-wal
+.DS_Store
+
+# Compiled CSS (generated from client/scss/)
+client/css/

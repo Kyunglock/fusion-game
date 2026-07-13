@@ -1,0 +1,22 @@
+doctype html
+html(lang="ko")
+  head
+    meta(charset="UTF-8")
+    meta(name="viewport" content="width=device-width, initial-scale=1.0")
+    title #{title} | 파티 게임즈
+    link(rel="stylesheet" href=`/css/${cssFile}.css`)
+  body
+    block overlays
+      if hasFlash
+        #flash-overlay
+
+      #error-toast
+      #join-toast
+
+    block content
+
+    include ../mixins/chat
+
+    block scripts
+      script(type="module" src=`/js/${jsFile}.js`)
+      script(type="module" src="/js/online-widget.js")

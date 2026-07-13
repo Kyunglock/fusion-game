@@ -1,0 +1,692 @@
+@use 'variables' as *;
+@use 'base';
+@use 'components';
+
+// ── Screens ───────────────────────────────────────────────────────────────────
+.screen {
+  display: none;
+  min-height: 100vh;
+  padding: 20px;
+
+  &.active {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+// ── Lobby ─────────────────────────────────────────────────────────────────────
+#screen-lobby .card { max-width: 400px; }
+
+.title-croc {
+  font-size: clamp(2rem, 6vw, 3rem);
+  font-weight: 900;
+  color: var(--green-light);
+  text-align: center;
+  letter-spacing: -1px;
+  text-shadow: 0 2px 8px rgba(74, 184, 102, 0.4);
+  line-height: 1.1;
+}
+
+.title-sub {
+  text-align: center;
+  color: var(--green-pale);
+  font-size: 0.95rem;
+  margin-top: 6px;
+  margin-bottom: 24px;
+  opacity: 0.8;
+}
+
+// ── Room list (lobby) ─────────────────────────────────────────────────────────
+.no-rooms-hint {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--gray);
+  padding: 14px 0 4px;
+}
+
+#room-list {
+  margin-top: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.room-item {
+  padding: 11px 14px;
+  background: var(--bg);
+  border-radius: 10px;
+  margin-bottom: 2px;
+
+  .room-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .room-host-label {
+    font-size: 0.7rem;
+    color: var(--green-pale);
+  }
+
+  .room-item-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .room-host-name {
+    flex: 1;
+    min-width: 0;
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .room-count {
+    font-size: 0.8rem;
+    color: var(--green-pale);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .room-join-btn {
+    width: auto;
+    padding: 6px 16px;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+  }
+}
+
+// ── Waiting room ──────────────────────────────────────────────────────────────
+#screen-waiting {
+  justify-content: flex-start;
+  padding-top: 40px;
+
+  .card { max-width: 500px; }
+}
+
+.player-list {
+  list-style: none;
+  margin-bottom: 20px;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: var(--bg);
+    margin-bottom: 8px;
+    font-weight: 600;
+
+    .avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .badge-ready {
+      margin-left: auto;
+      font-size: 0.7rem;
+      background: #1c3a28;
+      color: #456355;
+      border: 1px solid #1e4d2e;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-weight: 700;
+
+      &.is-ready {
+        background: var(--green-dark);
+        color: var(--green-light);
+        border-color: var(--green-mid);
+      }
+    }
+
+    .badge-host {
+      margin-left: auto;
+      font-size: 0.7rem;
+      background: var(--yellow);
+      color: #1a1a1a;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-weight: 700;
+    }
+
+    .badge-you {
+      font-size: 0.7rem;
+      background: var(--green-mid);
+      color: $white;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-weight: 700;
+    }
+
+    .kick-btn {
+      width: auto;
+      padding: 2px 8px;
+      font-size: 0.7rem;
+      border-radius: 20px;
+      margin-bottom: 0;
+      line-height: 1.4;
+      height: auto;
+    }
+  }
+}
+
+.waiting-hint {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--gray);
+  margin-bottom: 16px;
+}
+
+// ── Game screen ───────────────────────────────────────────────────────────────
+#screen-game {
+  padding: 16px;
+  justify-content: flex-start;
+  padding-top: 24px;
+  gap: 16px;
+}
+
+// ── Holder banner ─────────────────────────────────────────────────────────────
+#holder-banner {
+  width: 100%;
+  max-width: 600px;
+  text-align: center;
+  padding: 10px 20px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  font-size: 1rem;
+  font-weight: 700;
+  transition: background 0.3s;
+
+  &.my-bomb {
+    background: linear-gradient(135deg, #7a1a1a, #c0392b);
+    border-color: #e63946;
+    color: $white;
+    box-shadow: 0 0 18px rgba(230, 57, 70, 0.45);
+    animation: bomb-pulse 1.2s infinite;
+  }
+}
+
+@keyframes bomb-pulse {
+  0%, 100% { box-shadow: 0 0 18px rgba(230, 57, 70, 0.45); }
+  50%       { box-shadow: 0 0 36px rgba(230, 57, 70, 0.85); }
+}
+
+// ── Player row ────────────────────────────────────────────────────────────────
+#player-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  max-width: 600px;
+}
+
+// 폭탄게임 전용 active 상태 (빨간 테두리/글로우/폭탄 이모지)
+.player-card.has-bomb {
+  border-color: #e63946;
+  box-shadow: 0 0 14px rgba(230, 57, 70, 0.4);
+  animation: bomb-card-glow 1.2s infinite;
+
+  &::after {
+    content: '💣';
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    font-size: 1.3rem;
+    animation: bomb-shake 0.5s ease-in-out infinite;
+  }
+}
+
+@keyframes bomb-card-glow {
+  0%, 100% { box-shadow: 0 0 14px rgba(230, 57, 70, 0.4); }
+  50%       { box-shadow: 0 0 28px rgba(230, 57, 70, 0.8); }
+}
+
+// ── Bomb display ──────────────────────────────────────────────────────────────
+#bomb-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 320px;
+}
+
+#bomb-emoji {
+  font-size: 6rem;
+  line-height: 1;
+  user-select: none;
+  animation: bomb-idle 0.6s ease-in-out infinite;
+
+  &.urgent {
+    animation: bomb-shake 0.3s ease-in-out infinite;
+  }
+}
+
+@keyframes bomb-idle {
+  0%, 100% { transform: rotate(-4deg); }
+  50%       { transform: rotate(4deg); }
+}
+
+
+// ── Pass button ───────────────────────────────────────────────────────────────
+#btn-pass {
+  display: none;
+  width: auto;
+  align-self: center;
+  background: linear-gradient(135deg, #1a7a2e, #27ae60);
+  border: none;
+  border-radius: 14px;
+  color: $white;
+  font-size: 1.3rem;
+  font-weight: 900;
+  padding: 16px 48px;
+  cursor: pointer;
+  letter-spacing: 1px;
+  box-shadow: 0 4px 18px rgba(39, 174, 96, 0.4);
+  transition: transform 0.12s, filter 0.12s;
+
+  &:hover { transform: scale(1.05); filter: brightness(1.15); }
+  &:active { transform: scale(0.97); }
+
+  &.visible { display: inline-block; }
+}
+
+#pass-hint {
+  display: none;
+  margin-top: 10px;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.45);
+  text-align: center;
+}
+
+#btn-pass.visible ~ #pass-hint {
+  display: block;
+}
+
+// ── Alone overlay ─────────────────────────────────────────────────────────────
+#alone-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.82);
+  z-index: 300;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+
+  &.show { display: flex; }
+}
+
+#alone-card {
+  background: var(--card);
+  border: 2px solid var(--border);
+  border-radius: 24px;
+  padding: 36px 32px;
+  max-width: 360px;
+  width: 100%;
+  text-align: center;
+  animation: pop-in 0.35s cubic-bezier(0.17, 0.84, 0.44, 1);
+
+  .alone-emoji { font-size: 4rem; margin-bottom: 10px; }
+  .alone-title { font-size: 1.5rem; font-weight: 900; color: var(--yellow); margin-bottom: 8px; }
+  .alone-msg   { font-size: 0.95rem; color: var(--green-pale); margin-bottom: 20px; line-height: 1.6; }
+}
+
+#alone-countdown {
+  font-size: 2.8rem;
+  font-weight: 900;
+  color: var(--red);
+  line-height: 1;
+}
+
+// ── Flash overlay ─────────────────────────────────────────────────────────────
+#flash-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0;
+  background: var(--red);
+  transition: opacity 0.1s;
+
+  &.flash { animation: flash-anim 0.7s ease-out forwards; }
+}
+
+@keyframes flash-anim {
+  0%   { opacity: 0.75; }
+  100% { opacity: 0; }
+}
+
+// ── Body shake ────────────────────────────────────────────────────────────────
+@keyframes body-shake {
+  0%, 100% { transform: translateX(0); }
+  15%  { transform: translateX(-12px); }
+  30%  { transform: translateX(12px); }
+  45%  { transform: translateX(-10px); }
+  60%  { transform: translateX(10px); }
+  75%  { transform: translateX(-6px); }
+  90%  { transform: translateX(6px); }
+}
+
+body.shaking { animation: body-shake 0.5s ease-out; }
+
+// ── Bomb shake ────────────────────────────────────────────────────────────────
+@keyframes bomb-shake {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  15%  { transform: rotate(-12deg) scale(1.05); }
+  30%  { transform: rotate(12deg)  scale(1.05); }
+  45%  { transform: rotate(-10deg) scale(1.08); }
+  60%  { transform: rotate(10deg)  scale(1.08); }
+  75%  { transform: rotate(-6deg)  scale(1.05); }
+  90%  { transform: rotate(6deg)   scale(1.05); }
+}
+
+// ── Result overlay ────────────────────────────────────────────────────────────
+#result-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.78);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+
+  &.show { display: flex; }
+}
+
+#result-card {
+  background: var(--card);
+  border: 2px solid var(--border);
+  border-radius: 24px;
+  padding: 36px 32px;
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+  animation: pop-in 0.4s cubic-bezier(0.17, 0.84, 0.44, 1);
+}
+
+@keyframes pop-in {
+  from { transform: scale(0.5); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+.result-emoji { font-size: 5rem; line-height: 1; margin-bottom: 8px; }
+
+.result-title {
+  font-size: 2rem;
+  font-weight: 900;
+  margin-bottom: 6px;
+
+  &.lose { color: var(--red); }
+  &.win  { color: var(--green-light); }
+}
+
+.result-sub {
+  font-size: 1rem;
+  color: var(--green-pale);
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.result-countdown {
+  font-size: 3.5rem;
+  font-weight: 900;
+  color: var(--green-light);
+  line-height: 1;
+  margin-bottom: 8px;
+  animation: timer-pulse 0.4s ease-in-out infinite alternate;
+}
+
+@keyframes timer-pulse {
+  from { transform: scale(1);    opacity: 1; }
+  to   { transform: scale(1.15); opacity: 0.8; }
+}
+
+// ── Avatar colour palette ─────────────────────────────────────────────────────
+.av-0 { background: #2d8a45; }
+.av-1 { background: #1a7fbf; }
+.av-2 { background: #9b2335; }
+.av-3 { background: #8b5e0a; }
+
+// ── Chat widget ───────────────────────────────────────────────────────────────
+#chat-wrap {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 500;
+  display: none;
+
+  &.visible { display: block; }
+}
+
+#chat-fab {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, $green-dark, $green-mid);
+  border: 2px solid var(--green-light);
+  color: white;
+  font-size: 1.3rem;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s;
+
+  &:hover { transform: scale(1.08); }
+}
+
+#chat-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #e63946;
+  color: white;
+  border-radius: 50%;
+  min-width: 20px;
+  height: 20px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+
+  &.show { display: flex; }
+}
+
+#chat-panel {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 0;
+  width: 340px;
+  background: #0a2318;
+  border: 1.5px solid var(--border);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+  transition: opacity 0.15s, transform 0.15s;
+
+  &.collapsed {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(8px);
+  }
+}
+
+#chat-header {
+  padding: 11px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  font-weight: 700;
+  color: var(--green-light);
+  font-size: 0.92rem;
+
+  button {
+    background: none;
+    border: none;
+    color: var(--green-pale);
+    cursor: pointer;
+    font-size: 0.95rem;
+    padding: 0;
+    line-height: 1;
+    &:hover { color: var(--green-light); }
+  }
+}
+
+#chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 260px;
+  max-height: 380px;
+
+  &::-webkit-scrollbar { width: 3px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+}
+
+.chat-msg {
+  display: flex;
+  gap: 7px;
+  align-items: flex-start;
+
+  &.is-me { flex-direction: row-reverse; }
+
+  .chat-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--border);
+    font-size: 0.95rem;
+
+    img { width: 100%; height: 100%; object-fit: cover; }
+  }
+
+  .chat-bubble {
+    max-width: 195px;
+    width: fit-content;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+
+    .chat-name {
+      font-size: 0.68rem;
+      color: var(--green-pale);
+    }
+
+    .chat-text {
+      background: #1a3d2a;
+      border-radius: 10px;
+      padding: 6px 10px;
+      font-size: 0.86rem;
+      color: var(--green-light);
+      word-break: break-word;
+      line-height: 1.4;
+    }
+  }
+
+  &.is-me .chat-bubble {
+    align-items: flex-end;
+
+    .chat-name { text-align: right; }
+    .chat-text { background: linear-gradient(135deg, $green-dark, $green-mid); color: white; }
+  }
+}
+
+.chat-system-msg {
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--green-pale);
+  padding: 2px 0;
+}
+
+#chat-input-row {
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  align-items: flex-end;
+
+  textarea {
+    flex: 1;
+    background: #152e1f;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    color: var(--green-light);
+    font-size: 0.86rem;
+    outline: none;
+    font-family: inherit;
+    resize: none;
+    line-height: 1.4;
+    max-height: 80px;
+    overflow-y: auto;
+
+    &::placeholder { color: var(--green-pale); }
+    &:focus { border-color: var(--green-light); }
+    &::-webkit-scrollbar { width: 3px; }
+    &::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  }
+
+  button {
+    background: linear-gradient(135deg, $green-dark, $green-mid);
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-size: 0.82rem;
+    font-weight: 700;
+    padding: 8px 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    font-family: inherit;
+    flex-shrink: 0;
+    height: 36px;
+
+    &:hover { filter: brightness(1.2); }
+  }
+}
+
+// ── Responsive ────────────────────────────────────────────────────────────────
+@media (max-width: 500px) {
+  .card { padding: 22px 18px; }
+  #chat-panel { width: 280px; }
+  #bomb-emoji { font-size: 4rem; }
+  #btn-pass { font-size: 1.1rem; padding: 14px 32px; }
+}
+
+// ── 관전 모드: 패스 버튼 숨김 ──────────────────────────────────────────────
+#screen-game.is-spectating #btn-pass { display: none !important; }

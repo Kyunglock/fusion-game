@@ -1,0 +1,38 @@
+// ── SCSS 변수 ────────────────────────────────────────────────────────────────
+$green-dark:  #1a5c2a;
+$green-mid:   #2d8a45;
+$green-light: #4ab866;
+$green-pale:  #a8e6bc;
+$yellow:      #f5c842;
+$gold:        #d4a017;
+$red:         #e63946;
+$red-dark:    #9d0208;
+$white:       #ffffff;
+$bg:          #0d2b1a;
+$card:        #122b1c;
+$border:      #1e4d2e;
+$text:        #e8f5ee;
+$muted:       #456355;
+$shadow:      rgba(0, 0, 0, 0.5);
+$font-stack:  'Segoe UI', 'Apple SD Gothic Neo', sans-serif;
+
+// ── CSS 커스텀 프로퍼티 (런타임에서도 접근 가능) ─────────────────────────────
+:root {
+  --green-dark:  #{$green-dark};
+  --green-mid:   #{$green-mid};
+  --green-light: #{$green-light};
+  --green-pale:  #{$green-pale};
+  --yellow:      #{$yellow};
+  --gold:        #{$gold};
+  --red:         #{$red};
+  --red-dark:    #{$red-dark};
+  --white:       #{$white};
+  --bg:          #{$bg};
+  --card:        #{$card};
+  --border:      #{$border};
+  --text:        #{$text};
+  --muted:       #{$muted};
+  --shadow:      #{$shadow};
+  --gray:        #6c757d;
+  --tooth-size:  52px;
+}

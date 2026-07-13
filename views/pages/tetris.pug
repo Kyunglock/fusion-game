@@ -1,0 +1,64 @@
+extends ../layouts/base
+include ../mixins/lobby
+include ../mixins/waiting
+include ../mixins/overlays
+
+block overlays
+  #error-toast
+  #join-toast
+
+block content
+  +lobby({ logoEmoji: '🧱', title: '테트리스 배틀', titleClass: 'title-tetris', subtitle: '줄을 지우면 상대에게 쓰레기 줄이 쌓인다! ⚡' })
+
+  +waitingRoom({ subtext: '최대 4명 · 키보드 또는 터치로 조작' })
+
+  #screen-game.screen
+    #game-layout
+      //- Left: Hold + Stats
+      .side-panel#left-panel
+        .panel-label 홀드
+        .panel-box
+          canvas#canvas-hold
+        #stats
+          .stat-row
+            span.stat-label 줄
+            span#stat-lines.stat-value 0
+          .stat-row
+            span.stat-label 점수
+            span#stat-score.stat-value 0
+          .stat-row
+            span.stat-label 레벨
+            span#stat-level.stat-value 1
+
+      //- Center: Main board
+      #main-board-wrap
+        canvas#canvas-board
+        #dead-overlay
+          .dead-emoji 💀
+          div 탈락!
+        #combo-display
+
+      //- Right: Next pieces
+      .side-panel#right-panel
+        .panel-label 다음
+        .panel-box
+          canvas#canvas-next
+
+    //- Mobile controls
+    #mobile-controls
+      button#btn-left(title="왼쪽") ◀
+      button#btn-rotate(title="회전") ↻
+      button#btn-right(title="오른쪽") ▶
+      button#btn-soft-drop(title="아래") ▼
+      button#btn-hard-drop(title="바로 내리기") DROP
+      button#btn-hold(title="홀드") H
+
+    #spectator-banner 👀 관전 중
+    #opponent-area
+
+    #spectator-list-game(style="display:none")
+      span.spectator-game-label 👀 관전자
+      #spectator-names-game
+
+  +aloneOverlay('🧱💨')
+  +resultOverlay({ emoji: '🏆', title: '승리!' })

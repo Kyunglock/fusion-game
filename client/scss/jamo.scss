@@ -1,0 +1,774 @@
+@use 'variables' as *;
+@use 'base';
+@use 'components';
+
+// ── Screens ───────────────────────────────────────────────────────────────────
+.screen {
+  display: none;
+  min-height: 100vh;
+  padding: 20px;
+
+  &.active {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+// ── Lobby ─────────────────────────────────────────────────────────────────────
+#screen-lobby .card { max-width: 400px; }
+
+.title-jamo {
+  font-size: clamp(2rem, 6vw, 3rem);
+  font-weight: 900;
+  color: var(--green-light);
+  text-align: center;
+  letter-spacing: -1px;
+  text-shadow: 0 2px 8px rgba(74, 184, 102, 0.4);
+  line-height: 1.1;
+}
+
+.title-sub {
+  text-align: center;
+  color: var(--green-pale);
+  font-size: 0.95rem;
+  margin-top: 6px;
+  margin-bottom: 24px;
+  opacity: 0.8;
+}
+
+// ── Room list (lobby) ─────────────────────────────────────────────────────────
+.no-rooms-hint {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--gray);
+  padding: 14px 0 4px;
+}
+
+#room-list {
+  margin-top: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.room-item {
+  padding: 11px 14px;
+  background: var(--bg);
+  border-radius: 10px;
+  margin-bottom: 2px;
+
+  .room-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .room-host-label {
+    font-size: 0.7rem;
+    color: var(--green-pale);
+  }
+
+  .room-item-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .room-host-name {
+    flex: 1;
+    min-width: 0;
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .room-count {
+    font-size: 0.8rem;
+    color: var(--green-pale);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .room-join-btn {
+    width: auto;
+    padding: 6px 16px;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+  }
+}
+
+// ── Waiting room ──────────────────────────────────────────────────────────────
+#screen-waiting {
+  justify-content: flex-start;
+  padding-top: 40px;
+
+  .card { max-width: 500px; }
+}
+
+.player-list {
+  list-style: none;
+  margin-bottom: 20px;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: var(--bg);
+    margin-bottom: 8px;
+    font-weight: 600;
+
+    .avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .badge-ready {
+      margin-left: auto;
+      font-size: 0.7rem;
+      background: #1c3a28;
+      color: #456355;
+      border: 1px solid #1e4d2e;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-weight: 700;
+
+      &.is-ready {
+        background: var(--green-dark);
+        color: var(--green-light);
+        border-color: var(--green-mid);
+      }
+    }
+
+    .badge-host {
+      margin-left: auto;
+      font-size: 0.7rem;
+      background: var(--yellow);
+      color: #1a1a1a;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-weight: 700;
+    }
+
+    .badge-you {
+      font-size: 0.7rem;
+      background: var(--green-mid);
+      color: $white;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-weight: 700;
+    }
+
+    .kick-btn {
+      width: auto;
+      padding: 2px 8px;
+      font-size: 0.7rem;
+      border-radius: 20px;
+      margin-bottom: 0;
+      line-height: 1.4;
+      height: auto;
+    }
+  }
+}
+
+.waiting-hint {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--gray);
+  margin-bottom: 16px;
+}
+
+// ── 방장 제시어 입력 패널 ──────────────────────────────────────────────────────
+#jamo-host-setup {
+  margin: 4px 0 16px;
+  padding: 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+
+  label:not(.toggle-row) { margin-top: 0; }
+
+  input[type='text'] { margin-bottom: 10px; }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: var(--green-pale);
+    font-weight: 600;
+    margin-bottom: 0;
+    cursor: pointer;
+
+    input { width: auto; margin: 0; }
+  }
+}
+
+// ── 게임 화면 ─────────────────────────────────────────────────────────────────
+#screen-game {
+  padding: 16px;
+  justify-content: flex-start;
+  padding-top: 24px;
+  gap: 14px;
+  width: 100%;
+}
+
+#jamo-banner {
+  width: 100%;
+  max-width: 640px;
+  min-height: 1.2em;
+  text-align: center;
+  padding: 10px 20px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--green-light);
+}
+
+// ── 스코어보드 ────────────────────────────────────────────────────────────────
+#jamo-scoreboard {
+  width: 100%;
+  max-width: 640px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 6px 14px;
+
+  &:empty { display: none; }
+}
+
+.jamo-score-row {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 0;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+
+  &:first-child { border-top: 0; }
+}
+
+.jamo-score-rank { font-weight: 800; color: var(--yellow); }
+.jamo-score-name {
+  font-weight: 700;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jamo-score-value { font-weight: 700; color: var(--green-pale); white-space: nowrap; }
+
+// ── 참가자별 보드 ─────────────────────────────────────────────────────────────
+#jamo-boards {
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 52vh;
+  overflow-y: auto;
+  padding-right: 2px;
+
+  &::-webkit-scrollbar { width: 4px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+}
+
+.jamo-board-card {
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 14px;
+
+  &.is-me { border-color: var(--yellow); }
+}
+
+.jamo-board-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.jamo-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, var(--green-mid), var(--green-dark));
+}
+
+.jamo-board-name {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 140px;
+}
+
+.jamo-solved {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--green-light);
+}
+
+.jamo-attempt-count {
+  margin-left: auto;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.jamo-hidden-hint {
+  color: var(--muted);
+  font-size: 0.8rem;
+  padding: 4px 0 8px;
+}
+
+// ── 자모 셀 그리드 ─────────────────────────────────────────────────────────────
+.jamo-row {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.jamo-word-label {
+  width: 60px;
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--green-pale);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  &.masked { color: var(--muted); font-weight: 600; }
+}
+
+.jamo-cell {
+  width: 32px;
+  height: 32px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 0.85rem;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  flex-shrink: 0;
+
+  &.green  { background: linear-gradient(135deg, var(--green-mid), var(--green-dark)); border-color: transparent; color: $white; }
+  &.yellow { background: linear-gradient(135deg, $yellow, $gold); border-color: transparent; color: #1a1a1a; }
+  &.black  { background: #24382c; border-color: var(--border); color: var(--green-pale); }
+}
+
+.jamo-row-empty .jamo-cell { opacity: 0.5; }
+
+// ── 개인 키보드 ───────────────────────────────────────────────────────────────
+.jamo-keyboard {
+  margin-top: 10px;
+  padding: 10px;
+  background: var(--bg);
+  border-radius: 10px;
+}
+
+.jamo-keyboard-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.jamo-key-row {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+
+.jamo-key {
+  min-width: 26px;
+  height: 28px;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 0.78rem;
+  color: var(--text);
+
+  &.green  { background: linear-gradient(135deg, var(--green-mid), var(--green-dark)); border-color: transparent; color: $white; }
+  &.yellow { background: linear-gradient(135deg, $yellow, $gold); border-color: transparent; color: #1a1a1a; }
+  &.black  { background: #24382c; border-color: var(--border); color: var(--green-pale); }
+}
+
+// ── 답 입력 ────────────────────────────────────────────────────────────────────
+#jamo-guess-row {
+  display: none;
+  width: 100%;
+  max-width: 640px;
+  gap: 8px;
+
+  input { flex: 1; margin-bottom: 0; }
+  button { width: auto; padding: 12px 22px; flex-shrink: 0; }
+}
+
+// ── Avatar colour palette ─────────────────────────────────────────────────────
+.av-0 { background: #2d8a45; }
+.av-1 { background: #1a7fbf; }
+.av-2 { background: #9b2335; }
+.av-3 { background: #8b5e0a; }
+
+// ── Alone overlay ─────────────────────────────────────────────────────────────
+#alone-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.82);
+  z-index: 300;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+
+  &.show { display: flex; }
+}
+
+#alone-card {
+  background: var(--card);
+  border: 2px solid var(--border);
+  border-radius: 24px;
+  padding: 36px 32px;
+  max-width: 360px;
+  width: 100%;
+  text-align: center;
+  animation: pop-in 0.35s cubic-bezier(0.17, 0.84, 0.44, 1);
+
+  .alone-emoji { font-size: 4rem; margin-bottom: 10px; }
+  .alone-title { font-size: 1.5rem; font-weight: 900; color: var(--yellow); margin-bottom: 8px; }
+  .alone-msg   { font-size: 0.95rem; color: var(--green-pale); margin-bottom: 20px; line-height: 1.6; }
+}
+
+#alone-countdown {
+  font-size: 2.8rem;
+  font-weight: 900;
+  color: var(--red);
+  line-height: 1;
+}
+
+// ── Result overlay ────────────────────────────────────────────────────────────
+#result-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.78);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+
+  &.show { display: flex; }
+}
+
+#result-card {
+  background: var(--card);
+  border: 2px solid var(--border);
+  border-radius: 24px;
+  padding: 36px 32px;
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+  animation: pop-in 0.4s cubic-bezier(0.17, 0.84, 0.44, 1);
+}
+
+@keyframes pop-in {
+  from { transform: scale(0.5); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+.result-emoji { font-size: 5rem; line-height: 1; margin-bottom: 8px; }
+
+.result-title {
+  font-size: 2rem;
+  font-weight: 900;
+  margin-bottom: 6px;
+
+  &.lose { color: var(--red); }
+  &.win  { color: var(--green-light); }
+}
+
+.result-sub {
+  font-size: 1rem;
+  color: var(--green-pale);
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.result-countdown {
+  font-size: 3.5rem;
+  font-weight: 900;
+  color: var(--green-light);
+  line-height: 1;
+  margin-bottom: 8px;
+  animation: timer-pulse 0.4s ease-in-out infinite alternate;
+}
+
+@keyframes timer-pulse {
+  from { transform: scale(1);    opacity: 1; }
+  to   { transform: scale(1.15); opacity: 0.8; }
+}
+
+// ── 관전자 리스트 / 배너 / 토글 (공통 컴포넌트 클래스 재사용) ─────────────────
+// spectator-section, spectator-toggle-wrap, spectator-list, spectator-banner,
+// spectator-list-game, room-badge-playing 등은 _components.scss 에서 제공
+
+// ── 채팅 위젯 ─────────────────────────────────────────────────────────────────
+#chat-wrap {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 500;
+  display: none;
+
+  &.visible { display: block; }
+}
+
+#chat-fab {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, $green-dark, $green-mid);
+  border: 2px solid var(--green-light);
+  color: white;
+  font-size: 1.3rem;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s;
+
+  &:hover { transform: scale(1.08); }
+}
+
+#chat-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #e63946;
+  color: white;
+  border-radius: 50%;
+  min-width: 20px;
+  height: 20px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+
+  &.show { display: flex; }
+}
+
+#chat-panel {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 0;
+  width: 340px;
+  background: #0a2318;
+  border: 1.5px solid var(--border);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+  transition: opacity 0.15s, transform 0.15s;
+
+  &.collapsed {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(8px);
+  }
+}
+
+#chat-header {
+  padding: 11px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  font-weight: 700;
+  color: var(--green-light);
+  font-size: 0.92rem;
+
+  button {
+    background: none;
+    border: none;
+    color: var(--green-pale);
+    cursor: pointer;
+    font-size: 0.95rem;
+    padding: 0;
+    line-height: 1;
+    &:hover { color: var(--green-light); }
+  }
+}
+
+#chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 260px;
+  max-height: 380px;
+
+  &::-webkit-scrollbar { width: 3px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+}
+
+.chat-msg {
+  display: flex;
+  gap: 7px;
+  align-items: flex-start;
+
+  &.is-me { flex-direction: row-reverse; }
+
+  .chat-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--border);
+    font-size: 0.95rem;
+
+    img { width: 100%; height: 100%; object-fit: cover; }
+  }
+
+  .chat-bubble {
+    max-width: 195px;
+    width: fit-content;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+
+    .chat-name {
+      font-size: 0.68rem;
+      color: var(--green-pale);
+    }
+
+    .chat-text {
+      background: #1a3d2a;
+      border-radius: 10px;
+      padding: 6px 10px;
+      font-size: 0.86rem;
+      color: var(--green-light);
+      word-break: break-word;
+      line-height: 1.4;
+    }
+  }
+
+  &.is-me .chat-bubble {
+    align-items: flex-end;
+
+    .chat-name { text-align: right; }
+    .chat-text { background: linear-gradient(135deg, $green-dark, $green-mid); color: white; }
+  }
+}
+
+.chat-system-msg {
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--green-pale);
+  padding: 2px 0;
+}
+
+#chat-input-row {
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  align-items: flex-end;
+
+  textarea {
+    flex: 1;
+    background: #152e1f;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    color: var(--green-light);
+    font-size: 0.86rem;
+    outline: none;
+    font-family: inherit;
+    resize: none;
+    line-height: 1.4;
+    max-height: 80px;
+    overflow-y: auto;
+
+    &::placeholder { color: var(--green-pale); }
+    &:focus { border-color: var(--green-light); }
+    &::-webkit-scrollbar { width: 3px; }
+    &::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  }
+
+  button {
+    background: linear-gradient(135deg, $green-dark, $green-mid);
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-size: 0.82rem;
+    font-weight: 700;
+    padding: 8px 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    font-family: inherit;
+    flex-shrink: 0;
+    height: 36px;
+
+    &:hover { filter: brightness(1.2); }
+  }
+}
+
+// ── Responsive ────────────────────────────────────────────────────────────────
+@media (max-width: 500px) {
+  .card { padding: 22px 18px; }
+  #chat-panel { width: 280px; }
+  .jamo-cell { width: 27px; height: 27px; font-size: 0.75rem; }
+  .jamo-word-label { width: 46px; font-size: 0.66rem; }
+}
+
+// ── 관전 모드: 답 입력 숨김 ────────────────────────────────────────────────────
+#screen-game.is-spectating #jamo-guess-row { display: none !important; }
