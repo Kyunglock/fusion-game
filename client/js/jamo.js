@@ -4,11 +4,10 @@ import { $, screens, showScreen, initScreenManager } from './shared/screenManage
 import { initChat, setChatVisible, showJoinNotice } from './shared/chatManager.js';
 import { checkAuth }       from './shared/authCheck.js';
 import { renderRoomList, renderSpectatorList, renderWaiting as renderWaitingBase } from './shared/lobbyRenderer.js';
-import { nameHtml, nameText, startReturnCountdown, clearReturnCountdown, showAloneOverlay } from './shared/uiHelpers.js';
+import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
 
 {
   const MAX_ATTEMPTS = 5;
-  const RETURN_DELAY = 6;
 
   const KEY_ROWS = [
     ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'],
@@ -22,7 +21,6 @@ import { nameHtml, nameText, startReturnCountdown, clearReturnCountdown, showAlo
   let gameState   = { players: [], myKeyboard: {} };
   let amHost      = false;
   let isSpectator = false;
-  let resultShown = false;
 
   const playerAvatarEmojis = new Map();
   const AVATAR_ICONS = ['🔤', '🔡', '🔠', '📝'];
@@ -38,20 +36,18 @@ import { nameHtml, nameText, startReturnCountdown, clearReturnCountdown, showAlo
   const waitingHint     = $('waiting-hint');
 
   const jamoHostSetup       = $('jamo-host-setup');
-  const inputAnswer         = $('input-answer');
   const inputKeyboardToggle = $('input-keyboard-toggle');
 
   const jamoBanner     = $('jamo-banner');
   const jamoScoreboard = $('jamo-scoreboard');
+  const jamoHostRound  = $('jamo-host-round');
+  const inputAnswer    = $('input-answer');
+  const btnSetAnswer   = $('btn-set-answer');
+  const jamoWaitNotice = $('jamo-wait-notice');
   const jamoBoards     = $('jamo-boards');
   const jamoGuessRow   = $('jamo-guess-row');
   const inputGuess     = $('input-guess');
   const btnSubmitGuess = $('btn-submit-guess');
-
-  const resultOverlay = $('result-overlay');
-  const resultEmoji   = $('result-emoji');
-  const resultTitle   = $('result-title');
-  const resultSub     = $('result-sub');
 
   // ── Socket ───────────────────────────────────────────────────────────────
   const socket = io('/jamo');
@@ -135,29 +131,52 @@ import { nameHtml, nameText, startReturnCountdown, clearReturnCountdown, showAlo
   }
 
   function renderBoards(state) {
-    const answerLength = state.answerLength || 0;
+    const answerLength  = state.answerLength || 0;
+    const iAmHost       = state.players.find(p => p.id === myId)?.isHost ?? false;
+    const participants  = state.players.filter(p => !p.isHost);
+    const isIntermission = state.state === 'intermission';
 
+    // ── 배너 ──────────────────────────────────────────────────────────────
     if (state.state === 'playing') {
       jamoBanner.textContent = `이번 문제는 자모 ${answerLength}칸입니다.`;
-    } else if (state.state === 'roundEnd') {
+    } else if (isIntermission && state.hasResult) {
       jamoBanner.textContent = state.winnerName
         ? `${nameText(state.winnerName)}님 정답! 정답은 "${state.answer}" 입니다.`
         : `아무도 못 맞췄습니다. 정답은 "${state.answer}" 입니다.`;
+    } else if (isIntermission) {
+      jamoBanner.textContent = iAmHost
+        ? '제시어를 입력해 라운드를 시작하세요.'
+        : '방장이 제시어를 준비하고 있습니다…';
     } else {
       jamoBanner.textContent = '';
     }
 
-    const bySco = [...state.players].sort((a, b) => (b.score || 0) - (a.score || 0) || (b.wins || 0) - (a.wins || 0));
+    // ── 스코어보드 (방장 제외, 참가자만 경쟁) ─────────────────────────────
+    const bySco = [...participants].sort((a, b) => (b.score || 0) - (a.score || 0) || (b.wins || 0) - (a.wins || 0));
     jamoScoreboard.innerHTML = bySco.map((p, i) => `
       <div class="jamo-score-row">
         <span class="jamo-score-rank">${i + 1}위</span>
-        <span class="jamo-score-name">${nameHtml(p.name)}${p.isHost ? ' 👑' : ''}${p.id === myId ? ' (나)' : ''}</span>
+        <span class="jamo-score-name">${nameHtml(p.name)}${p.id === myId ? ' (나)' : ''}</span>
         <span class="jamo-score-value">${p.score || 0}점 · ${p.wins || 0}승</span>
       </div>
     `).join('');
 
+    // ── 방장 제시어 출제 / 참가자 대기 안내 ───────────────────────────────
+    const showHostRound = !isSpectator && iAmHost && isIntermission;
+    jamoHostRound.style.display = showHostRound ? 'flex' : 'none';
+    if (showHostRound) { inputAnswer.value = ''; inputAnswer.focus(); }
+
+    const showWaitNotice = isIntermission && !iAmHost;
+    jamoWaitNotice.style.display = showWaitNotice ? '' : 'none';
+    if (showWaitNotice) {
+      jamoWaitNotice.textContent = state.hasResult
+        ? '방장이 다음 제시어를 준비하고 있습니다…'
+        : '방장이 제시어를 준비하고 있습니다…';
+    }
+
+    // ── 참가자별 보드 (방장은 보드 없음) ──────────────────────────────────
     jamoBoards.innerHTML = '';
-    const ordered = [...state.players].sort((a, b) => (a.id === myId ? 0 : 1) - (b.id === myId ? 0 : 1));
+    const ordered = [...participants].sort((a, b) => (a.id === myId ? 0 : 1) - (b.id === myId ? 0 : 1));
 
     ordered.forEach((p, i) => {
       if (!p.avatar) playerAvatarEmojis.set(p.id, AVATAR_ICONS[i % AVATAR_ICONS.length]);
@@ -176,7 +195,6 @@ import { nameHtml, nameText, startReturnCountdown, clearReturnCountdown, showAlo
       header.innerHTML = `
         ${avatarHtml}
         <span class="jamo-board-name">${nameHtml(p.name)}</span>
-        ${p.isHost ? '<span class="badge-host">방장</span>' : ''}
         ${isMe     ? '<span class="badge-you">나</span>' : ''}
         ${p.solved ? '<span class="jamo-solved">✅ 정답</span>' : ''}
         <span class="jamo-attempt-count">${p.attemptCount || 0}/${MAX_ATTEMPTS}회</span>
@@ -198,29 +216,12 @@ import { nameHtml, nameText, startReturnCountdown, clearReturnCountdown, showAlo
       jamoBoards.appendChild(card);
     });
 
-    const me = state.players.find(p => p.id === myId);
-    const canGuess = !isSpectator && state.state === 'playing' && me && !me.solved && (me.attemptCount || 0) < MAX_ATTEMPTS;
-    jamoGuessRow.style.display = (!isSpectator && state.state === 'playing') ? 'flex' : 'none';
+    const me = participants.find(p => p.id === myId);
+    const canGuess = !isSpectator && !iAmHost && state.state === 'playing' && me && !me.solved && (me.attemptCount || 0) < MAX_ATTEMPTS;
+    jamoGuessRow.style.display = (!isSpectator && !iAmHost && state.state === 'playing') ? 'flex' : 'none';
     inputGuess.disabled     = !canGuess;
     btnSubmitGuess.disabled = !canGuess;
   }
-
-  // ── Result overlay ────────────────────────────────────────────────────────
-  function showResult(state) {
-    const won  = !!state.winnerName;
-    const me   = roomState?.players.find(p => p.id === myId);
-    const iWon = won && me && me.name === state.winnerName;
-
-    resultEmoji.textContent = iWon ? '🎉' : won ? '👏' : '🤔';
-    resultTitle.textContent = iWon ? '정답입니다!' : won ? `${nameText(state.winnerName)}님 정답!` : '아무도 못 맞췄어요';
-    resultTitle.className   = 'result-title ' + (iWon ? 'win' : won ? 'lose' : '');
-    resultSub.textContent   = `정답은 "${state.answer}" 입니다.`;
-
-    startReturnCountdown(RETURN_DELAY);
-    resultOverlay.classList.add('show');
-  }
-
-  function hideResult() { resultOverlay.classList.remove('show'); }
 
   // ── Socket events ─────────────────────────────────────────────────────────
   socket.on('jamo_rooms_update', (list) => renderRoomList(roomListEl, list, socket, myName, nameHtml));
@@ -235,22 +236,13 @@ import { nameHtml, nameText, startReturnCountdown, clearReturnCountdown, showAlo
     }
 
     if (state.state === 'lobby') {
-      clearReturnCountdown();
-      hideResult();
-      resultShown = false;
       showScreen('waiting');
       renderWaiting(state);
-    } else if (state.state === 'playing') {
-      hideResult();
-      resultShown = false;
+    } else {
+      // intermission(라운드 대기) / playing(라운드 진행) 모두 게임 화면 유지
       showScreen('game');
       renderBoards(state);
       renderSpectatorList(state.spectators ?? []);
-    } else if (state.state === 'roundEnd') {
-      showScreen('game');
-      renderBoards(state);
-      renderSpectatorList(state.spectators ?? []);
-      if (!resultShown) { showResult(state); resultShown = true; }
     }
   });
 
@@ -284,7 +276,7 @@ import { nameHtml, nameText, startReturnCountdown, clearReturnCountdown, showAlo
   });
 
   socket.on('alone_in_room', ({ message }) => {
-    showAloneOverlay(message, () => hideResult());
+    showAloneOverlay(message);
   });
 
   // ── UI event listeners ────────────────────────────────────────────────────
@@ -297,9 +289,17 @@ import { nameHtml, nameText, startReturnCountdown, clearReturnCountdown, showAlo
 
   btnReady.addEventListener('click', () => socket.emit('toggle_ready'));
 
-  btnStart.addEventListener('click', () => {
-    socket.emit('start_game', { answer: inputAnswer.value.trim() });
-  });
+  btnStart.addEventListener('click', () => socket.emit('start_game'));
+
+  function setAnswer() {
+    const val = inputAnswer.value.trim();
+    if (!val) { showError('제시어를 입력해주세요.'); inputAnswer.focus(); return; }
+    socket.emit('set_answer', { answer: val });
+    inputAnswer.value = '';
+  }
+
+  btnSetAnswer.addEventListener('click', setAnswer);
+  inputAnswer.addEventListener('keydown', e => { if (e.key === 'Enter') setAnswer(); });
 
   inputKeyboardToggle.addEventListener('change', () => {
     socket.emit('toggle_keyboard_visible', { visible: inputKeyboardToggle.checked });
@@ -315,7 +315,6 @@ import { nameHtml, nameText, startReturnCountdown, clearReturnCountdown, showAlo
     showScreen('lobby');
     roomState   = null;
     gameState   = { players: [], myKeyboard: {} };
-    resultShown = false;
   });
 
   function submitGuess() {

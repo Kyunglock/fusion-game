@@ -10,10 +10,8 @@ block overlays
 block content
   +lobby({ logoEmoji: '🔤', title: '자모 워들', titleClass: 'title-jamo', subtitle: '숨겨진 낱말을 자모로 맞혀보세요! 🔡' })
 
-  +waitingRoom({ subtext: '방장이 제시어를 정하면 참가자들이 자모로 맞힙니다' })
+  +waitingRoom({ subtext: '방장은 게임에 입장한 뒤 제시어를 내고, 참가자들이 자모로 맞힙니다' })
     #jamo-host-setup(style="display:none")
-      label(for="input-answer") 제시어 (참가자에게는 숨겨집니다)
-      input#input-answer(type="text" placeholder="예: 자연, 월드컵, 아무말" maxlength="20" autocomplete="off")
       label.toggle-row
         input#input-keyboard-toggle(type="checkbox" checked)
         span 참가자 키보드 보이기
@@ -24,6 +22,14 @@ block content
     #jamo-banner
     #jamo-scoreboard
 
+    //- 방장 제시어 출제 (라운드 사이에만 노출)
+    #jamo-host-round(style="display:none")
+      input#input-answer(type="text" placeholder="제시어 입력 (예: 자연, 월드컵)" maxlength="20" autocomplete="off")
+      button#btn-set-answer.btn.btn-primary 제시어 내기
+
+    //- 참가자 라운드 대기 안내
+    #jamo-wait-notice(style="display:none")
+
     #jamo-boards
 
     #jamo-guess-row
@@ -31,4 +37,3 @@ block content
       button#btn-submit-guess.btn.btn-primary 제출
 
   +aloneOverlay('🔤💨')
-  +resultOverlay({ emoji: '🎉', title: '정답!' })

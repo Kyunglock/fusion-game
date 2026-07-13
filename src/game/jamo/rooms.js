@@ -23,6 +23,11 @@ const manager = createRoomManager({
     keyboardVisible: room.keyboardVisible,
     answerLength:    room.answerJamo.length,
     minPlayers:      JAMO_MIN_PLAYERS,
+    // 정답/우승자는 라운드 사이(intermission)에서만 공개한다.
+    // playing 중에 answer를 내려보내면 참가자에게 정답이 노출되므로 반드시 마스킹.
+    answer:          room.state === 'intermission' ? room.answer : '',
+    winnerName:      room.state === 'intermission' ? room.winnerName : null,
+    hasResult:       room.state === 'intermission' && room.answerJamo.length > 0,
   }),
   resetGameState: (room) => {
     room.answer     = '';

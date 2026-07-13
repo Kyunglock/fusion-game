@@ -273,16 +273,45 @@
 }
 .jamo-score-value { font-weight: 700; color: var(--green-pale); white-space: nowrap; }
 
-// ── 참가자별 보드 ─────────────────────────────────────────────────────────────
-#jamo-boards {
+// ── 방장 제시어 출제 (게임 안, 라운드 사이) ────────────────────────────────────
+#jamo-host-round {
+  display: none; // JS 가 flex 로 노출
   width: 100%;
   max-width: 640px;
+  gap: 8px;
+
+  input { flex: 1; margin-bottom: 0; }
+  button { width: auto; padding: 12px 22px; flex-shrink: 0; }
+}
+
+// ── 참가자 라운드 대기 안내 ─────────────────────────────────────────────────────
+#jamo-wait-notice {
+  width: 100%;
+  max-width: 640px;
+  text-align: center;
+  padding: 14px 20px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px dashed var(--border);
+  color: var(--green-pale);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+// ── 참가자별 보드 (방장이 한 눈에 볼 수 있도록 배치, 시도는 한 줄로) ─────────────
+#jamo-boards {
+  width: 100%;
+  max-width: 1080px;
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
   gap: 12px;
-  max-height: 52vh;
+  max-height: 62vh;
   overflow-y: auto;
   padding-right: 2px;
+
+  &:empty { display: none; }
 
   &::-webkit-scrollbar { width: 4px; }
   &::-webkit-scrollbar-track { background: transparent; }
@@ -294,6 +323,10 @@
   border: 1.5px solid var(--border);
   border-radius: 14px;
   padding: 12px 14px;
+  width: fit-content;      // 제시어 길이에 맞게 카드 폭 조정 → 시도가 한 줄에 표시
+  min-width: 220px;
+  max-width: 100%;
+  overflow-x: auto;        // 아주 긴 제시어는 카드 내부에서 가로 스크롤
 
   &.is-me { border-color: var(--yellow); }
 }
@@ -353,11 +386,12 @@
   gap: 4px;
   margin-bottom: 4px;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap; // 한 시도는 항상 한 줄로
+  width: max-content;
 }
 
 .jamo-word-label {
-  width: 60px;
+  width: 48px;
   flex-shrink: 0;
   font-size: 0.72rem;
   font-weight: 700;
@@ -395,6 +429,10 @@
   padding: 10px;
   background: var(--bg);
   border-radius: 10px;
+  // 키보드는 카드 폭을 벌리지 않고(=intrinsic 폭 0), 보드가 정한 폭 안에서 접히게 한다.
+  box-sizing: border-box;
+  width: 0;
+  min-width: 100%;
 }
 
 .jamo-keyboard-title {
@@ -770,5 +808,6 @@
   .jamo-word-label { width: 46px; font-size: 0.66rem; }
 }
 
-// ── 관전 모드: 답 입력 숨김 ────────────────────────────────────────────────────
-#screen-game.is-spectating #jamo-guess-row { display: none !important; }
+// ── 관전 모드: 답 입력 / 제시어 출제 숨김 ──────────────────────────────────────
+#screen-game.is-spectating #jamo-guess-row,
+#screen-game.is-spectating #jamo-host-round { display: none !important; }
