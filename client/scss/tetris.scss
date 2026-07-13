@@ -99,14 +99,14 @@
     }
 
     .badge-ready {
-      margin-left: auto; font-size: 0.7rem; background: #1c3a28;
+      margin-left: auto; font-size: 0.7rem; background: var(--chip);
       color: #456355; border: 1px solid #1e4d2e; padding: 2px 8px;
       border-radius: 20px; font-weight: 700;
       &.is-ready { background: var(--green-dark); color: var(--green-light); border-color: var(--green-mid); }
     }
 
     .badge-host { margin-left: auto; font-size: 0.7rem; background: var(--yellow); color: #1a1a1a; padding: 2px 8px; border-radius: 20px; font-weight: 700; }
-    .badge-you { font-size: 0.7rem; background: var(--green-mid); color: $white; padding: 2px 8px; border-radius: 20px; font-weight: 700; }
+    .badge-you { font-size: 0.7rem; background: var(--green-mid); color: var(--white); padding: 2px 8px; border-radius: 20px; font-weight: 700; }
     .kick-btn { width: auto; padding: 2px 8px; font-size: 0.7rem; border-radius: 20px; margin-bottom: 0; line-height: 1.4; height: auto; }
   }
 }
@@ -449,7 +449,7 @@
 
 #chat-fab {
   width: 52px; height: 52px; border-radius: 50%;
-  background: linear-gradient(135deg, $green-dark, $green-mid);
+  background: linear-gradient(135deg, var(--green-dark), var(--green-mid));
   border: 2px solid var(--green-light);
   color: white; font-size: 1.3rem; cursor: pointer;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
@@ -468,7 +468,7 @@
 
 #chat-panel {
   position: absolute; bottom: calc(100% + 10px); left: 0;
-  width: 320px; background: #0a2318;
+  width: 320px; background: var(--sunken);
   border: 1.5px solid var(--border); border-radius: 16px;
   display: flex; flex-direction: column; overflow: hidden;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
@@ -508,13 +508,13 @@
     max-width: 180px; width: fit-content; display: flex; flex-direction: column;
     align-items: flex-start; gap: 2px;
     .chat-name { font-size: 0.68rem; color: var(--green-pale); }
-    .chat-text { background: #1a3d2a; border-radius: 10px; padding: 6px 10px; font-size: 0.86rem; color: var(--green-light); word-break: break-word; line-height: 1.4; }
+    .chat-text { background: var(--bubble); border-radius: 10px; padding: 6px 10px; font-size: 0.86rem; color: var(--green-light); word-break: break-word; line-height: 1.4; }
   }
 
   &.is-me .chat-bubble {
     align-items: flex-end;
     .chat-name { text-align: right; }
-    .chat-text { background: linear-gradient(135deg, $green-dark, $green-mid); color: white; }
+    .chat-text { background: linear-gradient(135deg, var(--green-dark), var(--green-mid)); color: white; }
   }
 }
 
@@ -523,7 +523,7 @@
   border-top: 1px solid var(--border); align-items: flex-end;
 
   textarea {
-    flex: 1; background: #152e1f; border: 1px solid var(--border);
+    flex: 1; background: var(--sunken); border: 1px solid var(--border);
     border-radius: 8px; padding: 8px 10px; color: var(--green-light);
     font-size: 0.86rem; outline: none; font-family: inherit; resize: none;
     line-height: 1.4; max-height: 80px; overflow-y: auto;
@@ -534,7 +534,7 @@
   }
 
   button {
-    background: linear-gradient(135deg, $green-dark, $green-mid);
+    background: linear-gradient(135deg, var(--green-dark), var(--green-mid));
     border: none; border-radius: 8px; color: white;
     font-size: 0.82rem; font-weight: 700; padding: 8px 12px;
     cursor: pointer; white-space: nowrap; font-family: inherit;

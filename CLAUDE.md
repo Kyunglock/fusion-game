@@ -112,6 +112,16 @@ client/
   - 테트리스: `['🟦','🟧','🟥','🟩']`
   - 자모 워들: `['🔤','🔡','🔠','📝']`
 
+## 테마 (위장 테마)
+- "회사에서 몰래 하는" 컨셉 — 대놓고 게임처럼 안 보이도록 여러 위장 테마를 제공한다.
+- 4가지: `green`(기본 그린), `doc`(문서/워드풍 라이트), `sheet`(스프레드시트/엑셀풍), `code`(코드 에디터 다크)
+- 구현: 색상은 전부 CSS 변수(`var(--x)`)로 통일. `client/scss/_variables.scss`의 `:root`가 기본(그린), `:root[data-theme='doc'|'sheet'|'code']` 블록이 팔레트를 오버라이드
+  - `--green-*`는 이름은 그대로지만 각 테마의 **강조색 스케일**로 재정의됨(그린→블루 등). 채팅/서피스용으로 `--sunken`(채팅 패널·입력), `--bubble`(받은 말풍선), `--chip`(옅은 배지) 추가
+  - SCSS 컴파일타임 변수(`$green-dark` 등)를 색상 위치에서 쓰면 테마가 안 먹으니 항상 `var(--x)` 사용
+- 전환 UI: `client/js/shared/themeManager.js`가 우측 하단 위젯(접속자 위젯 위)으로 주입. 선택값은 `localStorage('pg-theme')`에 저장하고 `<html data-theme>`로 적용
+- 깜빡임 방지: `views/layouts/base.pug`와 `client/index.html`의 `<head>` 인라인 스크립트가 CSS 로드 전에 `data-theme`를 먼저 설정
+- 모든 페이지에서 `themeManager.js`와 `online-widget.js`를 로드(base.pug scripts 블록 + index.html)
+
 ## 테트리스 — 멀티플레이어 규칙
 - 최소 2명, 최대 4명
 - **콤보 시스템**: 연속으로 라인 클리어 시 콤보 증가, 실패 시 초기화

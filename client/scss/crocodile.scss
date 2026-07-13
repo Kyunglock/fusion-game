@@ -140,7 +140,7 @@
     .badge-ready {
       margin-left: auto;
       font-size: 0.7rem;
-      background: #1c3a28;
+      background: var(--chip);
       color: #456355;
       border: 1px solid #1e4d2e;
       padding: 2px 8px;
@@ -167,7 +167,7 @@
     .badge-you {
       font-size: 0.7rem;
       background: var(--green-mid);
-      color: $white;
+      color: var(--white);
       padding: 2px 8px;
       border-radius: 20px;
       font-weight: 700;
@@ -235,9 +235,9 @@
   transition: background 0.3s;
 
   &.my-turn {
-    background: linear-gradient(135deg, $green-dark, $green-mid);
+    background: linear-gradient(135deg, var(--green-dark), var(--green-mid));
     border-color: var(--green-light);
-    color: $white;
+    color: var(--white);
     box-shadow: 0 0 18px rgba(74, 184, 102, 0.35);
     animation: pulse-glow 1.6s infinite;
   }
@@ -524,7 +524,7 @@ body.shaking { animation: body-shake 0.5s ease-out; }
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: linear-gradient(135deg, $green-dark, $green-mid);
+  background: linear-gradient(135deg, var(--green-dark), var(--green-mid));
   border: 2px solid var(--green-light);
   color: white;
   font-size: 1.3rem;
@@ -563,7 +563,7 @@ body.shaking { animation: body-shake 0.5s ease-out; }
   bottom: calc(100% + 10px);
   left: 0;
   width: 340px;
-  background: #0a2318;
+  background: var(--sunken);
   border: 1.5px solid var(--border);
   border-radius: 16px;
   display: flex;
@@ -652,7 +652,7 @@ body.shaking { animation: body-shake 0.5s ease-out; }
     }
 
     .chat-text {
-      background: #1a3d2a;
+      background: var(--bubble);
       border-radius: 10px;
       padding: 6px 10px;
       font-size: 0.86rem;
@@ -666,7 +666,7 @@ body.shaking { animation: body-shake 0.5s ease-out; }
     align-items: flex-end;
 
     .chat-name { text-align: right; }
-    .chat-text { background: linear-gradient(135deg, $green-dark, $green-mid); color: white; }
+    .chat-text { background: linear-gradient(135deg, var(--green-dark), var(--green-mid)); color: white; }
   }
 }
 
@@ -686,7 +686,7 @@ body.shaking { animation: body-shake 0.5s ease-out; }
 
   textarea {
     flex: 1;
-    background: #152e1f;
+    background: var(--sunken);
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 8px 10px;
@@ -706,7 +706,7 @@ body.shaking { animation: body-shake 0.5s ease-out; }
   }
 
   button {
-    background: linear-gradient(135deg, $green-dark, $green-mid);
+    background: linear-gradient(135deg, var(--green-dark), var(--green-mid));
     border: none;
     border-radius: 8px;
     color: white;

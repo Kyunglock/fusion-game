@@ -35,4 +35,85 @@ $font-stack:  'Segoe UI', 'Apple SD Gothic Neo', sans-serif;
   --shadow:      #{$shadow};
   --gray:        #6c757d;
   --tooth-size:  52px;
+
+  // 채팅/움푹한 서피스 (테마별로 함께 바뀜)
+  --sunken:      #0a2318; // 채팅 패널·입력창 배경
+  --bubble:      #1a3d2a; // 받은 채팅 말풍선
+  --chip:        #1c3a28; // 준비중 배지 등 옅은 칩
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 테마 (회사에서 몰래 하는 컨셉 — 위장 테마)
+// 색상은 모두 CSS 변수로 오버라이드한다. --green-* 는 이름은 그대로지만
+// 각 테마의 "강조색(primary)" 스케일로 재정의된다 (그린 → 블루/그린 등).
+// data-theme 미지정 또는 "green" 이면 위 :root(기본 그린)를 사용.
+// ══════════════════════════════════════════════════════════════════════════════
+
+// 문서 (라이트/워드풍): 흰 종이 + 회색 데스크 + 워드 블루 강조
+:root[data-theme='doc'] {
+  --bg:          #e9eaec;
+  --card:        #ffffff;
+  --border:      #d5d8dd;
+  --text:        #1e2329;
+  --muted:       #8a9099;
+  --gray:        #70757c;
+  --shadow:      rgba(60, 64, 72, 0.15);
+  --green-dark:  #1b4a86;
+  --green-mid:   #2b6cb0;
+  --green-light: #2f74c0;
+  --green-pale:  #5f6b7a;
+  --yellow:      #c8891a;
+  --gold:        #a06f10;
+  --red:         #c0392b;
+  --red-dark:    #922b21;
+  --white:       #ffffff;
+  --sunken:      #f1f2f4;
+  --bubble:      #eef1f5;
+  --chip:        #eef1f5;
+}
+
+// 스프레드시트 (엑셀풍): 흰 셀 + 회색 그리드 + 엑셀 그린 강조
+:root[data-theme='sheet'] {
+  --bg:          #e6e7e9;
+  --card:        #ffffff;
+  --border:      #cfd2d6;
+  --text:        #1f2327;
+  --muted:       #7c8288;
+  --gray:        #666b70;
+  --shadow:      rgba(0, 0, 0, 0.12);
+  --green-dark:  #14532b;
+  --green-mid:   #1e6b3c;
+  --green-light: #2f8a54;
+  --green-pale:  #5f6a63;
+  --yellow:      #b7891c;
+  --gold:        #8f6a12;
+  --red:         #c0392b;
+  --red-dark:    #922b21;
+  --white:       #ffffff;
+  --sunken:      #f2f3f5;
+  --bubble:      #eaf3ee;
+  --chip:        #e8f0ea;
+}
+
+// 코드 에디터 (다크): VS Code 다크 + 블루 강조
+:root[data-theme='code'] {
+  --bg:          #1e1e1e;
+  --card:        #252526;
+  --border:      #3c3c3c;
+  --text:        #d4d4d4;
+  --muted:       #858585;
+  --gray:        #6e6e6e;
+  --shadow:      rgba(0, 0, 0, 0.5);
+  --green-dark:  #0a4a78;
+  --green-mid:   #0e639c;
+  --green-light: #3794ff;
+  --green-pale:  #9aa0a6;
+  --yellow:      #d7ba7d;
+  --gold:        #b8935a;
+  --red:         #f14c4c;
+  --red-dark:    #a1260d;
+  --white:       #ffffff;
+  --sunken:      #1a1a1a;
+  --bubble:      #2d2d30;
+  --chip:        #2d2d30;
 }

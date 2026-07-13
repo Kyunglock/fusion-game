@@ -4,6 +4,8 @@ html(lang="ko")
     meta(charset="UTF-8")
     meta(name="viewport" content="width=device-width, initial-scale=1.0")
     title #{title} | 파티 게임즈
+    script.
+      try { var t = localStorage.getItem('pg-theme'); if (t && t !== 'green') document.documentElement.dataset.theme = t; } catch (e) {}
     link(rel="stylesheet" href=`/css/${cssFile}.css`)
   body
     block overlays
@@ -20,3 +22,4 @@ html(lang="ko")
     block scripts
       script(type="module" src=`/js/${jsFile}.js`)
       script(type="module" src="/js/online-widget.js")
+      script(type="module" src="/js/shared/themeManager.js")

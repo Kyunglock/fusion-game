@@ -16,30 +16,29 @@ style.textContent = `
   display: flex;
   align-items: center;
   gap: 7px;
-  background: #0d2b1a;
-  border: 1px solid #1e4d2e;
+  background: var(--sunken);
+  border: 1px solid var(--border);
   border-radius: 20px;
   padding: 7px 14px;
   cursor: pointer;
   user-select: none;
   font-size: 0.82rem;
   font-weight: 600;
-  color: #a5d6b0;
+  color: var(--green-pale);
   transition: border-color 0.2s, box-shadow 0.2s;
   white-space: nowrap;
 }
 
 #ow-pill:hover {
-  border-color: #4ab866;
-  box-shadow: 0 0 10px rgba(74,184,102,0.2);
+  border-color: var(--green-light);
 }
 
 .ow-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #4ab866;
-  box-shadow: 0 0 6px #4ab866;
+  background: var(--green-light);
+  box-shadow: 0 0 6px var(--green-light);
   animation: ow-pulse 2s ease-in-out infinite;
   flex-shrink: 0;
 }
@@ -55,11 +54,11 @@ style.textContent = `
   bottom: calc(100% + 8px);
   right: 0;
   width: 220px;
-  background: #0d2b1a;
-  border: 1px solid #1e4d2e;
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 14px;
   padding: 12px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  box-shadow: 0 8px 24px var(--shadow);
 }
 
 #ow-panel.open { display: block; }
@@ -67,7 +66,7 @@ style.textContent = `
 .ow-panel-title {
   font-size: 0.7rem;
   font-weight: 700;
-  color: #456355;
+  color: var(--muted);
   letter-spacing: 1px;
   text-transform: uppercase;
   margin-bottom: 10px;
@@ -91,13 +90,13 @@ style.textContent = `
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #2d8a45, #1a4d2e);
+  background: linear-gradient(135deg, var(--green-mid), var(--green-dark));
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 0.75rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--white);
   flex-shrink: 0;
   overflow: hidden;
 }
@@ -111,7 +110,7 @@ style.textContent = `
 .ow-name {
   font-size: 0.8rem;
   font-weight: 600;
-  color: #a5d6b0;
+  color: var(--green-pale);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

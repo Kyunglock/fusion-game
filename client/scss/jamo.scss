@@ -138,7 +138,7 @@
     .badge-ready {
       margin-left: auto;
       font-size: 0.7rem;
-      background: #1c3a28;
+      background: var(--chip);
       color: #456355;
       border: 1px solid #1e4d2e;
       padding: 2px 8px;
@@ -165,7 +165,7 @@
     .badge-you {
       font-size: 0.7rem;
       background: var(--green-mid);
-      color: $white;
+      color: var(--white);
       padding: 2px 8px;
       border-radius: 20px;
       font-weight: 700;
@@ -410,8 +410,8 @@
   color: var(--text);
   flex-shrink: 0;
 
-  &.green  { background: linear-gradient(135deg, var(--green-mid), var(--green-dark)); border-color: transparent; color: $white; }
-  &.yellow { background: linear-gradient(135deg, $yellow, $gold); border-color: transparent; color: #1a1a1a; }
+  &.green  { background: linear-gradient(135deg, var(--green-mid), var(--green-dark)); border-color: transparent; color: var(--white); }
+  &.yellow { background: linear-gradient(135deg, var(--yellow), var(--gold)); border-color: transparent; color: #1a1a1a; }
   &.black  { background: #3b423e; border-color: #3b423e; color: #9aa8a0; } // 없는 자모: 진한 회색
 }
 
@@ -463,8 +463,8 @@
   font-size: 0.78rem;
   color: var(--text);
 
-  &.green  { background: linear-gradient(135deg, var(--green-mid), var(--green-dark)); border-color: transparent; color: $white; }
-  &.yellow { background: linear-gradient(135deg, $yellow, $gold); border-color: transparent; color: #1a1a1a; }
+  &.green  { background: linear-gradient(135deg, var(--green-mid), var(--green-dark)); border-color: transparent; color: var(--white); }
+  &.yellow { background: linear-gradient(135deg, var(--yellow), var(--gold)); border-color: transparent; color: #1a1a1a; }
   &.black  { background: #3b423e; border-color: #3b423e; color: #9aa8a0; } // 없는 자모: 진한 회색
 }
 
@@ -602,7 +602,7 @@
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: linear-gradient(135deg, $green-dark, $green-mid);
+  background: linear-gradient(135deg, var(--green-dark), var(--green-mid));
   border: 2px solid var(--green-light);
   color: white;
   font-size: 1.3rem;
@@ -641,7 +641,7 @@
   bottom: calc(100% + 10px);
   left: 0;
   width: 340px;
-  background: #0a2318;
+  background: var(--sunken);
   border: 1.5px solid var(--border);
   border-radius: 16px;
   display: flex;
@@ -730,7 +730,7 @@
     }
 
     .chat-text {
-      background: #1a3d2a;
+      background: var(--bubble);
       border-radius: 10px;
       padding: 6px 10px;
       font-size: 0.86rem;
@@ -744,7 +744,7 @@
     align-items: flex-end;
 
     .chat-name { text-align: right; }
-    .chat-text { background: linear-gradient(135deg, $green-dark, $green-mid); color: white; }
+    .chat-text { background: linear-gradient(135deg, var(--green-dark), var(--green-mid)); color: white; }
   }
 }
 
@@ -764,7 +764,7 @@
 
   textarea {
     flex: 1;
-    background: #152e1f;
+    background: var(--sunken);
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 8px 10px;
@@ -784,7 +784,7 @@
   }
 
   button {
-    background: linear-gradient(135deg, $green-dark, $green-mid);
+    background: linear-gradient(135deg, var(--green-dark), var(--green-mid));
     border: none;
     border-radius: 8px;
     color: white;

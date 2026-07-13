@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>파티 게임즈</title>
+  <script>
+    try { var t = localStorage.getItem('pg-theme'); if (t && t !== 'green') document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
   <link rel="stylesheet" href="/css/index.css" />
 </head>
 <body>
@@ -107,5 +110,6 @@
 
 <script type="module" src="/js/index.js"></script>
 <script type="module" src="/js/online-widget.js"></script>
+<script type="module" src="/js/shared/themeManager.js"></script>
 </body>
 </html>

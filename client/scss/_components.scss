@@ -25,7 +25,7 @@ input[type='password'] {
   margin-bottom: 14px;
 
   &:focus        { border-color: var(--green-light); }
-  &::placeholder { color: $muted; }
+  &::placeholder { color: var(--muted); }
 }
 
 // ── Card ─────────────────────────────────────────────────────────────────────
@@ -61,7 +61,7 @@ input[type='password'] {
 
   &-primary {
     background: linear-gradient(135deg, var(--green-mid), var(--green-dark));
-    color: $white;
+    color: var(--white);
     box-shadow: 0 4px 12px rgba(45, 138, 69, 0.4);
     margin-top: 4px;
 
@@ -78,30 +78,30 @@ input[type='password'] {
 
   &-danger {
     background: linear-gradient(135deg, var(--red), var(--red-dark));
-    color: $white;
+    color: var(--white);
     box-shadow: 0 4px 12px rgba(230, 57, 70, 0.4);
   }
 
   &-yellow {
-    background: linear-gradient(135deg, $yellow, $gold);
+    background: linear-gradient(135deg, var(--yellow), var(--gold));
     color: #1a1a1a;
     box-shadow: 0 4px 12px rgba(245, 200, 66, 0.35);
   }
 
   &-ready {
-    background: #0d2b1a;
+    background: var(--bg);
     color: var(--green-light);
     border: 1.5px solid var(--green-mid);
     margin-top: 4px;
 
     &:hover:not(:disabled) {
-      background: #1a4d2e;
+      background: var(--green-dark);
       border-color: var(--green-light);
     }
 
     &.active {
       background: linear-gradient(135deg, var(--green-mid), var(--green-dark));
-      color: $white;
+      color: var(--white);
       border-color: transparent;
       box-shadow: 0 4px 12px rgba(45, 138, 69, 0.5);
     }
@@ -122,7 +122,7 @@ input[type='password'] {
   left: 50%;
   transform: translateX(-50%) translateY(80px);
   background: var(--red-dark);
-  color: $white;
+  color: var(--white);
   padding: 12px 24px;
   border-radius: 12px;
   font-weight: 600;
@@ -141,7 +141,7 @@ input[type='password'] {
   align-items: center;
   gap: 10px;
   margin: 18px 0 18px;
-  color: $muted;
+  color: var(--muted);
   font-size: 0.8rem;
 
   &::before,
