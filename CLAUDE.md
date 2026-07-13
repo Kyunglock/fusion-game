@@ -116,6 +116,25 @@ client/
 npm run build:css   # SCSS → CSS 컴파일 (변경 시 반드시 실행)
 ```
 
+## 커밋 컨벤션
+[Conventional Commits](https://www.conventionalcommits.org/) 형식을 따른다: `<type>: <설명>`
+
+- `feat` — 새 기능 추가
+- `fix` — 버그 수정
+- `docs` — 문서(README, CLAUDE.md 등)만 변경
+- `style` — 동작에 영향 없는 스타일/포맷팅 변경
+- `refactor` — 기능 변경 없는 코드 구조 개선
+- `chore` — 빌드/설정/의존성 등 그 외 잡무
+
+설명은 한글로 작성하며, 무엇을 했는지보다 왜 했는지가 드러나게 간결히 쓴다.
+
+```
+feat: 자모 워들 게임 추가
+fix: 채팅 스크롤 위치 버그 수정
+docs: README 작성
+chore: .env.sample 추가
+```
+
 ## 중요 패턴
 - `createRoomManager(config)` — 게임별 방 관리를 config 주입으로 통합
 - `registerCommonHandlers(io, socket, manager, opts)` — 8개 공통 소켓 핸들러 일괄 등록
