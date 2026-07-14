@@ -19,7 +19,7 @@ input[type='password'] {
   border: 1.5px solid var(--border);
   background: var(--bg);
   color: var(--text);
-  font-size: 0.97rem;
+  font-size: 16px; // iOS에서 포커스 시 자동 확대되지 않도록 16px 이상 유지
   outline: none;
   transition: border-color 0.2s;
   margin-bottom: 14px;

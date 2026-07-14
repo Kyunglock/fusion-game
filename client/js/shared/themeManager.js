@@ -164,7 +164,7 @@ function getDock() {
   if (!d) {
     d = document.createElement('div');
     d.id = 'pg-dock';
-    d.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:999;display:flex;align-items:flex-end;gap:10px;';
+    d.style.cssText = 'position:fixed;right:calc(12px + env(safe-area-inset-right));bottom:calc(12px + env(safe-area-inset-bottom));z-index:999;display:flex;align-items:flex-end;justify-content:flex-end;flex-wrap:wrap;gap:8px;max-width:calc(100vw - 24px);';
     document.body.appendChild(d);
   }
   return d;

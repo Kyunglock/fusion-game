@@ -8,6 +8,12 @@
   padding: 0;
 }
 
+html {
+  // 모바일 브라우저의 자동 글자 크기 확대 방지
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 html,
 body {
   height: 100%;
@@ -15,4 +21,12 @@ body {
   background: var(--bg);
   color: var(--text);
   overflow-x: hidden;
+  // 게임 중 당겨서 새로고침 등 오버스크롤로 인한 사고 방지
+  overscroll-behavior-y: contain;
+}
+
+// 풀높이 화면: 모바일 브라우저 주소창을 감안한 dvh 사용 (미지원 시 각 화면의 100vh로 폴백)
+body .screen,
+body .page {
+  min-height: 100dvh;
 }

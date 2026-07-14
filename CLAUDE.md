@@ -152,6 +152,12 @@ client/
 - 참가자 보드는 방장이 한 눈에 볼 수 있도록 그리드로 배치 (`#jamo-boards`, 스코어보드도 방장 제외)
 - 방장이 대기실에서 참가자 키보드(자모별 최고 등급 색상) 노출 여부 토글 가능 (`toggle_keyboard_visible`)
 
+## 모바일 대응
+- 레이아웃은 대부분 `max-width` + flex-wrap + `%` 기반으로 유동적. 각 게임 scss에 `@media (max-width: 500px)` 보정, 테트리스는 `@media (pointer: coarse)`로 `#mobile-controls`(터치 버튼) 노출
+- 테트리스 보드 셀 크기는 `client/js/tetris.js`의 `calcCellSize()`가 뷰포트 기준으로 계산하고 `resize`에 재계산. 악어 이빨 그리드도 `resize`에 `positionTeethGrid()`로 재배치(회전 대응)
+- 전역(_base/_components): 입력창 `font-size:16px`(iOS 포커스 확대 방지), `-webkit-text-size-adjust:100%`, `overscroll-behavior-y:contain`(당겨서 새로고침 방지), `body .screen`/`body .page`에 `min-height:100dvh`(주소창 감안, 미지원 시 100vh 폴백)
+- `<head>` meta viewport에 `viewport-fit=cover`. 우측 하단 공용 도크(`#pg-dock`)는 `env(safe-area-inset-*)` + `flex-wrap`으로 노치/좁은 화면 대응
+
 ## CSS 빌드
 ```bash
 npm run build:css   # SCSS → CSS 컴파일 (변경 시 반드시 실행)

@@ -112,6 +112,12 @@ style.textContent = `
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* 좁은 화면: 도크 필/패널 축소 */
+@media (max-width: 480px) {
+  #ow-pill, #tw-pill, #tw-opacity-pill { padding: 6px 10px; font-size: 0.76rem; }
+  #ow-panel, #tw-panel, #tw-opacity-panel { width: min(220px, 76vw); }
+}
 `;
 document.head.appendChild(style);
 
@@ -121,7 +127,7 @@ function getDock() {
   if (!d) {
     d = document.createElement('div');
     d.id = 'pg-dock';
-    d.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:999;display:flex;align-items:flex-end;gap:10px;';
+    d.style.cssText = 'position:fixed;right:calc(12px + env(safe-area-inset-right));bottom:calc(12px + env(safe-area-inset-bottom));z-index:999;display:flex;align-items:flex-end;justify-content:flex-end;flex-wrap:wrap;gap:8px;max-width:calc(100vw - 24px);';
     document.body.appendChild(d);
   }
   return d;
