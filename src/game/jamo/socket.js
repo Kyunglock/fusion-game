@@ -101,6 +101,46 @@ export function registerJamoHandlers(io, socket) {
     broadcast(room);
   });
 
+  // ── 대기실로 나가기 (방장 전용) ─────────────────────────────────────────────
+  // 자모 워들은 라운드 종료 후 자동 복귀가 없으므로 방장이 직접 대기실로 되돌린다.
+  socket.on('return_to_lobby', () => {
+    const room   = getRoomOf(socket.id);
+    const player = room?.players.find(p => p.id === socket.id);
+    if (!room || !player?.isHost || room.state === 'lobby') return;
+
+    room.state      = 'lobby';
+    room.answer     = '';
+    room.answerJamo = [];
+    room.winnerName = null;
+    room.players.forEach(p => { p.ready = false; p.attempts = []; p.solved = false; });
+
+    broadcast(room);
+    broadcastRooms();
+  });
+
+  // ── 관전자 → 참여자로 이동 (대기실에서만) ──────────────────────────────────
+  // 게임 도중 관전으로 들어온 사람이 나갔다 오지 않고 다음 게임에 참여할 수 있게 한다.
+  socket.on('spectator_to_player', () => {
+    const room = manager.getRoomOfSpectator(socket.id);
+    if (!room || room.state !== 'lobby') return;
+    if (room.players.length >= manager.maxPlayers) return err('방이 꽉 찼습니다.');
+
+    const spec = room.spectators.find(s => s.id === socket.id);
+    if (!spec) return;
+    if (room.players.some(p => p.name === spec.name)) return err(`'${spec.name}' 닉네임이 이미 사용 중입니다.`);
+
+    room.spectators = room.spectators.filter(s => s.id !== socket.id);
+    room.players.push({
+      id: socket.id, userId: socket.request.session?.userId ?? null,
+      name: spec.name, avatar: spec.avatar ?? null,
+      isHost: false, ready: false,
+      attempts: [], solved: false, score: 0, wins: 0,
+    });
+
+    broadcast(room);
+    broadcastRooms();
+  });
+
   // ── 답 제출 (참가자 전용) ───────────────────────────────────────────────────
   socket.on('submit_guess', ({ guess } = {}) => {
     const room = getRoomOf(socket.id);

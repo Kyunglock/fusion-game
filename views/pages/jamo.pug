@@ -15,6 +15,8 @@ block content
       label.toggle-row
         input#input-keyboard-toggle(type="checkbox" checked)
         span 참가자 키보드 보이기
+    //- 관전자 → 참여자로 이동 (대기실, 관전자에게만 노출)
+    button#jamo-spectator-join.btn.btn-primary(style="display:none") 참여자로 이동
 
   #screen-game.screen
     +spectatorGame
@@ -26,6 +28,9 @@ block content
     #jamo-host-round(style="display:none")
       input#input-answer(type="text" placeholder="제시어 입력 (예: 자연, 월드컵)" maxlength="20" autocomplete="off")
       button#btn-set-answer.btn.btn-primary 제시어 내기
+
+    //- 대기실로 나가기 (방장, 게임 중 상시 노출)
+    button#jamo-return-lobby.btn.btn-secondary(style="display:none") 대기실로 나가기
 
     //- 참가자 라운드 대기 안내
     #jamo-wait-notice(style="display:none")

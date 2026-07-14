@@ -47,11 +47,13 @@ import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
   const inputAnswer    = $('input-answer');
   const btnSetAnswer   = $('btn-set-answer');
   const jamoWaitNotice = $('jamo-wait-notice');
+  const jamoReturnLobby = $('jamo-return-lobby');
   const jamoBoards     = $('jamo-boards');
   const jamoMyKeyboard = $('jamo-my-keyboard');
   const jamoGuessRow   = $('jamo-guess-row');
   const inputGuess     = $('input-guess');
   const btnSubmitGuess = $('btn-submit-guess');
+  const jamoSpectatorJoin = $('jamo-spectator-join');
 
   // ── Socket ───────────────────────────────────────────────────────────────
   const socket = io('/jamo');
@@ -76,6 +78,17 @@ import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
     });
     jamoHostSetup.style.display = amHost ? '' : 'none';
     if (amHost) inputKeyboardToggle.checked = state.keyboardVisible !== false;
+
+    // 관전자가 대기실을 볼 때: 준비/시작 대신 '참여자로 이동' 버튼을 노출
+    if (isSpectator) {
+      btnReady.style.display = 'none';
+      btnStart.style.display = 'none';
+      jamoHostSetup.style.display = 'none';
+      jamoSpectatorJoin.style.display = '';
+      waitingHint.textContent = '관전 중입니다. 참여하려면 참여자로 이동하세요.';
+    } else {
+      jamoSpectatorJoin.style.display = 'none';
+    }
   }
 
   // ── Render game board ────────────────────────────────────────────────────
@@ -170,6 +183,9 @@ import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
     jamoHostRound.style.display = showHostRound ? 'flex' : 'none';
     if (showHostRound) { inputAnswer.value = ''; inputAnswer.focus(); }
 
+    // 방장 '대기실로 나가기' — 게임 중(대기 상태 포함) 상시 노출
+    jamoReturnLobby.style.display = (!isSpectator && iAmHost) ? '' : 'none';
+
     const showWaitNotice = isIntermission && !iAmHost;
     jamoWaitNotice.style.display = showWaitNotice ? '' : 'none';
     if (showWaitNotice) {
@@ -230,9 +246,23 @@ import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
   socket.on('room_update', (state) => {
     roomState = state;
 
+    // 관전자였다가 참여자로 승격되면 관전 모드 해제
+    if (isSpectator && state.players?.some(p => p.id === myId)) {
+      isSpectator = false;
+      screens.game.classList.remove('is-spectating');
+      $('spectator-banner').style.display = 'none';
+    }
+
     if (isSpectator) {
-      renderSpectatorList(state.spectators ?? []);
-      if (state.state !== 'lobby') renderBoards(state);
+      if (state.state === 'lobby') {
+        // 게임이 끝나 대기실로 돌아옴 → 관전자도 대기실을 보고 참여할 수 있게
+        showScreen('waiting');
+        renderWaiting(state);
+      } else {
+        renderSpectatorList(state.spectators ?? []);
+        renderBoards(state);
+        showScreen('game');
+      }
       return;
     }
 
@@ -301,6 +331,9 @@ import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
 
   btnSetAnswer.addEventListener('click', setAnswer);
   inputAnswer.addEventListener('keydown', e => { if (e.key === 'Enter') setAnswer(); });
+
+  jamoReturnLobby.addEventListener('click', () => socket.emit('return_to_lobby'));
+  jamoSpectatorJoin.addEventListener('click', () => socket.emit('spectator_to_player'));
 
   inputKeyboardToggle.addEventListener('change', () => {
     socket.emit('toggle_keyboard_visible', { visible: inputKeyboardToggle.checked });
