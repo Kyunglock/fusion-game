@@ -5,10 +5,7 @@ import { escHtml } from './utils.js';
 const style = document.createElement('style');
 style.textContent = `
 #ow-wrap {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  z-index: 999;
+  position: relative;
   font-family: inherit;
 }
 
@@ -118,6 +115,18 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
+// ── 우측 하단 공용 도크 (접속자/테마/투명도 위젯이 나란히 놓임) ──────────────────
+function getDock() {
+  let d = document.getElementById('pg-dock');
+  if (!d) {
+    d = document.createElement('div');
+    d.id = 'pg-dock';
+    d.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:999;display:flex;align-items:flex-end;gap:10px;';
+    document.body.appendChild(d);
+  }
+  return d;
+}
+
 // ── DOM 생성 ──────────────────────────────────────────────────────────────────
 const wrap = document.createElement('div');
 wrap.id = 'ow-wrap';
@@ -131,7 +140,7 @@ wrap.innerHTML = `
     <span id="ow-count">-</span>명 접속 중
   </div>
 `;
-document.body.appendChild(wrap);
+getDock().appendChild(wrap);
 
 const pill    = document.getElementById('ow-pill');
 const panel   = document.getElementById('ow-panel');

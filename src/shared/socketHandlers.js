@@ -20,8 +20,16 @@ export function registerCommonHandlers(io, socket, manager, opts) {
   const {
     rooms, maxPlayers, minPlayers,
     createRoom, getRoomOf, getRoomOfSpectator,
-    getRooms, safeState, removePlayer, removeSpectator,
+    getRooms, safeState, removePlayer, removeSpectator, reapDisconnected,
   } = manager;
+
+  // 이 네임스페이스에 현재 연결된 소켓 id 집합.
+  // (기본 네임스페이스는 io=Server → io.sockets.sockets, 그 외는 io=Namespace → io.sockets)
+  function liveIds() {
+    const s   = io.sockets;
+    const map = (s && s.sockets instanceof Map) ? s.sockets : s;
+    return new Set(map ? map.keys() : []);
+  }
 
   // ── 세션 헬퍼 ───────────────────────────────────────────────────────��───
   const session       = () => socket.request.session;
@@ -30,11 +38,11 @@ export function registerCommonHandlers(io, socket, manager, opts) {
 
   // ── 브로드캐스트 헬퍼 ────────────────────────────────────────────────────
   const broadcast      = (room) => io.to(room.code).emit('room_update', safeState(room));
-  const broadcastRooms = ()     => io.emit(roomsEvent, getRooms());
+  const broadcastRooms = ()     => { reapDisconnected(liveIds()); io.emit(roomsEvent, getRooms()); };
   const err            = (msg)  => socket.emit('error_msg', { message: msg });
 
   // ── get_rooms ────────────────────────────────────────────────────────────
-  socket.on('get_rooms', () => socket.emit(roomsEvent, getRooms()));
+  socket.on('get_rooms', () => { reapDisconnected(liveIds()); socket.emit(roomsEvent, getRooms()); });
 
   // ── create_room ──────────────────────────────────────────────────────────
   socket.on('create_room', ({ playerName } = {}) => {

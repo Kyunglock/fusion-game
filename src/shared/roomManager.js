@@ -122,6 +122,18 @@ export function createRoomManager({
     return name;
   }
 
+  // 연결이 끊긴 소켓만 남은 방을 청소한다.
+  // (disconnect 이벤트를 놓쳤거나 소켓이 유실된 경우 남는 유령 방 방지)
+  // liveIds: 해당 네임스페이스에 현재 연결된 소켓 id의 Set
+  function reapDisconnected(liveIds) {
+    let changed = false;
+    for (const [code, room] of rooms) {
+      const anyAlive = room.players.some(p => liveIds.has(p.id));
+      if (!anyAlive) { rooms.delete(code); changed = true; }
+    }
+    return changed;
+  }
+
   return {
     rooms,
     maxPlayers,
@@ -133,5 +145,6 @@ export function createRoomManager({
     safeState,
     removePlayer,
     removeSpectator,
+    reapDisconnected,
   };
 }

@@ -44,10 +44,7 @@ function applyOpacity(v) {
 const style = document.createElement('style');
 style.textContent = `
 #tw-wrap {
-  position: fixed;
-  bottom: 64px;
-  right: 20px;
-  z-index: 999;
+  position: relative;
   font-family: inherit;
 }
 #tw-row {
@@ -162,6 +159,17 @@ style.textContent = `
 document.head.appendChild(style);
 
 // ── DOM ────────────────────────────────────────────────────────────────────────
+function getDock() {
+  let d = document.getElementById('pg-dock');
+  if (!d) {
+    d = document.createElement('div');
+    d.id = 'pg-dock';
+    d.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:999;display:flex;align-items:flex-end;gap:10px;';
+    document.body.appendChild(d);
+  }
+  return d;
+}
+
 const wrap = document.createElement('div');
 wrap.id = 'tw-wrap';
 wrap.innerHTML = `
@@ -187,7 +195,7 @@ wrap.innerHTML = `
     </div>
   </div>
 `;
-document.body.appendChild(wrap);
+getDock().appendChild(wrap);
 
 const pill        = wrap.querySelector('#tw-pill');
 const panel       = wrap.querySelector('#tw-panel');
