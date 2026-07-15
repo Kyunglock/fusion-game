@@ -27,6 +27,8 @@ function emitGameState(io, room) {
     io.to(viewerId).emit('jamo_state', {
       players,
       myKeyboard: (me && !me.isHost) ? keyboardFromAttempts(me.attempts) : {},
+      // 방장·관전자에게만 진행 중 정답을 공개한다 (참가자에게는 노출 금지)
+      answer: canSeeAll ? room.answer : '',
     });
   });
 }

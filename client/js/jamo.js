@@ -155,7 +155,10 @@ import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
 
     // ── 배너 ──────────────────────────────────────────────────────────────
     if (state.state === 'playing') {
-      jamoBanner.textContent = `이번 문제는 자모 ${answerLength}칸입니다.`;
+      // 방장·관전자에게만 정답이 내려오므로(gameState.answer), 있으면 노출한다.
+      jamoBanner.textContent = gameState.answer
+        ? `정답: "${gameState.answer}" · 자모 ${answerLength}칸`
+        : `이번 문제는 자모 ${answerLength}칸입니다.`;
     } else if (isIntermission && state.hasResult) {
       jamoBanner.textContent = state.winnerName
         ? `${nameText(state.winnerName)}님 정답! 정답은 "${state.answer}" 입니다.`

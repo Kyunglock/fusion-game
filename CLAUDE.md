@@ -147,7 +147,8 @@ client/
 - 키보드에는 쌍자음(ㄲㄸㅃㅆㅉ) 키가 없다. 기본 자음을 두 번 눌러 표현한다(ㄱㄱ=ㄲ). 배열은 표준 두벌식 순서 + 중앙 정렬 (`jamo.js`의 `KEY_ROWS`)
 - 참가자는 최대 5회 시도, 각 시도는 Wordle 방식으로 자모 단위 채점 (`judge`): green(정확한 위치)/yellow(포함되지만 위치 다름)/black(불포함)
 - 정답 시 점수 = `max(1, 6 - 시도 횟수)`, 승수 +1. 첫 정답자가 나오거나 참가자 전원이 소진하면 라운드 종료
-- 정답/우승자는 `intermission`에서만 `safeState`에 포함해 공개(`answer`/`winnerName`/`hasResult`). `playing` 중에는 마스킹되어 참가자에게 노출되지 않는다
+- 정답/우승자는 `intermission`에서만 `safeState`에 포함해 공개(`answer`/`winnerName`/`hasResult`). `playing` 중 `safeState`의 정답은 마스킹된다
+  - 단, `playing` 중에도 **방장·관전자**에게는 뷰어별 개인화 이벤트 `jamo_state.answer`로 정답을 내려보내 관전자가 정답을 볼 수 있다. **참가자**에게는 어느 경로로도 정답을 보내지 않는다
 - 참가자는 자신의 시도는 전체 공개, 다른 참가자의 시도는 색깔 결과만 보이고 단어/자모는 마스킹됨. 방장·관전자는 전체 열람 가능 (`socket.js`의 `emitGameState`가 뷰어별로 개인화된 `jamo_state` 이벤트 전송, 방장 보드는 없으므로 참가자만 전송)
 - 참가자 보드는 방장이 한 눈에 볼 수 있도록 그리드로 배치 (`#jamo-boards`, 스코어보드도 방장 제외)
 - 방장이 대기실에서 참가자 키보드(자모별 최고 등급 색상) 노출 여부 토글 가능 (`toggle_keyboard_visible`)
