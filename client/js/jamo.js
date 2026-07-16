@@ -47,6 +47,7 @@ import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
   const inputAnswer    = $('input-answer');
   const btnSetAnswer   = $('btn-set-answer');
   const jamoWaitNotice = $('jamo-wait-notice');
+  const jamoSpectateJoin = $('jamo-spectate-join');
   const jamoReturnLobby = $('jamo-return-lobby');
   const jamoBoards     = $('jamo-boards');
   const jamoMyKeyboard = $('jamo-my-keyboard');
@@ -188,6 +189,9 @@ import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
 
     // 방장 '대기실로 나가기' — 게임 중(대기 상태 포함) 상시 노출
     jamoReturnLobby.style.display = (!isSpectator && iAmHost) ? '' : 'none';
+
+    // 관전자 '참여자로 이동' — 방장이 제시어를 내기 전(intermission)에만 노출
+    jamoSpectateJoin.style.display = (isSpectator && isIntermission) ? '' : 'none';
 
     const showWaitNotice = isIntermission && !iAmHost;
     jamoWaitNotice.style.display = showWaitNotice ? '' : 'none';
@@ -337,6 +341,7 @@ import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
 
   jamoReturnLobby.addEventListener('click', () => socket.emit('return_to_lobby'));
   jamoSpectatorJoin.addEventListener('click', () => socket.emit('spectator_to_player'));
+  jamoSpectateJoin.addEventListener('click', () => socket.emit('spectator_to_player'));
 
   inputKeyboardToggle.addEventListener('change', () => {
     socket.emit('toggle_keyboard_visible', { visible: inputKeyboardToggle.checked });

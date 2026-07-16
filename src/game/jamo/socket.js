@@ -120,11 +120,12 @@ export function registerJamoHandlers(io, socket) {
     broadcastRooms();
   });
 
-  // ── 관전자 → 참여자로 이동 (대기실에서만) ──────────────────────────────────
-  // 게임 도중 관전으로 들어온 사람이 나갔다 오지 않고 다음 게임에 참여할 수 있게 한다.
+  // ── 관전자 → 참여자로 이동 ──────────────────────────────────────────────────
+  // 대기실(lobby)뿐 아니라 방장이 제시어를 내기 전(intermission, 라운드 대기)에도
+  // 관전자가 바로 참가할 수 있게 한다. 라운드 진행(playing) 중에는 불가.
   socket.on('spectator_to_player', () => {
     const room = manager.getRoomOfSpectator(socket.id);
-    if (!room || room.state !== 'lobby') return;
+    if (!room || (room.state !== 'lobby' && room.state !== 'intermission')) return;
     if (room.players.length >= manager.maxPlayers) return err('방이 꽉 찼습니다.');
 
     const spec = room.spectators.find(s => s.id === socket.id);
@@ -141,6 +142,8 @@ export function registerJamoHandlers(io, socket) {
 
     broadcast(room);
     broadcastRooms();
+    // 게임 안(intermission)에서 합류했다면 뷰어별 상태를 다시 개인화한다.
+    if (room.state === 'intermission') emitGameState(io, room);
   });
 
   // ── 답 제출 (참가자 전용) ───────────────────────────────────────────────────
