@@ -1,0 +1,119 @@
+name: Deploy
+
+# ── 트리거 ────────────────────────────────────────────────────────────────────
+# main 에 머지(push)될 때만 배포. 신뢰할 수 없는 코드가 배포 파이프라인·홈서버에
+# 닿지 않도록 pull_request 트리거는 의도적으로 넣지 않는다.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# ── 최소 권한 ────────────────────────────────────────────────────────────────
+# 기본 권한은 read 로 최소화하고, GHCR 이미지 push 에 필요한 packages:write 만 추가.
+permissions:
+  contents: read
+  packages: write
+
+# ── 중첩 배포 방지 ────────────────────────────────────────────────────────────
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  # ── ① 빌드 & 테스트 & 이미지 push ─────────────────────────────────────────
+  build:
+    # 방어 가드: main ref·원본 저장소일 때만 실행 (다른 브랜치/PR/fork 차단)
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      github.repository == 'Kyunglock/fusion-game'
+    runs-on: ubuntu-latest          # GitHub 클라우드 러너 (임시 VM)
+    timeout-minutes: 20
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      # 빌드·테스트를 이미지 빌드 전에 먼저 돌려 실패를 빨리 잡는다.
+      - name: Install & build & test
+        run: |
+          npm ci
+          npm run build:css
+          npm test --if-present
+
+      # GHCR 이미지 이름은 소문자만 허용 → 저장소명을 소문자로 변환
+      - name: Compute image name
+        id: meta
+        run: echo "image=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          # 커밋 SHA 로 불변 태그 + 편의를 위한 latest 태그
+          tags: |
+            ${{ steps.meta.outputs.image }}:${{ github.sha }}
+            ${{ steps.meta.outputs.image }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── ② 홈서버로 배포 (Tailscale VPN 경유 SSH) ──────────────────────────────
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    # Environment 보호 규칙(필수 리뷰어 등)으로 홈서버 배포 직전 승인 게이트를 걸 수 있다.
+    environment: production
+    timeout-minutes: 15
+    steps:
+      # 러너를 tailnet 에 임시(ephemeral) 노드로 연결. OAuth 클라이언트로 인증하며
+      # job 이 끝나면 자동으로 tailnet 에서 사라진다.
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      # tailnet 내부에서만 홈서버 SSH 에 접속 → 공인 IP 에 SSH 포트 노출 0
+      - name: Deploy over SSH (tailnet)
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}          # tailnet IP 또는 MagicDNS 이름
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}            # SSH 개인키 (반드시 Secrets)
+          fingerprint: ${{ secrets.SSH_FINGERPRINT }}  # 호스트 키 지문 검증(중간자 방지)
+          envs: GHCR_USER,GHCR_TOKEN,IMAGE,IMAGE_TAG
+          script: |
+            set -euo pipefail
+            # GHCR 에서 이미지 pull 하기 위한 로그인 (워크플로우 실행 중에만 유효한 토큰)
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            cd /srv/fusion-game
+            export IMAGE_TAG
+            docker compose pull
+            docker compose up -d
+            docker image prune -f
+            docker logout ghcr.io
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE: ${{ needs.build.outputs.image }}
+          IMAGE_TAG: ${{ github.sha }}
