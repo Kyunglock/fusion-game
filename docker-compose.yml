@@ -1,0 +1,26 @@
+# 홈서버(/srv/fusion-game)에 두는 배포용 compose 파일.
+# CI 가 SSH 로 접속해 `docker compose pull && docker compose up -d` 를 실행한다.
+services:
+  app:
+    # IMAGE_TAG 는 배포 시 CI 가 커밋 SHA 로 주입한다. 수동 실행 시엔 latest.
+    image: ghcr.io/kyunglock/fusion-game:${IMAGE_TAG:-latest}
+    container_name: fusion-game
+    restart: unless-stopped
+
+    # SESSION_SECRET, PORT 등은 홈서버의 /srv/fusion-game/.env 에서 읽는다.
+    # (.env 는 서버에만 두고 저장소·이미지에는 절대 넣지 않는다)
+    env_file:
+      - .env
+
+    # 앱은 컨테이너 내부 4000 포트에서 listen. 호스트 로컬(127.0.0.1)에만 바인딩하고
+    # 외부 노출은 리버스 프록시나 `tailscale serve` 로 앞단에서 처리하는 것을 권장.
+    ports:
+      - "127.0.0.1:4000:4000"
+
+    # 간단한 헬스체크 (앱 루트에 TCP/HTTP 응답 확인)
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:4000/',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
