@@ -104,7 +104,7 @@ export function registerJamoHandlers(io, socket) {
   });
 
   // ── 대기실로 나가기 (방장 전용) ─────────────────────────────────────────────
-  // 자모 맞추기는 라운드 종료 후 자동 복귀가 없으므로 방장이 직접 대기실로 되돌린다.
+  // 자모 워들은 라운드 종료 후 자동 복귀가 없으므로 방장이 직접 대기실로 되돌린다.
   socket.on('return_to_lobby', () => {
     const room   = getRoomOf(socket.id);
     const player = room?.players.find(p => p.id === socket.id);
