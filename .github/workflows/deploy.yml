@@ -93,30 +93,37 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
-      # tailnet 내부에서만 홈서버 SSH 에 접속 → 공인 IP 에 SSH 포트 노출 0
+      # tailnet 내부에서만 홈서버 SSH 에 접속 → 공인 IP 에 SSH 포트 노출 0.
+      # 네이티브 ssh 사용: ssh-keyscan 으로 모든 타입의 호스트키를 known_hosts 에
+      # 넣어, 서버가 어떤 키(ecdsa/ed25519/rsa)를 협상하든 검증되게 한다.
+      # (tailnet 이 이미 상호인증·암호화를 제공하므로 이 검증은 심층방어 계층)
       - name: Deploy over SSH (tailnet)
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.SSH_HOST }}          # tailnet IP 또는 MagicDNS 이름
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}            # SSH 개인키 (반드시 Secrets)
-          fingerprint: ${{ secrets.SSH_FINGERPRINT }}  # 호스트 키 지문 검증(중간자 방지)
-          envs: GHCR_USER,GHCR_TOKEN,IMAGE,IMAGE_TAG
-          script: |
-            set -euo pipefail
-            # 홈서버는 macOS(Docker Desktop). 비대화형 SSH 셸엔 /usr/local/bin 이
-            # PATH 에 없어 docker 를 못 찾으므로 명시적으로 추가한다.
-            export PATH="/usr/local/bin:$PATH"
-            # GHCR 에서 이미지 pull 하기 위한 로그인 (워크플로우 실행 중에만 유효한 토큰)
-            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-            cd /Users/kynugroak/srv/fusion-game
-            export IMAGE_TAG
-            docker compose pull
-            docker compose up -d
-            docker image prune -f
-            docker logout ghcr.io
         env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          IMAGE: ${{ needs.build.outputs.image }}
           IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # 모든 호스트키 타입 등록 (협상 타입 불일치로 인한 검증 실패 방지)
+          ssh-keyscan -T 15 "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          # 홈서버(macOS)에서 실행할 배포 스크립트를 stdin(heredoc)으로 전달.
+          # GHCR 자격증명은 명령줄 인자(VAR=val)로 넘겨 원격 sh 에 주입한다.
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
+            "$SSH_USER@$SSH_HOST" \
+            GHCR_USER="$GHCR_USER" GHCR_TOKEN="$GHCR_TOKEN" IMAGE_TAG="$IMAGE_TAG" 'sh -s' <<'REMOTE'
+          set -eu
+          # 비대화형 SSH 셸엔 /usr/local/bin(Docker Desktop) 이 PATH 에 없다.
+          export PATH="/usr/local/bin:$PATH"
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+          cd /Users/kynugroak/srv/fusion-game
+          docker compose pull
+          docker compose up -d
+          docker image prune -f
+          docker logout ghcr.io
+          REMOTE
