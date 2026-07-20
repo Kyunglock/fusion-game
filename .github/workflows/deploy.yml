@@ -22,6 +22,14 @@ concurrency:
 
 jobs:
   deploy:
+    # ── 실행 ref/저장소 방어 가드 ────────────────────────────────────────────
+    # 트리거 설정만으로도 PR·다른 브랜치에서는 안 돌지만, 방어를 한 겹 더 둔다.
+    #  - github.ref: main 브랜치의 워크플로우 정의로 실행될 때만 배포 (다른 브랜치/PR ref 차단)
+    #  - github.repository: fork 에서 복제된 워크플로우가 self-hosted runner 를 잡지 못하게 원본 저장소로 제한
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      github.repository == 'Kyunglock/fusion-game'
+
     # self-hosted runner 는 라벨로 명확히 지정한다.
     # (필요에 맞게 라벨을 조정하세요: [self-hosted, linux, x64])
     runs-on: [self-hosted, linux]
