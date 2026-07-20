@@ -123,19 +123,18 @@ jobs:
           # 아래 임시 DOCKER_CONFIG 를 쓰면 desktop-linux 컨텍스트가 빠지므로
           # 데몬 소켓을 직접 지정한다(/var/run/docker.sock → Docker Desktop 소켓 심링크).
           export DOCKER_HOST="unix:///var/run/docker.sock"
-          # Docker Desktop 기본 credsStore(=macOS 키체인)는 비대화형 SSH 세션에서
-          # 잠겨 있어 로그인 저장이 실패한다(-25308). credsStore 없는 임시 config 로
-          # 로그인해 auth 를 평문 저장(어차피 워크플로우 수명뿐인 GITHUB_TOKEN).
-          # compose 플러그인은 심링크로 끌어와 유지한다.
+          # Docker Desktop 은 credsStore 가 비어도 비대화형 SSH 세션에서 macOS 키체인
+          # 헬퍼를 호출해 docker login 이 실패한다(-25308). 그래서 login 을 쓰지 않고
+          # GHCR auth 를 임시 config.json 에 직접 기록해 키체인을 완전히 우회한다.
+          # (GITHUB_TOKEN 은 워크플로우 수명뿐. compose 플러그인은 심링크로 유지)
           DC="$(mktemp -d)"
           ln -s "$HOME/.docker/cli-plugins" "$DC/cli-plugins"
-          printf '{}' > "$DC/config.json"
+          AUTH=$(printf '%s:%s' "$GHCR_USER" "$GHCR_TOKEN" | base64 | tr -d '\n')
+          printf '{"auths":{"ghcr.io":{"auth":"%s"}}}' "$AUTH" > "$DC/config.json"
           export DOCKER_CONFIG="$DC"
-          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
           cd /Users/kynugroak/srv/fusion-game
           docker compose pull
           docker compose up -d
           docker image prune -f
-          docker logout ghcr.io
           rm -rf "$DC"
           REMOTE
