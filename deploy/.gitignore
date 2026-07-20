@@ -1,0 +1,3 @@
+# TLS 개인키/인증서는 저장소에 커밋하지 않는다. 홈서버에만 직접 배치.
+# (Cloudflare Full 모드용 self-signed origin 인증서)
+certs/

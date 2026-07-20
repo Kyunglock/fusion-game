@@ -104,9 +104,12 @@ jobs:
           envs: GHCR_USER,GHCR_TOKEN,IMAGE,IMAGE_TAG
           script: |
             set -euo pipefail
+            # 홈서버는 macOS(Docker Desktop). 비대화형 SSH 셸엔 /usr/local/bin 이
+            # PATH 에 없어 docker 를 못 찾으므로 명시적으로 추가한다.
+            export PATH="/usr/local/bin:$PATH"
             # GHCR 에서 이미지 pull 하기 위한 로그인 (워크플로우 실행 중에만 유효한 토큰)
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-            cd /srv/fusion-game
+            cd /Users/kynugroak/srv/fusion-game
             export IMAGE_TAG
             docker compose pull
             docker compose up -d
