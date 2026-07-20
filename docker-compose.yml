@@ -16,10 +16,9 @@ services:
     env_file:
       - .env
 
-    # 외부 노출은 아래 nginx 가 담당한다. 여기 바인딩은 호스트 로컬 디버깅용(선택).
-    # nginx 는 docker 네트워크에서 컨테이너 이름 `fusion-game:4000` 으로 직접 접근한다.
-    ports:
-      - "127.0.0.1:4000:4000"
+    # 앱은 호스트 포트를 열지 않는다(내부 전용). nginx 가 docker 네트워크에서
+    # 컨테이너 이름 `fusion-game:4000` 으로 직접 접근한다. 외부 노출은 nginx 담당.
+    # (host 4000 은 아래 nginx 가 쓰므로 여기서 4000 을 열면 충돌한다)
 
     # 간단한 헬스체크 (앱 루트에 TCP/HTTP 응답 확인)
     healthcheck:
@@ -36,10 +35,12 @@ services:
     restart: unless-stopped
     networks: [web]
 
-    # Cloudflare(SSL Full)가 origin:8443(HTTPS)로 붙는다. 공유기에서 8443 포워딩
-    # 하거나 cloudflared 터널을 쓰면 이 publish 는 로컬(127.0.0.1)로 좁혀도 된다.
+    # Cloudflare(SSL Full)가 origin 8443(HTTPS)로 붙고, 공유기가 "외부 8443 →
+    # 내부(이 맥) 4000" 으로 포워딩한다. 그 규칙에 맞춰 host 4000 → 컨테이너 8443
+    # 으로 퍼블리시(옛 fusion-proxy 와 동일). 공유기 규칙을 8443→8443 로 바꾸면
+    # 여기도 "8443:8443" 으로 되돌리면 된다.
     ports:
-      - "8443:8443"
+      - "4000:8443"
 
     volumes:
       # nginx.conf 는 conf.d 로 마운트돼 http{} 컨텍스트에 include 된다 (map 사용).
