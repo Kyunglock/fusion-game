@@ -61,6 +61,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # 홈서버(Apple Silicon Mac)가 arm64 라 arm64 이미지를 만들어야 한다.
+      # amd64 러너에서 arm64 를 빌드하려면 QEMU 에뮬레이션이 필요.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -69,6 +76,8 @@ jobs:
         with:
           context: .
           push: true
+          # 배포 대상이 Apple Silicon 하나뿐이므로 arm64 단일 플랫폼으로 빌드
+          platforms: linux/arm64
           # 커밋 SHA 로 불변 태그 + 편의를 위한 latest 태그
           tags: |
             ${{ steps.meta.outputs.image }}:${{ github.sha }}
