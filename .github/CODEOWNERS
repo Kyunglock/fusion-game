@@ -1,0 +1,10 @@
+# Code Owners
+# 여기에 지정된 사람이 해당 경로 변경 PR 의 필수 리뷰어가 된다.
+# 브랜치 보호 규칙에서 "Require review from Code Owners" 를 켜야 실제로 강제된다.
+
+# 저장소 전체: 주인이 최종 승인/머지
+*                       @Kyunglock
+
+# 배포·CI 워크플로우 변경은 특히 민감하므로 반드시 주인 리뷰
+/.github/                @Kyunglock
+/.github/workflows/      @Kyunglock
