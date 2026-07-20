@@ -56,7 +56,7 @@ app.get('/tetris', (_req, res) => {
 });
 
 app.get('/jamo', (_req, res) => {
-  res.render('pages/jamo', { title: '자모 워들', cssFile: 'jamo', jsFile: 'jamo', hasFlash: false });
+  res.render('pages/jamo', { title: '자모 맞추기', cssFile: 'jamo', jsFile: 'jamo', hasFlash: false });
 });
 
 // ── Socket.IO ─────────────────────────────────────────────────────────────────
