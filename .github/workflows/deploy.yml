@@ -26,7 +26,9 @@ jobs:
     if: >-
       github.ref == 'refs/heads/main' &&
       github.repository == 'Kyunglock/fusion-game'
-    runs-on: ubuntu-latest          # GitHub 클라우드 러너 (임시 VM)
+    # 네이티브 arm64 러너 (홈서버가 Apple Silicon). QEMU 에뮬레이션은 Node 빌드
+    # 중 SIGILL 로 죽으므로 arm64 러너에서 네이티브로 빌드한다. (공개 레포 무료)
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 20
     outputs:
       image: ${{ steps.meta.outputs.image }}
@@ -60,13 +62,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      # 홈서버(Apple Silicon Mac)가 arm64 라 arm64 이미지를 만들어야 한다.
-      # amd64 러너에서 arm64 를 빌드하려면 QEMU 에뮬레이션이 필요.
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
 
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
