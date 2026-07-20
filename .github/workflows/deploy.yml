@@ -1,0 +1,71 @@
+name: Deploy
+
+# ── 트리거 ────────────────────────────────────────────────────────────────────
+# main 브랜치에 push 될 때만 배포한다. (수동 실행도 허용)
+# fork PR 등 신뢰할 수 없는 코드가 self-hosted runner에서 돌지 않도록
+# pull_request 트리거는 의도적으로 넣지 않는다.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# ── 최소 권한 ────────────────────────────────────────────────────────────────
+# 기본적으로 GITHUB_TOKEN 에 아무 권한도 주지 않고, 필요한 read 만 부여한다.
+permissions:
+  contents: read
+
+# ── 중첩 배포 방지 ────────────────────────────────────────────────────────────
+# 배포가 진행 중일 때 새 배포가 들어오면 이전 것을 취소하지 않고 순서대로 처리한다.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # self-hosted runner 는 라벨로 명확히 지정한다.
+    # (필요에 맞게 라벨을 조정하세요: [self-hosted, linux, x64])
+    runs-on: [self-hosted, linux]
+
+    # GitHub Environment 로 승인/보호 규칙(리뷰어, 배포 브랜치 제한)을 걸 수 있다.
+    environment: production
+
+    timeout-minutes: 15
+
+    steps:
+      # 액션은 신뢰할 수 있는 버전 태그로 고정한다.
+      # (더 강한 보안이 필요하면 태그 대신 커밋 SHA 로 핀 고정하세요.)
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # 체크아웃한 자격증명을 워크스페이스에 남기지 않는다.
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      # package-lock.json 기준으로 재현 가능한 설치. (CSS 빌드에 devDependencies 필요)
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build CSS
+        run: npm run build:css
+
+      # 배포 대상 서버(=self-hosted runner)에서 앱을 재시작한다.
+      # 시크릿(SESSION_SECRET 등)은 워크플로우에 하드코딩하지 않고
+      # 서버에 미리 배치된 .env 또는 프로세스 매니저 환경에서 읽는다.
+      #
+      # pm2 를 프로세스 매니저로 사용하는 예시:
+      #   - 최초 1회: pm2 start server.js --name fusion-game && pm2 save
+      #   - 이후 배포: pm2 reload 로 무중단 재시작
+      - name: Restart service
+        run: |
+          if command -v pm2 >/dev/null 2>&1; then
+            pm2 reload fusion-game --update-env || pm2 start server.js --name fusion-game
+            pm2 save
+          else
+            echo "pm2 가 설치되어 있지 않습니다. 서버에서 프로세스 매니저(pm2/systemd)를 먼저 설정하세요." >&2
+            exit 1
+          fi
