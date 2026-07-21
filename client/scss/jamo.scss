@@ -959,3 +959,176 @@
 // ── 관전 모드: 답 입력 키보드 / 제시어 출제 숨김 ────────────────────────────────
 #screen-game.is-spectating #jamo-my-keyboard,
 #screen-game.is-spectating #jamo-host-round { display: none !important; }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 엑셀 위장(카멜레온): 엑셀 테마에서 자모 게임 UI 자체를 스프레드시트 셀처럼 보이게 한다.
+// 조건부 서식 색(Good=연녹 / Neutral=연노랑 / Bad=회색) + 플랫한 회색 격자선으로
+// 투명도를 낮추지 않아도 시트 데이터처럼 녹아들게 만든다.
+// ══════════════════════════════════════════════════════════════════════════════
+:root[data-theme='excel'] {
+  // 시트 그리드에 스냅하되 구석이 아닌 안쪽에 배치 (열 C 경계 42+2*64=170 / 행 4 경계 46+3*21=109)
+  // → 보드·키보드 셀이 배경 시트 칸에 딱 맞아 색칠된 데이터 무리 속 강조 범위처럼 묻힌다
+  #screen-solo, #screen-game {
+    position: relative;
+    align-items: flex-start;
+    justify-content: flex-start;
+    padding: 109px 16px 16px 170px;
+    gap: 2px;
+  }
+  #solo-keyboard, #jamo-my-keyboard { justify-content: flex-start; width: fit-content; }
+
+  // 배너/안내/스코어보드/키보드 카드 → 라운드·그림자 제거, 플랫한 셀 블록처럼
+  #jamo-banner, #jamo-wait-notice, #jamo-scoreboard {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    color: #616161;
+    font-weight: 400;
+    text-align: left;
+    padding: 2px 4px;
+    font-size: 0.72rem;
+  }
+  // 솔로 배너·툴바는 흐름에서 빼서(absolute) 보드가 행 경계에 정확히 맞도록
+  #solo-banner {
+    position: absolute;
+    left: 42px;
+    bottom: 8px;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    color: #909090;
+    font-weight: 400;
+    text-align: left;
+    padding: 0;
+    font-size: 0.7rem;
+  }
+  #solo-banner.solo-win  { color: #217346; }
+  #solo-banner.solo-lose { color: #c0392b; }
+
+  // 상단 툴바(나가기/난이도/다시도전) → 우상단 구석으로, 눈에 안 띄게 옅은 셀/텍스트
+  #solo-top { position: absolute; top: 4px; right: 12px; left: auto; width: auto; justify-content: flex-end; gap: 8px; }
+  #solo-top #solo-diff-badge { color: #808080; font-weight: 400; font-size: 0.72rem; flex: 0 0 auto; }
+  #solo-top button, #jamo-return-lobby, #jamo-spectate-join {
+    border-radius: 2px;
+    background: #f3f3f3;
+    border: 1px solid #d4d4d4;
+    color: #808080;
+    box-shadow: none;
+    padding: 3px 10px;
+    font-size: 0.72rem;
+    font-weight: 400;
+  }
+
+  // 보드 = 흰 셀 레인지 (플랫, 라운드 없음)
+  #solo-board {
+    background: #fff;
+    border: 1px solid #a6a6a6;
+    border-radius: 0;
+    padding: 0;
+    gap: 0;
+    box-shadow: none;
+    width: fit-content;
+    max-width: 100%;
+    margin: 0;
+  }
+  .jamo-board-card {
+    background: #fff;
+    border: 1px solid #a6a6a6;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+    &.is-me { border-color: #217346; }
+  }
+  .jamo-board-header {
+    margin: 0;
+    padding: 4px 8px;
+    background: #f3f3f3;
+    border-bottom: 1px solid #d4d4d4;
+  }
+  .jamo-board-name, .jamo-attempt-count { color: #1f2327; }
+  .jamo-avatar { background: #217346; }
+
+  // 셀·줄: 배경 시트 격자(열 64px × 행 21px)와 같은 규격으로 맞춰 하나의 그리드처럼
+  .jamo-row { gap: 0; margin: 0; }
+  .jamo-word-label {
+    width: 64px;
+    height: 21px;
+    line-height: 21px;
+    box-sizing: border-box;
+    border: 1px solid #d4d4d4;
+    margin: 0 -1px -1px 0;
+    background: #f3f3f3;
+    color: #616161;
+    font-size: 0.64rem;
+    font-weight: 600;
+    padding: 0 5px;
+    text-align: right;
+    &.masked { color: #909090; }
+  }
+  .jamo-cell {
+    width: 64px;
+    height: 21px;
+    box-sizing: border-box;
+    border-radius: 0;
+    border: 1px solid #d4d4d4;
+    margin: 0 -1px -1px 0;
+    background: #fff;
+    color: #1f2327;
+    font-weight: 600;
+    font-size: 0.82rem;
+    // 엑셀 조건부 서식 (Good / Neutral / Bad 셀 스타일)
+    &.green  { background: #c6efce; color: #006100; border-color: #b7e1c0; }
+    &.yellow { background: #ffeb9c; color: #9c6500; border-color: #f2d98a; }
+    &.black  { background: #f2f2f2; color: #9c9c9c; border-color: #d9d9d9; }
+  }
+  .jamo-row-empty .jamo-cell { opacity: 1; background: #fff; }
+  #jamo-active-row .jamo-cell {
+    border-color: #d4d4d4;
+    &.filled {
+      background: #fff;
+      border: 1px solid #217346;
+      color: #1f2327;
+    }
+  }
+
+  // 키보드 → 셀 격자로 (안내문 숨김, 셀처럼 격자선 겹침)
+  .jamo-keyboard {
+    background: #fff;
+    border: 1px solid #a6a6a6;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+    width: fit-content;
+    max-width: 100%;
+    margin: 0;
+  }
+  .jamo-keyboard-title { display: none; } // "키보드를 눌러…" 안내문 숨김 (게임 티 제거)
+  .jamo-key-row { gap: 0; margin: 0; justify-content: flex-start; }
+  .jamo-key {
+    border-radius: 0;
+    box-sizing: border-box;
+    margin: 0 -1px -1px 0;
+    height: 21px;
+    max-width: 64px;
+    background: #fff;
+    border: 1px solid #d4d4d4;
+    color: #1f2327;
+    font-size: 0.82rem;
+    font-weight: 600;
+    &:hover:not(:disabled) { filter: none; background: #eef3ff; }
+    &.green  { background: #c6efce; color: #006100; border-color: #b7e1c0; }
+    &.yellow { background: #ffeb9c; color: #9c6500; border-color: #f2d98a; }
+    &.black  { background: #f2f2f2; color: #9c9c9c; border-color: #d9d9d9; }
+  }
+  // 동작 키: 채도 낮은 옅은 셀(조건부 서식처럼) — 버튼 티 제거
+  .jamo-action-row { margin: 0; gap: 0; }
+  .jamo-key-action { max-width: none; white-space: nowrap; font-size: 0.72rem; font-weight: 600; height: 21px; }
+  .jamo-key-del { color: #616161; background: #f3f3f3; }
+  .jamo-key-enter {
+    background: #e2efda;
+    border-color: #c6d9b0;
+    color: #375623;
+    font-weight: 700;
+  }
+}

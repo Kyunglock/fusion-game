@@ -45,33 +45,56 @@ function spreadsheetHTML() {
   const rowhdr = Array.from({ length: rows }, (_, i) =>
     `<div class="xl-rh">${i + 1}</div>`).join('');
 
-  // 가짜 업무 데이터 (분기 손익 표) — 실제 시트처럼 보이게 좌상단에 채운다.
+  // 가짜 업무 데이터 (개발 산출물 — 테스트케이스 관리대장) — 시트를 끝까지 꽉 채워 덜 티나게.
   const rng = makeRng(20260721);
-  const heads = ['구분', '1분기', '2분기', '3분기', '4분기', '합계', '비중'];
-  const rowsData = ['매출액', '매출원가', '매출총이익', '판관비', '영업이익', '인건비',
-    '마케팅비', '연구개발', '감가상각', '금융수익', '금융비용', '법인세', '당기순이익',
-    '유동자산', '고정자산', '부채총계', '자본총계'];
+  const pick = a => a[Math.floor(rng() * a.length)];
+  const heads = ['TC ID', '기능 모듈', '테스트 항목', '기대 결과', '우선순위', '담당자', '결과', '수행일', '재현', '결함 ID', '비고'];
+  const modules = ['로그인', '콘텐츠 목록', '상세 보기', '파일 업로드', '검색', '권한 관리',
+    '알림', '마이페이지', '게시판', '통계 대시보드', '환경 설정', '회원가입', '결제', '댓글', 'SSO 연동'];
+  const items = ['정상 입력 검증', '필수값 누락 처리', '중복 등록 차단', '확장자 화이트리스트',
+    '최대 용량 초과', '페이지네이션', '정렬 옵션 적용', '권한 없음 접근', '세션 만료 처리',
+    '반응형 레이아웃', '에러 토스트 노출', '로딩 상태 표시', 'XSS 이스케이프', '캐시 무효화', '동시성 처리'];
+  const expects = ['정상 처리', '에러 메시지 노출', '목록 즉시 갱신', '업로드 성공', '요청 차단됨',
+    '정상 페이지 이동', '필터 정상 적용', '403 반환', '재로그인 유도', '정상 렌더링'];
+  const prios = ['P1', 'P2', 'P2', 'P3'];
+  const names = ['김민수', '이서연', '박지훈', '최유진', '정우성', '한도윤'];
+  const stats = ['Pass', 'Pass', 'Pass', 'Pass', 'Pass', 'Fail', '진행', '보류'];
+  const notes = ['', '', '', '재확인 필요', '', '핫픽스 반영', '', '리그레션', '', 'QA 승인', ''];
 
   const cells = [];
   // 표 헤더 (2행부터, B열부터)
   heads.forEach((h, c) => cells.push(place(c + 1, 1, h, 'xl-th')));
-  rowsData.forEach((label, r) => {
+  // 화면 높이에 맞춰 행을 끝까지 채운다
+  const N = Math.max(24, Math.ceil((window.innerHeight - 46) / CELL_H) - 1);
+  let passCnt = 0;
+  for (let r = 0; r < N; r++) {
     const row = r + 2;
-    cells.push(place(1, row, label, 'xl-lbl'));
-    const base = 200 + Math.floor(rng() * 1800);
-    let sum = 0;
-    for (let q = 0; q < 4; q++) {
-      const v = base * (10 + Math.floor(rng() * 90));
-      sum += v;
-      const neg = /원가|판관비|비용|상각|법인세|부채/.test(label);
-      cells.push(place(q + 2, row, (neg ? '-' : '') + fmt(v), neg ? 'xl-num xl-neg' : 'xl-num'));
-    }
-    cells.push(place(6, row, fmt(sum), 'xl-num xl-bold'));
-    cells.push(place(7, row, (5 + Math.floor(rng() * 90)) + '%', 'xl-num xl-muted'));
-  });
+    const st = pick(stats);
+    if (st === 'Pass') passCnt++;
+    // 결과 열에 엑셀 조건부 서식 채우기 색 (Good=연녹/Bad=연빨강/Neutral=연노랑)
+    // → 배경 곳곳에 초록·노랑이 깔려 게임 보드의 색칠 셀이 그냥 조건부 서식처럼 묻힌다.
+    const stFill = st === 'Pass' ? 'xl-fill-good' : st === 'Fail' ? 'xl-fill-bad' : 'xl-fill-neutral';
+    const day = 8 + (r % 12);
+    cells.push(place(1, row, 'TC-' + String(r + 1).padStart(3, '0'), 'xl-lbl'));
+    cells.push(place(2, row, pick(modules), 'xl-txt'));
+    cells.push(place(3, row, pick(items), 'xl-txt'));
+    cells.push(place(4, row, pick(expects), 'xl-txt'));
+    cells.push(place(5, row, pick(prios), 'xl-mid'));
+    cells.push(place(6, row, pick(names), 'xl-mid'));
+    cells.push(place(7, row, st, 'xl-mid xl-bold ' + stFill));
+    cells.push(place(8, row, '07-' + String(day).padStart(2, '0'), 'xl-mid xl-muted'));
+    cells.push(place(9, row, st === 'Fail' ? '3/10' : '10/10', 'xl-mid ' + (st === 'Fail' ? 'xl-fill-bad' : 'xl-fill-good')));
+    cells.push(place(10, row, st === 'Fail' ? 'DEF-' + String(100 + r).slice(-3) : '-', 'xl-mid xl-muted'));
+    cells.push(place(11, row, pick(notes), 'xl-txt xl-muted'));
+  }
+  // 우측 요약 블록
+  const pct = Math.round((passCnt / N) * 100);
+  cells.push(place(13, 1, '합격률', 'xl-th'));
+  cells.push(place(13, 2, pct + '%', 'xl-num xl-ok xl-bold'));
+  cells.push(place(13, 3, '총 ' + N + '건', 'xl-num xl-muted'));
 
-  // 선택 셀 (엑셀 초록/파랑 테두리 + 채우기 핸들)
-  const selC = 3, selR = 5;
+  // 선택 셀 (엑셀 초록 테두리 + 채우기 핸들) — 합격률 요약 셀
+  const selC = 13, selR = 2;
   const sel = `<div class="xl-sel" style="left:${selC * CELL_W}px;top:${selR * CELL_H}px"><span class="xl-handle"></span></div>`;
 
   return `
@@ -79,7 +102,7 @@ function spreadsheetHTML() {
       <div class="xl-fbar">
         <div class="xl-namebox">${colName(selC)}${selR + 1}</div>
         <div class="xl-fx">fx</div>
-        <div class="xl-finput">=SUM(C7:F7)</div>
+        <div class="xl-finput">=COUNTIF(H3:H19,"Pass")/COUNTA(H3:H19)</div>
       </div>
       <div class="xl-grid">
         <div class="xl-corner"><i></i></div>
@@ -92,10 +115,10 @@ function spreadsheetHTML() {
         </div>
       </div>
       <div class="xl-tabs">
-        <span class="xl-tab active">손익계산서</span>
-        <span class="xl-tab">재무상태표</span>
-        <span class="xl-tab">현금흐름</span>
-        <span class="xl-tab">Sheet4</span>
+        <span class="xl-tab active">테스트케이스</span>
+        <span class="xl-tab">결함관리대장</span>
+        <span class="xl-tab">요구사항추적</span>
+        <span class="xl-tab">배포이력</span>
         <span class="xl-plus">＋</span>
       </div>
     </div>`;
@@ -325,9 +348,16 @@ body.pg-camo-on { background: transparent; }
 .xl-th { font-weight: 700; text-align: center; background: color-mix(in srgb, var(--green-mid) 16%, var(--card)); color: var(--green-dark); }
 .xl-lbl { font-weight: 600; }
 .xl-num { text-align: right; font-variant-numeric: tabular-nums; }
+.xl-txt { text-align: left; }
+.xl-mid { text-align: center; }
 .xl-bold { font-weight: 700; }
 .xl-neg { color: var(--red); }
+.xl-ok { color: #217346; }
 .xl-muted { color: var(--muted); }
+/* 엑셀 조건부 서식 채우기 (Good/Bad/Neutral) — 게임 보드 색과 동일 팔레트로 배경에 깔림 */
+.xl-fill-good { background: #c6efce; color: #006100; }
+.xl-fill-bad { background: #ffc7ce; color: #9c0006; }
+.xl-fill-neutral { background: #ffeb9c; color: #9c6500; }
 .xl-sel { position: absolute; width: ${CELL_W + 1}px; height: ${CELL_H + 1}px;
   border: 2px solid var(--green-mid); background: color-mix(in srgb, var(--green-mid) 8%, transparent); box-sizing: border-box; }
 .xl-handle { position: absolute; right: -3px; bottom: -3px; width: 6px; height: 6px;
