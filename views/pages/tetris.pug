@@ -9,6 +9,7 @@ block overlays
 
 block content
   +lobby({ logoEmoji: '🧱', title: '테트리스 배틀', titleClass: 'title-tetris', subtitle: '줄을 지우면 상대에게 쓰레기 줄이 쌓인다! ⚡' })
+    button#btn-solo.btn.btn-secondary 🎮 혼자 하기 (연습)
 
   +waitingRoom({ subtext: '최대 4명 · 키보드 또는 터치로 조작' })
 
@@ -62,3 +63,22 @@ block content
 
   +aloneOverlay('🧱💨')
   +resultOverlay({ emoji: '🏆', title: '승리!' })
+
+  //- 혼자 하기(솔로) 결과 오버레이
+  #solo-result-overlay
+    #solo-result-card
+      .solo-result-emoji 🧱
+      .solo-result-title 게임 오버!
+      .solo-stats
+        .solo-stat
+          span.solo-stat-label 점수
+          span#solo-score.solo-stat-value 0
+        .solo-stat
+          span.solo-stat-label 줄
+          span#solo-lines.solo-stat-value 0
+        .solo-stat
+          span.solo-stat-label 레벨
+          span#solo-level.solo-stat-value 1
+      .solo-result-btns
+        button#btn-solo-retry.btn.btn-primary 다시 하기
+        button#btn-solo-exit.btn.btn-secondary 나가기
