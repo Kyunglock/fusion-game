@@ -65,6 +65,7 @@ let isAlive     = false;
 let gameActive  = false;
 let gameStarted = false;
 let isSpectator = false;
+let isSolo      = false;
 let dropTimer  = null;
 let combo      = 0;
 let comboHideTimer = null;
@@ -133,7 +134,7 @@ function lockPiece() {
     score += (scoreMap[cleared] ?? 800) * level;
     lines += cleared;
     level = Math.floor(lines / 10) + 1;
-    if (gameActive && isAlive) socket.emit('line_clear', { count: cleared, combo });
+    if (gameActive && isAlive && !isSolo) socket.emit('line_clear', { count: cleared, combo });
     updateStats();
     if (combo >= 2) showComboEffect(combo);
     if (cleared >= 4)      { startFlash(255, 220, 50, 1.0, 0.06);  shakeBoard('heavy'); }
@@ -195,10 +196,12 @@ function resetDropTimer() {
 function triggerGameOver() {
   isAlive = false; gameActive = false;
   clearTimeout(dropTimer);
-  socket.emit('game_over');
   mainBoardWrap.classList.add('dead');
   deadOverlay.classList.add('show');
-  renderBoard(); syncBoard();
+  renderBoard();
+  if (isSolo) { showSoloResult(); return; }
+  socket.emit('game_over');
+  syncBoard();
 }
 
 function updateStats() { $('stat-lines').textContent = lines; $('stat-score').textContent = score; $('stat-level').textContent = level; }
@@ -207,6 +210,7 @@ let syncInterval = null;
 function startSyncInterval() { clearInterval(syncInterval); syncInterval = setInterval(syncBoard, 500); }
 function stopSyncInterval()  { clearInterval(syncInterval); syncInterval = null; }
 function syncBoard() {
+  if (isSolo) return;
   if (!gameActive && !isAlive) return;
   const snapshot = board.map(row => [...row]);
   if (current) { getCells(current).forEach(({ r, c }) => { if (r >= 0 && r < ROWS && c >= 0 && c < COLS) snapshot[r][c] = current.color; }); }
@@ -371,6 +375,13 @@ const resultOverlay  = $('result-overlay');
 const resultEmoji    = $('result-emoji');
 const resultTitle    = $('result-title');
 const resultSub      = $('result-sub');
+const btnSolo          = $('btn-solo');
+const soloResultOverlay = $('solo-result-overlay');
+const soloScoreEl      = $('solo-score');
+const soloLinesEl      = $('solo-lines');
+const soloLevelEl      = $('solo-level');
+const btnSoloRetry     = $('btn-solo-retry');
+const btnSoloExit      = $('btn-solo-exit');
 
 let myId        = null;
 let myName      = '';
@@ -401,6 +412,7 @@ function renderWaiting(state) {
 }
 
 function startLocalGame(state) {
+  isSolo = false;
   resetBoard(); score = lines = 0; level = 1; combo = 0;
   holdPiece = null; holdUsed = false; pieceBag = [...newBag(), ...newBag()];
   isAlive = true; gameActive = true;
@@ -412,6 +424,41 @@ function startLocalGame(state) {
   opponentArea.innerHTML = ''; opponentCanvases.clear();
   state.players.filter(p => p.id !== myId).forEach(p => createOpponentBoard(p));
   spawnPiece(); render(); resetDropTimer(); startSyncInterval();
+}
+
+// ── 혼자 하기 (솔로/연습 모드, 완전 로컬) ──────────────────────────────────────
+function startSoloGame() {
+  isSolo = true;
+  isSpectator = false; screens['game'].classList.remove('spectating');
+  gameStarted = true;
+  showScreen('game');
+
+  resetBoard(); score = lines = 0; level = 1; combo = 0;
+  holdPiece = null; holdUsed = false; pieceBag = [...newBag(), ...newBag()];
+  isAlive = true; gameActive = true;
+  clearTimeout(dropTimer); clearTimeout(comboHideTimer);
+  if (comboEl) comboEl.className = '';
+  mainBoardWrap.classList.remove('dead'); deadOverlay.classList.remove('show');
+  resultOverlay.classList.remove('show');
+  soloResultOverlay.classList.remove('show');
+  updateStats(); setupCanvases();
+  opponentArea.innerHTML = ''; opponentCanvases.clear();
+  spawnPiece(); render(); resetDropTimer();
+}
+
+function showSoloResult() {
+  soloScoreEl.textContent = score;
+  soloLinesEl.textContent = lines;
+  soloLevelEl.textContent = level;
+  soloResultOverlay.classList.add('show');
+}
+
+function exitSolo() {
+  isSolo = false; gameActive = false; isAlive = false; gameStarted = false;
+  clearTimeout(dropTimer); clearTimeout(comboHideTimer);
+  soloResultOverlay.classList.remove('show');
+  mainBoardWrap.classList.remove('dead'); deadOverlay.classList.remove('show');
+  showScreen('lobby');
 }
 
 function createOpponentBoard(player) {
@@ -575,6 +622,11 @@ btnCreate.addEventListener('click', () => {
 
 btnReady.addEventListener('click', () => socket.emit('toggle_ready'));
 btnStart.addEventListener('click', () => socket.emit('start_game'));
+
+// ── 혼자 하기 버튼 ────────────────────────────────────────────────────────────
+btnSolo?.addEventListener('click', startSoloGame);
+btnSoloRetry?.addEventListener('click', startSoloGame);
+btnSoloExit?.addEventListener('click', exitSolo);
 
 const btnToggleSpectator = $('btn-toggle-spectator');
 if (btnToggleSpectator) btnToggleSpectator.addEventListener('click', () => socket.emit('toggle_spectator_allowed'));
