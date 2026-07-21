@@ -58,7 +58,9 @@ export function setChatVisible(visible) {
   const wasVisible = chatWrap.classList.contains('visible');
   chatWrap.classList.toggle('visible', visible);
   if (visible) {
-    if (!wasVisible) chatPanel.classList.remove('collapsed');
+    // 대기실/게임 첫 진입 시 채팅창은 접힌 채로 두고, 사용자가 FAB로 직접 연다.
+    // (이미 보이던 상태라면 사용자가 열어둔 상태를 건드리지 않는다)
+    if (!wasVisible) chatPanel.classList.add('collapsed');
   } else {
     chatMessages.innerHTML = '';
     chatUnread = 0;
