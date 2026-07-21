@@ -114,7 +114,7 @@ client/
 
 ## 테마 (위장 테마)
 - "회사에서 몰래 하는" 컨셉 — 대놓고 게임처럼 안 보이도록 여러 위장 테마를 제공한다.
-- 4가지: `green`(기본 그린), `doc`(문서/워드풍 라이트), `sheet`(스프레드시트/엑셀풍), `code`(코드 에디터 다크)
+- 7가지: `green`(기본 그린), `doc`(문서/워드풍 라이트), `sheet`(스프레드시트풍), `excel`(엑셀/오피스 라이트, 엑셀 그린 리본), `code`(VS Code 다크), `vscode`(VS Code 라이트/Light+, 블루 강조), `eclipse`(Eclipse IDE 라이트, 이클립스 퍼플)
 - 구현: 색상은 전부 CSS 변수(`var(--x)`)로 통일. `client/scss/_variables.scss`의 `:root`가 기본(그린), `:root[data-theme='doc'|'sheet'|'code']` 블록이 팔레트를 오버라이드
   - `--green-*`는 이름은 그대로지만 각 테마의 **강조색 스케일**로 재정의됨(그린→블루 등). 채팅/서피스용으로 `--sunken`(채팅 패널·입력), `--bubble`(받은 말풍선), `--chip`(옅은 배지) 추가
   - SCSS 컴파일타임 변수(`$green-dark` 등)를 색상 위치에서 쓰면 테마가 안 먹으니 항상 `var(--x)` 사용
