@@ -14,7 +14,7 @@ block content
     #jamo-host-setup(style="display:none")
       label.toggle-row
         input#input-keyboard-toggle(type="checkbox" checked)
-        span 참가자 키보드 보이기
+        span 참가자 키보드 색상 힌트 보이기
     //- 관전자 → 참여자로 이동 (대기실, 관전자에게만 노출)
     button#jamo-spectator-join.btn.btn-primary(style="display:none") 참여자로 이동
 
@@ -40,11 +40,8 @@ block content
 
     #jamo-boards
 
-    //- 내 키보드 (보드 카드 밖, 참가자 전용)
+    //- 내 키보드 = 답 입력 수단 (보드 카드 밖, 참가자 전용)
+    //- 화면 키보드 클릭/터치 또는 물리 키보드로 자모를 입력하고 ⏎로 제출한다.
     #jamo-my-keyboard(style="display:none")
-
-    #jamo-guess-row
-      input#input-guess(type="text" placeholder="답 입력" maxlength="20" autocomplete="off")
-      button#btn-submit-guess.btn.btn-primary 제출
 
   +aloneOverlay('🔤💨')

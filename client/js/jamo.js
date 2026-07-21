@@ -17,6 +17,100 @@ import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
     ['ㅋ','ㅌ','ㅊ','ㅍ','ㅠ','ㅜ','ㅡ'],
   ];
 
+  // 물리 키보드 → 자모 매핑. e.code(물리 위치) 기준이라 한글 IME/언어 설정과 무관하게 동작한다.
+  const CODE_JAMO = {
+    KeyQ:'ㅂ', KeyW:'ㅈ', KeyE:'ㄷ', KeyR:'ㄱ', KeyT:'ㅅ', KeyY:'ㅛ', KeyU:'ㅕ', KeyI:'ㅑ', KeyO:'ㅐ', KeyP:'ㅔ',
+    KeyA:'ㅁ', KeyS:'ㄴ', KeyD:'ㅇ', KeyF:'ㄹ', KeyG:'ㅎ', KeyH:'ㅗ', KeyJ:'ㅓ', KeyK:'ㅏ', KeyL:'ㅣ',
+    KeyZ:'ㅋ', KeyX:'ㅌ', KeyC:'ㅊ', KeyV:'ㅍ', KeyB:'ㅠ', KeyN:'ㅜ', KeyM:'ㅡ',
+  };
+
+  // 겹자모/겹모음은 원자 자모 여러 개로 분해해 채점 규칙(서버 decompose)과 항상 일치시킨다.
+  // (IME로 ㅐ·ㄲ 등이 통째로 들어오는 경우 대비)
+  const ATOMIZE = {
+    'ㅐ':['ㅏ','ㅣ'], 'ㅒ':['ㅑ','ㅣ'], 'ㅔ':['ㅓ','ㅣ'], 'ㅖ':['ㅕ','ㅣ'],
+    'ㅘ':['ㅗ','ㅏ'], 'ㅙ':['ㅗ','ㅏ','ㅣ'], 'ㅚ':['ㅗ','ㅣ'],
+    'ㅝ':['ㅜ','ㅓ'], 'ㅞ':['ㅜ','ㅓ','ㅣ'], 'ㅟ':['ㅜ','ㅣ'], 'ㅢ':['ㅡ','ㅣ'],
+    'ㄲ':['ㄱ','ㄱ'], 'ㄸ':['ㄷ','ㄷ'], 'ㅃ':['ㅂ','ㅂ'], 'ㅆ':['ㅅ','ㅅ'], 'ㅉ':['ㅈ','ㅈ'],
+  };
+  const atomize = (j) => ATOMIZE[j] || [j];
+
+  // ── 자모 → 한글 음절 조합 (서버 decompose 의 역함수) ─────────────────────────
+  // 입력한 원자 자모를 음절로 합쳐 "자연"처럼 보이게 한다. 조합 결과를 서버로 보내도
+  // decompose 가 다시 같은 자모로 쪼개므로 채점은 동일하다.
+  const C_CHO  = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+  const C_JUNG = ['ㅏ','ㅐ','ㅑ','ㅒ','ㅓ','ㅔ','ㅕ','ㅖ','ㅗ','ㅘ','ㅙ','ㅚ','ㅛ','ㅜ','ㅝ','ㅞ','ㅟ','ㅠ','ㅡ','ㅢ','ㅣ'];
+  const C_JONG = ['','ㄱ','ㄲ','ㄳ','ㄴ','ㄵ','ㄶ','ㄷ','ㄹ','ㄺ','ㄻ','ㄼ','ㄽ','ㄾ','ㄿ','ㅀ','ㅁ','ㅂ','ㅄ','ㅅ','ㅆ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+
+  const CONS_DOUBLE  = { 'ㄱ|ㄱ':'ㄲ','ㄷ|ㄷ':'ㄸ','ㅂ|ㅂ':'ㅃ','ㅅ|ㅅ':'ㅆ','ㅈ|ㅈ':'ㅉ' };
+  const VOWEL_COMBINE = {
+    'ㅏ|ㅣ':'ㅐ','ㅑ|ㅣ':'ㅒ','ㅓ|ㅣ':'ㅔ','ㅕ|ㅣ':'ㅖ',
+    'ㅗ|ㅏ':'ㅘ','ㅘ|ㅣ':'ㅙ','ㅗ|ㅐ':'ㅙ','ㅗ|ㅣ':'ㅚ',
+    'ㅜ|ㅓ':'ㅝ','ㅝ|ㅣ':'ㅞ','ㅜ|ㅔ':'ㅞ','ㅜ|ㅣ':'ㅟ','ㅡ|ㅣ':'ㅢ',
+  };
+  const JONG_COMBINE = {
+    'ㄱ|ㄱ':'ㄲ','ㄱ|ㅅ':'ㄳ','ㄴ|ㅈ':'ㄵ','ㄴ|ㅎ':'ㄶ','ㄹ|ㄱ':'ㄺ','ㄹ|ㅁ':'ㄻ',
+    'ㄹ|ㅂ':'ㄼ','ㄹ|ㅅ':'ㄽ','ㄹ|ㅌ':'ㄾ','ㄹ|ㅍ':'ㄿ','ㄹ|ㅎ':'ㅀ','ㅂ|ㅅ':'ㅄ','ㅅ|ㅅ':'ㅆ',
+  };
+  const JONG_SPLIT_LOCAL = {
+    'ㄲ':['ㄱ','ㄱ'],'ㅆ':['ㅅ','ㅅ'],'ㄳ':['ㄱ','ㅅ'],'ㄵ':['ㄴ','ㅈ'],'ㄶ':['ㄴ','ㅎ'],
+    'ㄺ':['ㄹ','ㄱ'],'ㄻ':['ㄹ','ㅁ'],'ㄼ':['ㄹ','ㅂ'],'ㄽ':['ㄹ','ㅅ'],'ㄾ':['ㄹ','ㅌ'],
+    'ㄿ':['ㄹ','ㅍ'],'ㅀ':['ㄹ','ㅎ'],'ㅄ':['ㅂ','ㅅ'],
+  };
+
+  function toSyllable(cho, jung, jong) {
+    const ci = C_CHO.indexOf(cho);
+    const ji = C_JUNG.indexOf(jung);
+    const ki = jong ? C_JONG.indexOf(jong) : 0;
+    if (ci >= 0 && ji >= 0 && ki >= 0) {
+      return String.fromCharCode(0xAC00 + (ci * 21 + ji) * 28 + ki);
+    }
+    return (cho || '') + (jung || '') + (jong || ''); // 불완전하면 낱자 그대로
+  }
+
+  function composeJamo(jamos) {
+    let out = '', cho = '', jung = '', jong = '';
+    const key = (a, b) => `${a}|${b}`;
+    const flush = () => {
+      if (cho || jung || jong) out += toSyllable(cho, jung, jong);
+      cho = jung = jong = '';
+    };
+
+    for (const c of jamos) {
+      if (!C_JUNG.includes(c)) {
+        // 자음
+        if (!jung) {
+          if (!cho) cho = c;
+          else if (CONS_DOUBLE[key(cho, c)]) cho = CONS_DOUBLE[key(cho, c)];
+          else { flush(); cho = c; }
+        } else if (!jong) {
+          jong = c;
+        } else if (JONG_COMBINE[key(jong, c)]) {
+          jong = JONG_COMBINE[key(jong, c)];
+        } else {
+          flush(); cho = c;
+        }
+      } else {
+        // 모음
+        if (jong) {
+          // 종성이 있으면 다음 음절 초성으로 넘긴다 (겹받침은 뒤 자음만)
+          const split = JONG_SPLIT_LOCAL[jong];
+          let stolen;
+          if (split) { jong = split[0]; stolen = split[1]; }
+          else { stolen = jong; jong = ''; }
+          flush(); cho = stolen; jung = c;
+        } else if (!jung) {
+          jung = c;
+        } else if (VOWEL_COMBINE[key(jung, c)]) {
+          jung = VOWEL_COMBINE[key(jung, c)];
+        } else {
+          flush(); jung = c;
+        }
+      }
+    }
+    flush();
+    return out;
+  }
+
   // ── State ────────────────────────────────────────────────────────────────
   let myId        = null;
   let myName      = '';
@@ -24,6 +118,11 @@ import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
   let gameState   = { players: [], myKeyboard: {} };
   let amHost      = false;
   let isSpectator = false;
+
+  // 답 입력: 화면/물리 키보드로 조합 중인 자모(원자 단위)
+  let composing        = [];    // 현재 입력 중인 자모 배열
+  let composeAnswerLen = 0;     // 이번 라운드 자모 칸 수
+  let canGuessNow      = false; // 지금 내가 입력 가능한 상태인지
 
   const playerAvatarEmojis = new Map();
   const AVATAR_ICONS = ['🔤', '🔡', '🔠', '📝'];
@@ -51,9 +150,6 @@ import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
   const jamoReturnLobby = $('jamo-return-lobby');
   const jamoBoards     = $('jamo-boards');
   const jamoMyKeyboard = $('jamo-my-keyboard');
-  const jamoGuessRow   = $('jamo-guess-row');
-  const inputGuess     = $('input-guess');
-  const btnSubmitGuess = $('btn-submit-guess');
   const jamoSpectatorJoin = $('jamo-spectator-join');
 
   // ── Socket ───────────────────────────────────────────────────────────────
@@ -126,26 +222,90 @@ import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
     return row;
   }
 
-  function renderKeyboard(myKeyboard) {
+  // showColors: 자모별 최고 등급 색상 힌트 노출(방장 토글) / interactive: 입력 가능 상태
+  function renderKeyboard(myKeyboard, showColors, interactive) {
     const wrap = document.createElement('div');
     wrap.className = 'jamo-keyboard';
     const title = document.createElement('div');
     title.className = 'jamo-keyboard-title';
-    title.textContent = '내 키보드';
+    title.textContent = interactive ? '키보드를 눌러 자모를 입력하세요 (물리 키보드도 가능)' : '내 키보드';
     wrap.appendChild(title);
 
     KEY_ROWS.forEach(row => {
       const rowEl = document.createElement('div');
       rowEl.className = 'jamo-key-row';
       row.forEach(k => {
-        const key = document.createElement('div');
-        key.className = `jamo-key ${myKeyboard[k] || ''}`;
+        const key = document.createElement('button');
+        key.type = 'button';
+        key.className = `jamo-key${showColors && myKeyboard[k] ? ' ' + myKeyboard[k] : ''}`;
         key.textContent = k;
+        key.disabled = !interactive;
+        key.addEventListener('click', () => appendJamo(k));
         rowEl.appendChild(key);
       });
       wrap.appendChild(rowEl);
     });
+
+    // 동작 키: 지우기(⌫) / 입력(⏎)
+    const actionRow = document.createElement('div');
+    actionRow.className = 'jamo-key-row jamo-action-row';
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'jamo-key jamo-key-action jamo-key-del';
+    del.textContent = '⌫ 지우기';
+    del.disabled = !interactive;
+    del.addEventListener('click', backspaceJamo);
+    const enter = document.createElement('button');
+    enter.type = 'button';
+    enter.className = 'jamo-key jamo-key-action jamo-key-enter';
+    enter.textContent = '입력 ⏎';
+    enter.disabled = !interactive;
+    enter.addEventListener('click', submitGuess);
+    actionRow.appendChild(del);
+    actionRow.appendChild(enter);
+    wrap.appendChild(actionRow);
+
     return wrap;
+  }
+
+  // ── 조합 중인 자모 입력/삭제/제출 ─────────────────────────────────────────
+  function appendJamo(j) {
+    if (!canGuessNow) return;
+    for (const piece of atomize(j)) {
+      if (composing.length >= composeAnswerLen) break;
+      composing.push(piece);
+    }
+    updateComposingCells();
+  }
+
+  function backspaceJamo() {
+    if (!canGuessNow) return;
+    composing.pop();
+    updateComposingCells();
+  }
+
+  function submitGuess() {
+    if (!canGuessNow) return;
+    if (composing.length !== composeAnswerLen) {
+      showError(`자모 ${composeAnswerLen}칸을 모두 채워주세요.`);
+      return;
+    }
+    socket.emit('submit_guess', { guess: composeJamo(composing) });
+    composing = [];
+    updateComposingCells();
+  }
+
+  // 내 보드의 현재 시도 줄(#jamo-active-row)에 조합 중인 자모를 채워 넣는다.
+  function updateComposingCells() {
+    const row = document.getElementById('jamo-active-row');
+    if (!row) return;
+    row.querySelectorAll('.jamo-cell').forEach((cell, i) => {
+      cell.textContent = composing[i] ?? '';
+      cell.classList.toggle('filled', i < composing.length);
+    });
+    // 현재 줄 라벨에 조합 중인 단어를 실시간으로 보여준다 (예: 자연)
+    const label = row.querySelector('.jamo-word-label');
+    if (label) label.textContent = composeJamo(composing);
   }
 
   function renderBoards(state) {
@@ -201,6 +361,14 @@ import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
         : '방장이 제시어를 준비하고 있습니다…';
     }
 
+    // ── 입력 가능 상태 계산 (내 보드 현재 줄 활성화 + 키보드 활성화에 사용) ──
+    const me = participants.find(p => p.id === myId);
+    const canGuess = !isSpectator && !iAmHost && state.state === 'playing'
+      && me && !me.solved && (me.attemptCount || 0) < MAX_ATTEMPTS;
+    canGuessNow      = !!canGuess;
+    composeAnswerLen = answerLength;
+    if (state.state !== 'playing') composing = []; // 라운드가 끝나면 조합 초기화
+
     // ── 참가자별 보드 (방장은 보드 없음) ──────────────────────────────────
     jamoBoards.innerHTML = '';
     const ordered = [...participants].sort((a, b) => (a.id === myId ? 0 : 1) - (b.id === myId ? 0 : 1));
@@ -229,22 +397,31 @@ import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
       card.appendChild(header);
 
       attempts.forEach((a, idx) => card.appendChild(renderAttemptRow(a, idx, answerLength)));
-      for (let r = attempts.length; r < MAX_ATTEMPTS; r++) card.appendChild(renderEmptyRow(answerLength));
+      for (let r = attempts.length; r < MAX_ATTEMPTS; r++) {
+        const empty = renderEmptyRow(answerLength);
+        // 내 보드의 첫 빈 줄 = 현재 입력 줄. 조합 중인 자모를 여기에 채운다.
+        if (isMe && canGuess && r === attempts.length) empty.id = 'jamo-active-row';
+        card.appendChild(empty);
+      }
 
       jamoBoards.appendChild(card);
     });
 
-    // ── 내 키보드 (보드 카드 밖에 별도로 렌더 → 카드 크기 통일) ────────────
-    const showKeyboard = !isSpectator && !iAmHost && state.keyboardVisible && participants.some(p => p.id === myId);
+    // ── 내 키보드 (보드 카드 밖 별도 렌더 = 답 입력 수단) ──────────────────
+    // 라운드 진행 중인 참가자에게는 항상 노출한다. keyboardVisible 토글은 이제
+    // '색상 힌트' 노출 여부만 제어하고, 키보드 자체는 입력을 위해 늘 보인다.
+    const showKeyboard = !isSpectator && !iAmHost && state.state === 'playing'
+      && participants.some(p => p.id === myId);
     jamoMyKeyboard.style.display = showKeyboard ? 'flex' : 'none';
     jamoMyKeyboard.innerHTML = '';
-    if (showKeyboard) jamoMyKeyboard.appendChild(renderKeyboard(gameState.myKeyboard || {}));
+    if (showKeyboard) {
+      jamoMyKeyboard.appendChild(
+        renderKeyboard(gameState.myKeyboard || {}, state.keyboardVisible !== false, canGuessNow)
+      );
+    }
 
-    const me = participants.find(p => p.id === myId);
-    const canGuess = !isSpectator && !iAmHost && state.state === 'playing' && me && !me.solved && (me.attemptCount || 0) < MAX_ATTEMPTS;
-    jamoGuessRow.style.display = (!isSpectator && !iAmHost && state.state === 'playing') ? 'flex' : 'none';
-    inputGuess.disabled     = !canGuess;
-    btnSubmitGuess.disabled = !canGuess;
+    // 보드 재생성 후 조합 중인 자모를 현재 줄에 다시 채운다.
+    updateComposingCells();
   }
 
   // ── Socket events ─────────────────────────────────────────────────────────
@@ -359,13 +536,20 @@ import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
     gameState   = { players: [], myKeyboard: {} };
   });
 
-  function submitGuess() {
-    const val = inputGuess.value.trim();
-    if (!val || btnSubmitGuess.disabled) return;
-    socket.emit('submit_guess', { guess: val });
-    inputGuess.value = '';
-  }
+  // ── 물리 키보드 입력 (두벌식, e.code 기반 → IME/언어 설정과 무관) ──────────
+  document.addEventListener('keydown', (e) => {
+    if (!canGuessNow) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    // 채팅 등 입력창에 포커스가 있으면 게임 입력으로 가로채지 않는다.
+    const tag = e.target?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable) return;
 
-  btnSubmitGuess.addEventListener('click', submitGuess);
-  inputGuess.addEventListener('keydown', e => { if (e.key === 'Enter') submitGuess(); });
+    if (e.key === 'Enter')     { e.preventDefault(); submitGuess();  return; }
+    if (e.key === 'Backspace') { e.preventDefault(); backspaceJamo(); return; }
+
+    // 물리 키 위치(e.code) 우선, 안 되면 이미 자모로 들어온 e.key 사용(IME 대비)
+    let jamo = CODE_JAMO[e.code];
+    if (!jamo && /^[ㄱ-ㅎㅏ-ㅣ]$/.test(e.key)) jamo = e.key;
+    if (jamo) { e.preventDefault(); appendJamo(jamo); }
+  });
 }

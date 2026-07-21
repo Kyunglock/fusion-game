@@ -430,7 +430,19 @@
 
 .jamo-row-empty .jamo-cell { opacity: 0.5; }
 
-// ── 개인 키보드 (보드 카드 밖 독립 패널) ────────────────────────────────────────
+// 현재 입력 줄: 조합 중인 자모가 채워지는 곳
+#jamo-active-row .jamo-cell {
+  opacity: 1;
+  border-color: var(--green-mid);
+
+  &.filled {
+    background: var(--chip);
+    border-color: var(--green-light);
+    color: var(--text);
+  }
+}
+
+// ── 개인 키보드 (보드 카드 밖 독립 패널 = 답 입력 수단) ─────────────────────────
 #jamo-my-keyboard {
   width: 100%;
   max-width: 640px;
@@ -451,45 +463,65 @@
   font-size: 0.72rem;
   font-weight: 700;
   color: var(--muted);
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  text-align: center;
 }
 
 .jamo-key-row {
   display: flex;
-  gap: 4px;
-  margin-bottom: 4px;
+  gap: 5px;
+  margin-bottom: 5px;
   flex-wrap: nowrap; // 키보드 각 줄은 항상 한 줄로
   justify-content: center;
 }
 
 .jamo-key {
-  min-width: 26px;
-  height: 28px;
-  padding: 0 5px;
-  flex-shrink: 0;
-  border-radius: 6px;
-  background: var(--card);
+  flex: 1 1 0;          // 각 줄에서 폭을 고르게 채워 탭하기 쉽게
+  min-width: 0;
+  max-width: 46px;
+  height: 44px;
+  padding: 0 4px;
+  border-radius: 7px;
+  background: var(--bg);
   border: 1px solid var(--border);
   display: grid;
   place-items: center;
   font-weight: 800;
-  font-size: 0.78rem;
+  font-size: 0.95rem;
   color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: transform 0.06s, filter 0.1s;
+
+  &:hover:not(:disabled) { filter: brightness(1.15); }
+  &:active:not(:disabled) { transform: translateY(1px) scale(0.96); }
+  &:disabled { opacity: 0.45; cursor: default; }
 
   &.green  { background: linear-gradient(135deg, var(--green-mid), var(--green-dark)); border-color: transparent; color: var(--white); }
   &.yellow { background: linear-gradient(135deg, var(--yellow), var(--gold)); border-color: transparent; color: #1a1a1a; }
   &.black  { background: #3b423e; border-color: #3b423e; color: #9aa8a0; } // 없는 자모: 진한 회색
 }
 
-// ── 답 입력 ────────────────────────────────────────────────────────────────────
-#jamo-guess-row {
-  display: none;
-  width: 100%;
-  max-width: 640px;
-  gap: 8px;
+// 동작 키(지우기/입력)는 넓게, 입력 키는 강조색
+.jamo-action-row { margin-top: 8px; margin-bottom: 0; gap: 8px; }
 
-  input { flex: 1; margin-bottom: 0; }
-  button { width: auto; padding: 12px 22px; flex-shrink: 0; }
+.jamo-key-action {
+  flex: 1 1 0;
+  max-width: none;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.jamo-key-del { color: var(--green-pale); }
+
+.jamo-key-enter {
+  background: linear-gradient(135deg, var(--green-dark), var(--green-mid));
+  border-color: transparent;
+  color: var(--white);
 }
 
 // ── Avatar colour palette ─────────────────────────────────────────────────────
@@ -820,8 +852,14 @@
   #chat-panel { width: 280px; }
   .jamo-cell { width: 27px; height: 27px; font-size: 0.75rem; }
   .jamo-word-label { width: 46px; font-size: 0.66rem; }
+
+  // 모바일: 답 입력 키보드를 화면 폭에 꽉 채워 터치하기 쉽게
+  .jamo-keyboard { padding: 10px 8px; }
+  .jamo-key-row { gap: 3px; margin-bottom: 4px; }
+  .jamo-key { height: 46px; max-width: none; font-size: 1rem; }
+  .jamo-key-action { font-size: 0.88rem; }
 }
 
-// ── 관전 모드: 답 입력 / 제시어 출제 숨김 ──────────────────────────────────────
-#screen-game.is-spectating #jamo-guess-row,
+// ── 관전 모드: 답 입력 키보드 / 제시어 출제 숨김 ────────────────────────────────
+#screen-game.is-spectating #jamo-my-keyboard,
 #screen-game.is-spectating #jamo-host-round { display: none !important; }
