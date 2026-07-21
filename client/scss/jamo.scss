@@ -524,6 +524,102 @@
   color: var(--white);
 }
 
+// ── 솔로 플레이(솔플) ──────────────────────────────────────────────────────────
+// 로비 진입 패널 (난이도 상/중/하 선택)
+#jamo-solo-launch { margin-top: 4px; }
+
+.solo-launch-hint {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--gray);
+  margin: -6px 0 12px;
+}
+
+.solo-diff-row {
+  display: flex;
+  gap: 8px;
+}
+
+.solo-diff-btn {
+  flex: 1;
+  width: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 12px 6px;
+  position: relative;
+
+  .solo-diff-label { font-size: 1.15rem; font-weight: 900; }
+  .solo-diff-desc  { font-size: 0.66rem; font-weight: 600; opacity: 0.85; }
+  .solo-diff-done  { font-size: 0.6rem; font-weight: 800; color: var(--green-light); margin-top: 1px; }
+
+  // 오늘 클리어한 난이도는 흐리게 + 완료 느낌
+  &.cleared { opacity: 0.72; filter: saturate(0.7); }
+}
+
+// 솔로 게임 화면
+#screen-solo {
+  padding: 16px;
+  padding-top: 24px;
+  justify-content: flex-start;
+  gap: 14px;
+  width: 100%;
+}
+
+#solo-top {
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  #solo-diff-badge {
+    flex: 1;
+    text-align: center;
+    font-weight: 800;
+    font-size: 0.9rem;
+    color: var(--green-light);
+  }
+
+  button { width: auto; padding: 8px 16px; font-size: 0.85rem; margin-bottom: 0; }
+}
+
+#solo-banner {
+  width: 100%;
+  max-width: 640px;
+  min-height: 1.2em;
+  text-align: center;
+  padding: 12px 20px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--green-pale);
+
+  &.solo-win  { color: var(--green-light); border-color: var(--green-mid); }
+  &.solo-lose { color: var(--red); border-color: var(--red); }
+}
+
+#solo-board {
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  padding: 4px 0;
+}
+
+#solo-keyboard {
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  justify-content: center;
+}
+
 // ── Avatar colour palette ─────────────────────────────────────────────────────
 .av-0 { background: #2d8a45; }
 .av-1 { background: #1a7fbf; }
