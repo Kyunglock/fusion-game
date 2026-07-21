@@ -140,3 +140,26 @@ $font-stack:  'Segoe UI', 'Apple SD Gothic Neo', sans-serif;
   --bubble:      #2d2d30;
   --chip:        #2d2d30;
 }
+
+// 이클립스 (Eclipse IDE 라이트): SWT 그레이 크롬 + 흰 에디터 + 이클립스 퍼플 강조
+:root[data-theme='eclipse'] {
+  --bg:          #ececed;
+  --card:        #ffffff;
+  --border:      #cfcfd2;
+  --text:        #1e1e22;
+  --muted:       #8a8a90;
+  --gray:        #6c6c72;
+  --shadow:      rgba(0, 0, 0, 0.13);
+  --green-dark:  #34277a;
+  --green-mid:   #4b3f8f;
+  --green-light: #6c5fc7;
+  --green-pale:  #6a6580;
+  --yellow:      #b7891c;
+  --gold:        #8f6a12;
+  --red:         #d13438;
+  --red-dark:    #a4262c;
+  --white:       #ffffff;
+  --sunken:      #f0eff5;
+  --bubble:      #efedf7;
+  --chip:        #e9e6f4;
+}

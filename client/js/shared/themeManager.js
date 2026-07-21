@@ -12,6 +12,7 @@ const THEMES = [
   { key: 'sheet', label: '스프레드시트', icon: '📊' },
   { key: 'excel', label: '엑셀',        icon: '📗' },
   { key: 'code',  label: '코드 에디터',  icon: '💻' },
+  { key: 'eclipse', label: '이클립스',   icon: '🌘' },
 ];
 
 function currentTheme() {
