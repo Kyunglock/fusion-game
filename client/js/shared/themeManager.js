@@ -38,7 +38,8 @@ function currentOpacity() {
 
 function applyOpacity(v) {
   const val = Math.min(100, Math.max(OPACITY_MIN, v));
-  document.documentElement.style.opacity = String(val / 100);
+  // 위장 배경(#pg-camo)·조작 도크(#pg-dock)는 그대로 두고 게임 화면(전경)만 흐리게 한다.
+  document.documentElement.style.setProperty('--pg-fg-opacity', String(val / 100));
   try { localStorage.setItem(OPACITY_KEY, String(val)); } catch (e) {}
   return val;
 }
@@ -46,6 +47,11 @@ function applyOpacity(v) {
 // ── 스타일 ─────────────────────────────────────────────────────────────────────
 const style = document.createElement('style');
 style.textContent = `
+/* 게임 화면(전경)만 흐리게 — 위장 배경(#pg-camo)과 조작 도크(#pg-dock)는 또렷하게 유지 */
+body > :not(#pg-camo):not(#pg-dock):not(script):not(style):not(link) {
+  opacity: var(--pg-fg-opacity, 1);
+  transition: opacity 0.15s;
+}
 #tw-wrap {
   position: relative;
   font-family: inherit;
@@ -181,14 +187,14 @@ wrap.innerHTML = `
     <div id="tw-list"></div>
   </div>
   <div id="tw-opacity-panel">
-    <div class="tw-panel-title">화면 투명도</div>
+    <div class="tw-panel-title">게임 화면 흐리기</div>
     <div class="tw-op-row">
       <input id="tw-op-range" type="range" min="${OPACITY_MIN}" max="100" step="5" />
       <span id="tw-op-val">100%</span>
     </div>
   </div>
   <div id="tw-row">
-    <div id="tw-opacity-pill" title="화면 투명도">
+    <div id="tw-opacity-pill" title="게임 화면 흐리기 (배경은 유지)">
       <span>◐</span>
       <span id="tw-op-pill-val">100%</span>
     </div>

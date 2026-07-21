@@ -8,7 +8,7 @@ html(lang="ko")
       try {
         var t = localStorage.getItem('pg-theme'); if (t && t !== 'green') document.documentElement.dataset.theme = t;
         var o = parseInt(localStorage.getItem('pg-opacity'), 10);
-        if (Number.isFinite(o) && o >= 30 && o < 100) document.documentElement.style.opacity = o / 100;
+        if (Number.isFinite(o) && o >= 30 && o <= 100) document.documentElement.style.setProperty('--pg-fg-opacity', o / 100);
       } catch (e) {}
     link(rel="stylesheet" href=`/css/${cssFile}.css`)
   body
@@ -27,3 +27,4 @@ html(lang="ko")
       script(type="module" src=`/js/${jsFile}.js`)
       script(type="module" src="/js/online-widget.js")
       script(type="module" src="/js/shared/themeManager.js")
+      script(type="module" src="/js/shared/camouflage.js")

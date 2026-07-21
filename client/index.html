@@ -8,7 +8,7 @@
     try {
       var t = localStorage.getItem('pg-theme'); if (t && t !== 'green') document.documentElement.dataset.theme = t;
       var o = parseInt(localStorage.getItem('pg-opacity'), 10);
-      if (Number.isFinite(o) && o >= 30 && o < 100) document.documentElement.style.opacity = o / 100;
+      if (Number.isFinite(o) && o >= 30 && o <= 100) document.documentElement.style.setProperty('--pg-fg-opacity', o / 100);
     } catch (e) {}
   </script>
   <link rel="stylesheet" href="/css/index.css" />
@@ -115,5 +115,6 @@
 <script type="module" src="/js/index.js"></script>
 <script type="module" src="/js/online-widget.js"></script>
 <script type="module" src="/js/shared/themeManager.js"></script>
+<script type="module" src="/js/shared/camouflage.js"></script>
 </body>
 </html>
