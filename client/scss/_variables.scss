@@ -163,3 +163,26 @@ $font-stack:  'Segoe UI', 'Apple SD Gothic Neo', sans-serif;
   --bubble:      #efedf7;
   --chip:        #e9e6f4;
 }
+
+// VS Code (라이트, Light+): 흰 에디터 + 라이트 그레이 크롬 + VS Code 블루 강조
+:root[data-theme='vscode'] {
+  --bg:          #f3f3f3;
+  --card:        #ffffff;
+  --border:      #e0e0e0;
+  --text:        #1f1f1f;
+  --muted:       #8b8b8b;
+  --gray:        #616161;
+  --shadow:      rgba(0, 0, 0, 0.12);
+  --green-dark:  #004a94;
+  --green-mid:   #005fb8;
+  --green-light: #0078d4;
+  --green-pale:  #5f6b78;
+  --yellow:      #b7891c;
+  --gold:        #8f6a12;
+  --red:         #cd3131;
+  --red-dark:    #a1260d;
+  --white:       #ffffff;
+  --sunken:      #f0f4f9;
+  --bubble:      #eaf2fb;
+  --chip:        #e6f0fa;
+}

@@ -11,7 +11,8 @@ const THEMES = [
   { key: 'doc',   label: '문서',        icon: '📄' },
   { key: 'sheet', label: '스프레드시트', icon: '📊' },
   { key: 'excel', label: '엑셀',        icon: '📗' },
-  { key: 'code',  label: '코드 에디터',  icon: '💻' },
+  { key: 'code',  label: 'VS Code (다크)', icon: '💻' },
+  { key: 'vscode', label: 'VS Code (라이트)', icon: '🔵' },
   { key: 'eclipse', label: '이클립스',   icon: '🌘' },
 ];
 
