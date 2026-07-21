@@ -10,6 +10,7 @@ const THEMES = [
   { key: 'green', label: '기본 (그린)', icon: '🌿' },
   { key: 'doc',   label: '문서',        icon: '📄' },
   { key: 'sheet', label: '스프레드시트', icon: '📊' },
+  { key: 'excel', label: '엑셀',        icon: '📗' },
   { key: 'code',  label: '코드 에디터',  icon: '💻' },
 ];
 

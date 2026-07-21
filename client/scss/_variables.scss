@@ -95,6 +95,29 @@ $font-stack:  'Segoe UI', 'Apple SD Gothic Neo', sans-serif;
   --chip:        #e8f0ea;
 }
 
+// 엑셀 (오피스 라이트): 흰 시트 + 오피스 그레이 + 엑셀 그린 리본 강조
+:root[data-theme='excel'] {
+  --bg:          #f3f2f1;
+  --card:        #ffffff;
+  --border:      #d4d4d4;
+  --text:        #1b1b1b;
+  --muted:       #797775;
+  --gray:        #605e5c;
+  --shadow:      rgba(0, 0, 0, 0.14);
+  --green-dark:  #0e5c30;
+  --green-mid:   #107c41;
+  --green-light: #21a366;
+  --green-pale:  #5b6b60;
+  --yellow:      #b7891c;
+  --gold:        #8f6a12;
+  --red:         #d13438;
+  --red-dark:    #a4262c;
+  --white:       #ffffff;
+  --sunken:      #eef1ee;
+  --bubble:      #e7f2ec;
+  --chip:        #e1efe8;
+}
+
 // 코드 에디터 (다크): VS Code 다크 + 블루 강조
 :root[data-theme='code'] {
   --bg:          #1e1e1e;
