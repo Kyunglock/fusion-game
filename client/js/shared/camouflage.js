@@ -109,13 +109,21 @@ function spreadsheetHTML() {
 // 코드 에디터
 // ══════════════════════════════════════════════════════════════════════════════
 const SYNTAX = {
-  code:    { line: '#858585', kw: '#569cd6', str: '#ce9178', com: '#6a9955', fn: '#dcdcaa', num: '#b5cea8', type: '#4ec9b0', vr: '#9cdcfe', plain: '#d4d4d4', kwBold: false },
-  vscode:  { line: '#237893', kw: '#0000ff', str: '#a31515', com: '#008000', fn: '#795e26', num: '#098658', type: '#267f99', vr: '#001080', plain: '#1f1f1f', kwBold: false },
-  eclipse: { line: '#787878', kw: '#7f0055', str: '#2a00ff', com: '#3f7f5f', fn: '#000000', num: '#1e1e22', type: '#000000', vr: '#0000c0', plain: '#000000', kwBold: true },
+  code:    { line: '#858585', kw: '#569cd6', str: '#ce9178', com: '#6a9955', fn: '#dcdcaa', num: '#b5cea8', type: '#4ec9b0', vr: '#9cdcfe', plain: '#d4d4d4', kwBold: false, term: '#181818', termTx: '#cccccc', prompt: '#4ec9b0', warn: '#dcb665', path: '#569cd6', dim: '#7a7a7a' },
+  vscode:  { line: '#237893', kw: '#0000ff', str: '#a31515', com: '#008000', fn: '#795e26', num: '#098658', type: '#267f99', vr: '#001080', plain: '#1f1f1f', kwBold: false, term: '#ffffff', termTx: '#333333', prompt: '#0a7c2f', warn: '#a6791a', path: '#005fb8', dim: '#9a9a9a' },
+  eclipse: { line: '#787878', kw: '#7f0055', str: '#2a00ff', com: '#3f7f5f', fn: '#000000', num: '#1e1e22', type: '#000000', vr: '#0000c0', plain: '#000000', kwBold: true, term: '#ffffff', termTx: '#333333', prompt: '#3f7f5f', warn: '#a6791a', path: '#4b3f8f', dim: '#9a9a9a' },
 };
 
-const FILES = ['StoreService.js', 'useAuth.js', 'router.js', 'ContentView.vue',
-  'BoardList.vue', 'FormLayout.vue', 'apiClient.js', 'constants.js', 'index.js', 'main.js'];
+// 파일트리 (depth, 아이콘, 이름) — 사이드바를 꽉 채운다
+const TREE = [
+  [0, '📂', 'src'], [1, '📂', 'api'], [2, '🟨', 'apiClient.js'], [2, '🟨', 'StoreService.js'],
+  [1, '📂', 'views'], [2, '📂', 'cmnBoard'], [3, '🟩', 'CmnBoardView.vue'], [3, '🟩', 'CmnBoardList.vue'],
+  [3, '🟩', 'CmnBoardUpdate.vue'], [2, '📂', 'contsMvGllry'], [3, '🟩', 'ContsMvGllryList.vue'],
+  [3, '🟩', 'ContsMvGllryView.vue'], [3, '🟩', 'ContentView.vue'], [2, '📂', 'contsPhtMvGllry'],
+  [3, '🟩', 'PhtMvGllryForm.vue'], [3, '🟩', 'FormLayout.vue'], [1, '📂', 'store'], [2, '🟨', 'index.js'],
+  [2, '🟨', 'useAuth.js'], [1, '📂', 'router'], [2, '🟨', 'router.js'], [1, '🟨', 'main.js'],
+  [1, '🟦', 'vite.config.js'], [0, '🟧', 'package.json'],
+];
 
 // 토큰: [type, value]. type: kw/str/com/fn/num/type/vr/plain
 const CODE = [
@@ -143,24 +151,79 @@ const CODE = [
   [['kw', 'const'], ['plain', ' '], ['vr', 'imgFiles'], ['plain', ' = '], ['fn', 'computed'], ['plain', '(() => '], ['fn', 'filterFilesByType'], ['plain', '('], ['vr', 'fileList'], ['plain', '.'], ['vr', 'value'], ['plain', ', '], ['str', "'img'"], ['plain', '))']],
   [],
   [['kw', 'export'], ['plain', ' '], ['kw', 'default'], ['plain', ' { '], ['vr', 'loadContents'], ['plain', ', '], ['vr', 'vodFiles'], ['plain', ', '], ['vr', 'imgFiles'], ['plain', ' }']],
+  [],
+  [['com', '// 첨부 파일을 확장자 화이트리스트로 검증한다']],
+  [['kw', 'const'], ['plain', ' '], ['vr', 'WHITELIST'], ['plain', ' = ['], ['str', "'jpg'"], ['plain', ', '], ['str', "'png'"], ['plain', ', '], ['str', "'mp4'"], ['plain', ', '], ['str', "'pdf'"], ['plain', ']']],
+  [['kw', 'const'], ['plain', ' '], ['vr', 'MAX_SIZE'], ['plain', ' = '], ['num', '1024'], ['plain', ' * '], ['num', '1024'], ['plain', ' * '], ['num', '300']],
+  [],
+  [['kw', 'function'], ['plain', ' '], ['fn', 'validateFile'], ['plain', '('], ['vr', 'file'], ['plain', ') {']],
+  [['plain', '  '], ['kw', 'const'], ['plain', ' '], ['vr', 'ext'], ['plain', ' = '], ['vr', 'file'], ['plain', '.'], ['vr', 'name'], ['plain', '.'], ['fn', 'split'], ['plain', '('], ['str', "'.'"], ['plain', ').'], ['fn', 'pop'], ['plain', '()']],
+  [['plain', '  '], ['kw', 'if'], ['plain', ' (!'], ['vr', 'WHITELIST'], ['plain', '.'], ['fn', 'includes'], ['plain', '('], ['vr', 'ext'], ['plain', ')) '], ['kw', 'return'], ['plain', ' '], ['kw', 'false']],
+  [['plain', '  '], ['kw', 'return'], ['plain', ' '], ['vr', 'file'], ['plain', '.'], ['vr', 'size'], ['plain', ' <= '], ['vr', 'MAX_SIZE']],
+  [['plain', '}']],
+  [],
+  [['kw', 'const'], ['plain', ' '], ['vr', 'goUpdate'], ['plain', ' = () => {']],
+  [['plain', '  '], ['fn', 'namedPageLink'], ['plain', '('], ['str', "'ContsPhtMvGllryUpdate'"], ['plain', ', { '], ['vr', 'menuId'], ['plain', ': '], ['vr', 'route'], ['plain', '.'], ['vr', 'params'], ['plain', '.'], ['vr', 'menuId'], ['plain', ' })']],
+  [['plain', '}']],
+  [],
+  [['kw', 'watch'], ['plain', '(() => '], ['vr', 'props'], ['plain', '.'], ['vr', 'contsId'], ['plain', ', ('], ['vr', 'id'], ['plain', ') => '], ['fn', 'loadContents'], ['plain', '('], ['vr', 'id'], ['plain', '))']],
+  [['fn', 'onMounted'], ['plain', '(() => '], ['fn', 'loadContents'], ['plain', '('], ['vr', 'route'], ['plain', '.'], ['vr', 'params'], ['plain', '.'], ['vr', 'menuId'], ['plain', '))']],
 ];
+
+function tokspan(toks, p) {
+  return toks.map(([t, v]) => {
+    const col = p[t] || p.plain;
+    const bold = (t === 'kw' && p.kwBold) ? ';font-weight:700' : '';
+    return `<span style="color:${col}${bold}">${esc(v)}</span>`;
+  }).join('');
+}
 
 function editorHTML(theme) {
   const p = SYNTAX[theme] || SYNTAX.code;
-  const tree = FILES.map((f, i) =>
-    `<div class="ed-file${i === 3 ? ' active' : ''}"><span class="ed-fi">${f.endsWith('.vue') ? '🟩' : '🟨'}</span>${esc(f)}</div>`).join('');
 
-  const lines = CODE.map((toks, i) => {
-    const code = toks.map(([t, v]) => {
-      const col = p[t] || p.plain;
-      const bold = (t === 'kw' && p.kwBold) ? ';font-weight:700' : '';
-      return `<span style="color:${col}${bold}">${esc(v)}</span>`;
-    }).join('');
+  // 뷰포트 높이에 맞춰 코드 줄 수를 계산 — 항상 화면 끝까지 꽉 채운다.
+  const TERM_H = Math.max(120, Math.min(220, Math.round(window.innerHeight * 0.26)));
+  const bodyH = Math.max(200, window.innerHeight - 34 /*tabs*/ - 26 /*crumb*/ - TERM_H - 24 /*status*/);
+  const nLines = Math.ceil(bodyH / 19) + 1;
+
+  const tree = TREE.map(([d, ic, n]) => {
+    const active = n === 'ContentView.vue';
+    return `<div class="ed-file${active ? ' active' : ''}" style="padding-left:${8 + d * 13}px"><span class="ed-fi">${ic}</span>${esc(n)}</div>`;
+  }).join('');
+
+  const lines = Array.from({ length: nLines }, (_, i) => {
+    const code = tokspan(CODE[i % CODE.length], p);
     return `<div class="ed-line"><span class="ed-ln">${i + 1}</span><span class="ed-code">${code || '&nbsp;'}</span></div>`;
   }).join('');
 
+  // 미니맵: 같은 코드를 아주 작게 렌더
+  const miniN = Math.ceil(bodyH / 3.4) + 4;
+  const mini = Array.from({ length: miniN }, (_, i) =>
+    `<div class="ed-mini-line">${tokspan(CODE[i % CODE.length], p) || '&nbsp;'}</div>`).join('');
+
+  // 터미널 출력 (npm run dev + sass deprecation) — 레퍼런스와 같은 분위기
+  const T = (c, s) => `<span style="color:${c}">${esc(s)}</span>`;
+  const term = [
+    T(p.dim, 'PS D:\\workspace\\cnedu-front\\cnedu-front-edunet> ') + T(p.termTx, 'npm run dev'),
+    '',
+    T(p.dim, '> cnedu-front-edunet@1.0.0 dev'),
+    T(p.dim, '> vite --host'),
+    '',
+    '  ' + T(p.prompt, 'VITE v5.4.2') + T(p.termTx, '  ready in 842 ms'),
+    '',
+    '  ' + T(p.prompt, '➜') + T(p.termTx, '  Local:   ') + T(p.path, 'http://localhost:5173/'),
+    '  ' + T(p.prompt, '➜') + T(p.termTx, '  Network: ') + T(p.path, 'http://192.168.0.14:5173/'),
+    '',
+    T(p.warn, '[sass] Deprecation Warning [import]: Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.'),
+    '  ' + T(p.dim, '┌──> src/assets/css/common/config.scss'),
+    T(p.dim, '3 │ ') + T(p.termTx, '@import "base_path";'),
+    '  ' + T(p.dim, '│         ^^^^^^^^^^^^'),
+    '',
+    T(p.dim, '  page reload ') + T(p.termTx, 'src/views/contsMvGllry/ContentView.vue'),
+  ].map(l => `<div>${l || '&nbsp;'}</div>`).join('');
+
   return `
-    <div class="ed" style="--ln:${p.line}">
+    <div class="ed" style="--ln:${p.line};--term-bg:${p.term};--term-tx:${p.termTx}">
       <div class="ed-activity">
         <span class="ed-ai active">🗂</span><span class="ed-ai">🔍</span>
         <span class="ed-ai">⑂</span><span class="ed-ai">🐞</span><span class="ed-ai">🧩</span>
@@ -174,11 +237,20 @@ function editorHTML(theme) {
         <div class="ed-tabs">
           <span class="ed-tab">StoreService.js</span>
           <span class="ed-tab active">ContentView.vue</span>
+          <span class="ed-tab">PhtMvGllryForm.vue</span>
           <span class="ed-tab">FormLayout.vue</span>
         </div>
-        <div class="ed-body">${lines}</div>
+        <div class="ed-crumb">src <b>›</b> views <b>›</b> contsMvGllry <b>›</b> ContentView.vue <b>›</b> template <b>›</b> div.board_view_box</div>
+        <div class="ed-editor">
+          <div class="ed-body">${lines}</div>
+          <div class="ed-minimap"><div class="ed-mini-vp"></div>${mini}</div>
+        </div>
+        <div class="ed-term" style="height:${TERM_H}px">
+          <div class="ed-term-tabs"><span>문제</span><span>출력</span><span>디버그 콘솔</span><span class="active">터미널</span><span>포트</span></div>
+          <div class="ed-term-body">${term}</div>
+        </div>
       </div>
-      <div class="ed-status"><span>⑂ main</span><span>Ln 24, Col 18</span><span>UTF-8</span><span>JavaScript</span></div>
+      <div class="ed-status"><span>⑂ main</span><span>⊘ 0 △ 1</span><span>Ln 24, Col 18</span><span>UTF-8</span><span>Vue</span></div>
     </div>`;
 }
 
@@ -285,11 +357,29 @@ body.pg-camo-on { background: transparent; }
 .ed-tab { display: flex; align-items: center; padding: 0 16px; font-size: 12px; color: var(--muted);
   border-right: 1px solid var(--border); }
 .ed-tab.active { background: var(--card); color: var(--text); }
+.ed-crumb { display: flex; align-items: center; gap: 6px; height: 26px; flex-shrink: 0; padding: 0 16px;
+  font-size: 11.5px; color: var(--muted); background: var(--card); border-bottom: 1px solid var(--border);
+  white-space: nowrap; overflow: hidden; }
+.ed-crumb b { color: var(--muted); font-weight: 400; opacity: 0.7; }
+.ed-editor { flex: 1; display: flex; min-height: 0; overflow: hidden; }
 .ed-body { flex: 1; overflow: hidden; padding: 6px 0;
   font-family: 'Consolas', 'D2Coding', 'Courier New', monospace; }
 .ed-line { display: flex; height: 19px; line-height: 19px; }
 .ed-ln { width: 44px; flex-shrink: 0; text-align: right; padding-right: 14px; color: var(--ln); opacity: 0.85; }
 .ed-code { white-space: pre; }
+.ed-minimap { width: 66px; flex-shrink: 0; position: relative; overflow: hidden; padding: 6px 3px;
+  background: var(--card); border-left: 1px solid var(--border); opacity: 0.72;
+  font-family: 'Consolas', monospace; }
+.ed-mini-line { height: 3.4px; line-height: 3.4px; font-size: 2.7px; white-space: pre; overflow: hidden; }
+.ed-mini-vp { position: absolute; left: 0; right: 0; top: 0; height: 140px;
+  background: color-mix(in srgb, var(--text) 9%, transparent); pointer-events: none; }
+.ed-term { flex-shrink: 0; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--term-bg); border-top: 1px solid var(--border); }
+.ed-term-tabs { display: flex; align-items: center; gap: 16px; height: 28px; flex-shrink: 0; padding: 0 16px;
+  font-size: 11px; color: var(--muted); border-bottom: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.5px; }
+.ed-term-tabs .active { color: var(--term-tx); border-bottom: 2px solid var(--green-mid); height: 28px; display: flex; align-items: center; }
+.ed-term-body { flex: 1; overflow: hidden; padding: 6px 14px; white-space: pre; color: var(--term-tx);
+  font-family: 'Consolas', 'D2Coding', monospace; font-size: 11.5px; line-height: 16px; }
 .ed-status { grid-area: status; display: flex; align-items: center; gap: 18px; padding: 0 14px;
   background: var(--green-mid); color: #fff; font-size: 11px; }
 

@@ -122,7 +122,7 @@ client/
   - 접속자 위젯(`online-widget.js`)과 테마/투명도 위젯은 공용 도크 `#pg-dock`(우측 하단 가로 flex)에 나란히 놓여 겹치지 않는다. 두 파일 모두 `getDock()`로 도크를 생성/재사용
 - **위장 배경(보호색)**: `client/js/shared/camouflage.js`가 게임 UI **뒤에** 실제 업무 앱처럼 보이는 장식 레이어(`#pg-camo`, `position:fixed; inset:0; z-index:-1; pointer-events:none`)를 깐다. 색만 바꾸는 게 아니라 실제 콘텐츠로 채워 흘깃 봐도 게임임을 숨긴다
   - `sheet`/`excel` → 열머리글(A·B·C…)·행번호·격자선·손익 데이터가 채워진 스프레드시트 + 수식줄 + 선택 셀 + 시트 탭. 뷰포트 크기에 맞춰 열/행 수를 계산하고 `resize`에 다시 그린다. 가짜 데이터는 시드 고정 PRNG로 생성해 리빌드/리사이즈해도 흔들리지 않는다
-  - `code`/`vscode`/`eclipse` → 사이드바 파일트리·탭·줄번호·**IDE별 문법 강조**(`SYNTAX` 팔레트: code=VS Code 다크, vscode=Light+, eclipse=키워드 볼드 퍼플)·상태바
+  - `code`/`vscode`/`eclipse` → 폴더 트리 사이드바·탭·브레드크럼·줄번호·**IDE별 문법 강조**(`SYNTAX` 팔레트: code=VS Code 다크, vscode=Light+, eclipse=키워드 볼드 퍼플)·우측 미니맵·하단 터미널(npm/sass 출력)·상태바. 코드 줄 수/미니맵/터미널 높이는 뷰포트에 맞춰 계산해 화면을 끝까지 꽉 채운다(`CODE` 풀을 순환)
   - `doc` → 워드풍 리본 + 흰 문서 페이지, `green` → 위장 없음(순수 게임 화면)
   - 색은 대부분 테마 CSS 변수를 그대로 쓰고, 코드 문법색만 IDE별로 JS에 하드코딩. `<html data-theme>` 변경을 MutationObserver로 감지해 자동 갱신
 - **게임 화면 흐리기(전경 투명도)**: 테마 버튼 옆 슬라이더로 조절(몰래 하는 컨셉—게임만 덜 눈에 띄게). 이제 `<html>` 전체가 아니라 **전경(게임)만** 흐려지고 위장 배경(`#pg-camo`)·조작 도크(`#pg-dock`)는 또렷하게 유지된다. 구현: 슬라이더 값을 `--pg-fg-opacity` CSS 변수(0.3~1)로 두고 `body > :not(#pg-camo):not(#pg-dock)`에 `opacity` 적용. `localStorage('pg-opacity')`에 저장, 게임 조작 가능하도록 최소 30%로 제한
