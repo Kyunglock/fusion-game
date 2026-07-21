@@ -9,6 +9,20 @@ block overlays
 
 block content
   +lobby({ logoEmoji: '🔤', title: '자모 워들', titleClass: 'title-jamo', subtitle: '숨겨진 낱말을 자모로 맞혀보세요! 🔡' })
+    //- 혼자 하기(솔플): 방을 만들지 않고 난이도만 골라 바로 시작
+    #jamo-solo-launch
+      .divider 혼자 하기 (솔플)
+      p.solo-launch-hint 난이도별 '오늘의 낱말'을 맞혀보세요 · 하루 한 문제씩
+      .solo-diff-row
+        button.btn.solo-diff-btn(data-diff="easy")
+          span.solo-diff-label 하
+          span.solo-diff-desc 자모 5개
+        button.btn.solo-diff-btn(data-diff="medium")
+          span.solo-diff-label 중
+          span.solo-diff-desc 자모 6~9개
+        button.btn.solo-diff-btn(data-diff="hard")
+          span.solo-diff-label 상
+          span.solo-diff-desc 자모 9~12개
 
   +waitingRoom({ subtext: '방장은 게임에 입장한 뒤 제시어를 내고, 참가자들이 자모로 맞힙니다' })
     #jamo-host-setup(style="display:none")
@@ -43,5 +57,16 @@ block content
     //- 내 키보드 = 답 입력 수단 (보드 카드 밖, 참가자 전용)
     //- 화면 키보드 클릭/터치 또는 물리 키보드로 자모를 입력하고 ⏎로 제출한다.
     #jamo-my-keyboard(style="display:none")
+
+  //- ── 솔로 플레이(솔플) 화면 ─────────────────────────────────────────────
+  #screen-solo.screen
+    #solo-top
+      button#solo-exit.btn.btn-secondary ← 나가기
+      span#solo-diff-badge
+      button#solo-new.btn.btn-primary(style="display:none") 다시 도전
+    #solo-banner
+    #solo-board
+    //- 답 입력 키보드 (화면/물리 키보드 공용, ⏎로 제출)
+    #solo-keyboard
 
   +aloneOverlay('🔤💨')

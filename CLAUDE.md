@@ -153,6 +153,15 @@ client/
 - 참가자 보드는 방장이 한 눈에 볼 수 있도록 그리드로 배치 (`#jamo-boards`, 스코어보드도 방장 제외)
 - 방장이 대기실에서 참가자 키보드(자모별 최고 등급 색상) 노출 여부 토글 가능 (`toggle_keyboard_visible`)
 
+## 자모 워들 — 솔로 플레이(솔플)
+- 로비에서 방을 만들지 않고 난이도(하/중/상)만 골라 바로 시작하는 **완전 로컬** 모드. 서버/소켓 통신 없이 이 브라우저 안에서만 돈다 (테트리스 솔플과 동일 컨셉)
+- 낱말 사전은 `client/js/jamoWords.js`의 `WORD_LIST`(5~12 자모 낱말 513개). 난이도는 저장하지 않고 실제 자모 분해 길이로 그때그때 거른다 → 사전과 채점 기준이 항상 일치
+  - **하**: 자모 5개 / **중**: 자모 6~9개 / **상**: 자모 9~12개 (`SOLO_DIFFICULTY`, 9는 중·상이 겹칠 수 있음)
+- **하루 1문제/난이도**: '오늘의 낱말'은 `날짜(로컬 YYYY-MM-DD) + 난이도`를 FNV-1a 해시한 인덱스로 결정(무작위 아님) → 같은 날 재접속·재도전해도 항상 같은 낱말이라 중복 출제가 없다
+- **하루 1회 클리어 잠금**: 난이도별로 하루 한 번만 클리어 가능. 정답을 맞히면 `localStorage('pg-jamo-solo-cleared')`에 `{ date, diffs }`로 기록하고 다음 날까지 잠금(재진입 시 '이미 클리어' 안내). 실패(6회 소진)는 미클리어이므로 '다시 도전'으로 같은 오늘의 낱말에 재도전 가능
+- 시도는 최대 6회(`SOLO_MAX_ATTEMPTS`). 채점/분해 로직(`decompose`/`judge`/`keyboardFromAttempts`)은 서버 `jamoLogic.js`와 동일 규칙을 `client/js/jamo.js`에 그대로 둔다(멀티는 서버가 채점하지만 솔플은 로컬이므로). 멀티용 렌더 함수(`renderAttemptRow`/`renderEmptyRow`/`renderKeyboard`/`updateComposingCells`)와 입력 조합 로직을 그대로 재사용
+- 화면: `#screen-solo`(뷰는 `views/pages/jamo.pug`). 로비 진입 버튼은 `+lobby` 블록의 `.solo-diff-btn`(오늘 클리어한 난이도는 `.cleared` + '오늘 클리어 ✅' 표시). `/jamo` 페이지 자체는 닉네임(세션)이 있어야 진입 가능(홈에서 로그인)
+
 ## 모바일 대응
 - 레이아웃은 대부분 `max-width` + flex-wrap + `%` 기반으로 유동적. 각 게임 scss에 `@media (max-width: 500px)` 보정, 테트리스는 `@media (pointer: coarse)`로 `#mobile-controls`(터치 버튼) 노출
 - 테트리스 보드 셀 크기는 `client/js/tetris.js`의 `calcCellSize()`가 뷰포트 기준으로 계산하고 `resize`에 재계산. 악어 이빨 그리드도 `resize`에 `positionTeethGrid()`로 재배치(회전 대응)

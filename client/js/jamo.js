@@ -5,6 +5,7 @@ import { initChat, setChatVisible, showJoinNotice } from './shared/chatManager.j
 import { checkAuth }       from './shared/authCheck.js';
 import { renderRoomList, renderSpectatorList, renderWaiting as renderWaitingBase } from './shared/lobbyRenderer.js';
 import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
+import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
 
 {
   const MAX_ATTEMPTS = 5;
@@ -111,6 +112,51 @@ import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
     return out;
   }
 
+  // ── 자모 분해/채점 (솔로 플레이 전용, 서버 jamoLogic 과 동일 규칙) ───────────
+  // 멀티는 서버가 채점하지만, 솔플은 방 없이 로컬로 돌리므로 같은 로직을 클라이언트
+  // 에도 둔다. 위에서 정의한 C_CHO/C_JUNG/C_JONG·atomize·JONG_SPLIT_LOCAL 을 재사용한다.
+  function decompose(word) {
+    const out = [];
+    for (const ch of String(word).trim()) {
+      const code = ch.charCodeAt(0);
+      if (code < 0xAC00 || code > 0xD7A3) { out.push(ch); continue; }
+      const idx  = code - 0xAC00;
+      const cho  = Math.floor(idx / 588);
+      const jung = Math.floor((idx % 588) / 28);
+      const jong = idx % 28;
+      out.push(...atomize(C_CHO[cho]));
+      out.push(...atomize(C_JUNG[jung]));
+      if (jong) out.push(...(JONG_SPLIT_LOCAL[C_JONG[jong]] || [C_JONG[jong]]));
+    }
+    return out;
+  }
+
+  function judge(answerJamo, guessJamo) {
+    const result = Array(guessJamo.length).fill('black');
+    const remain = {};
+    for (let i = 0; i < guessJamo.length; i++) {
+      if (guessJamo[i] === answerJamo[i]) result[i] = 'green';
+      else if (answerJamo[i]) remain[answerJamo[i]] = (remain[answerJamo[i]] || 0) + 1;
+    }
+    for (let i = 0; i < guessJamo.length; i++) {
+      if (result[i] === 'green') continue;
+      if (remain[guessJamo[i]] > 0) { result[i] = 'yellow'; remain[guessJamo[i]]--; }
+    }
+    return result;
+  }
+
+  function keyboardFromAttempts(attempts) {
+    const rank = { black: 1, yellow: 2, green: 3 };
+    const keys = {};
+    for (const attempt of attempts) {
+      attempt.jamo.forEach((j, idx) => {
+        const color = attempt.result[idx];
+        if (!keys[j] || rank[color] > rank[keys[j]]) keys[j] = color;
+      });
+    }
+    return keys;
+  }
+
   // ── State ────────────────────────────────────────────────────────────────
   let myId        = null;
   let myName      = '';
@@ -118,6 +164,10 @@ import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
   let gameState   = { players: [], myKeyboard: {} };
   let amHost      = false;
   let isSpectator = false;
+
+  // 솔로 플레이(솔플): 방 없이 로컬로 진행. 서버 통신 없이 이 브라우저 안에서만 돈다.
+  let soloMode    = false;
+  let solo        = null; // { diff, answer, answerJamo, answerLength, attempts, solved, done, maxAttempts }
 
   // 답 입력: 화면/물리 키보드로 조합 중인 자모(원자 단위)
   let composing        = [];    // 현재 입력 중인 자모 배열
@@ -151,6 +201,14 @@ import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
   const jamoBoards     = $('jamo-boards');
   const jamoMyKeyboard = $('jamo-my-keyboard');
   const jamoSpectatorJoin = $('jamo-spectator-join');
+
+  // 솔로 플레이 화면
+  const soloScreen    = $('screen-solo');
+  const soloDiffBadge = $('solo-diff-badge');
+  const soloBanner    = $('solo-banner');
+  const soloBoard     = $('solo-board');
+  const soloKeyboard  = $('solo-keyboard');
+  const soloRetryBtn  = $('solo-new'); // 실패 시 오늘의 낱말 다시 도전
 
   // ── Socket ───────────────────────────────────────────────────────────────
   const socket = io('/jamo');
@@ -290,6 +348,7 @@ import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
       showError(`자모 ${composeAnswerLen}칸을 모두 채워주세요.`);
       return;
     }
+    if (soloMode) { submitSolo(); return; } // 솔플은 로컬 채점으로 분기
     socket.emit('submit_guess', { guess: composeJamo(composing) });
     composing = [];
     updateComposingCells();
@@ -424,6 +483,164 @@ import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
     updateComposingCells();
   }
 
+  // ── 솔로 플레이(솔플) — 하루 1문제/난이도 ────────────────────────────────────
+  // 방/서버 통신 없이 로컬로만 돈다. 매일 난이도별로 '오늘의 낱말'이 날짜로 결정되어
+  // (무작위가 아니라) 같은 날에는 재접속·재도전해도 늘 같은 낱말이 나온다 → 중복 출제 방지.
+  // 각 난이도는 하루에 한 번만 클리어할 수 있고, 클리어하면 다음 날까지 잠긴다(localStorage).
+  const WORD_LEN = new Map(WORD_LIST.map(w => [w, decompose(w).length]));
+
+  function poolFor(diffKey) {
+    const d = SOLO_DIFFICULTY[diffKey];
+    return WORD_LIST.filter(w => { const l = WORD_LEN.get(w); return l >= d.min && l <= d.max; });
+  }
+
+  // 오늘 날짜 키 (로컬 기준 YYYY-MM-DD)
+  function todayKey() {
+    const now = new Date();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    return `${now.getFullYear()}-${mm}-${dd}`;
+  }
+
+  // 문자열 해시(FNV-1a) — 날짜+난이도를 안정적인 인덱스로 바꾼다.
+  function hashStr(s) {
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+
+  // 날짜+난이도로 결정되는 '오늘의 낱말'
+  function dailyWord(diffKey) {
+    const pool = poolFor(diffKey);
+    return pool[hashStr(`${todayKey()}|${diffKey}`) % pool.length];
+  }
+
+  // 오늘 클리어한 난이도 기록 (localStorage, 날짜가 바뀌면 초기화)
+  const CLEAR_KEY = 'pg-jamo-solo-cleared';
+  function getClearedToday() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(CLEAR_KEY) || '{}');
+      return (raw && raw.date === todayKey() && raw.diffs) ? raw.diffs : {};
+    } catch { return {}; }
+  }
+  function isClearedToday(diffKey) { return !!getClearedToday()[diffKey]; }
+  function markClearedToday(diffKey) {
+    const diffs = getClearedToday();
+    diffs[diffKey] = true;
+    try { localStorage.setItem(CLEAR_KEY, JSON.stringify({ date: todayKey(), diffs })); } catch { /* 무시 */ }
+  }
+
+  // 로비 난이도 버튼에 '오늘 클리어' 표시 갱신
+  function updateSoloLaunchState() {
+    const cleared = getClearedToday();
+    document.querySelectorAll('.solo-diff-btn').forEach(btn => {
+      const done = !!cleared[btn.dataset.diff];
+      btn.classList.toggle('cleared', done);
+      let mark = btn.querySelector('.solo-diff-done');
+      if (done && !mark) {
+        mark = document.createElement('span');
+        mark.className = 'solo-diff-done';
+        mark.textContent = '오늘 클리어 ✅';
+        btn.appendChild(mark);
+      } else if (!done && mark) {
+        mark.remove();
+      }
+    });
+  }
+
+  function enterSolo() {
+    Object.values(screens).forEach(s => s.classList.remove('active'));
+    soloScreen.classList.add('active');
+    setChatVisible(false); // 솔플은 채팅이 없다
+  }
+
+  function exitSolo() {
+    soloMode    = false;
+    solo        = null;
+    canGuessNow = false;
+    composing   = [];
+    soloScreen.classList.remove('active');
+    updateSoloLaunchState();
+    showScreen('lobby');
+  }
+
+  function startSolo(diffKey) {
+    const d = SOLO_DIFFICULTY[diffKey];
+    if (!d) return;
+    const answer     = dailyWord(diffKey);
+    const answerJamo = decompose(answer);
+    const cleared    = isClearedToday(diffKey); // 이미 오늘 클리어했으면 잠금 상태로 진입
+    solo = {
+      diff: d, answer, answerJamo, answerLength: answerJamo.length,
+      attempts: [], solved: cleared, done: cleared, locked: cleared,
+      maxAttempts: SOLO_MAX_ATTEMPTS,
+    };
+    soloMode  = true;
+    composing = [];
+    enterSolo();
+    renderSolo();
+  }
+
+  function submitSolo() {
+    if (solo.locked) return;
+    const guessJamo = composing.slice(); // 조합 중인 자모가 곧 제출 자모 배열
+    const result = judge(solo.answerJamo, guessJamo);
+    const solved = result.every(r => r === 'green');
+    solo.attempts.push({ word: composeJamo(guessJamo), jamo: guessJamo, result });
+    if (solved) {
+      solo.solved = true; solo.done = true; solo.locked = true;
+      markClearedToday(solo.diff.key); // 하루 1회 클리어 기록 → 다음 날까지 잠금
+    } else if (solo.attempts.length >= solo.maxAttempts) {
+      solo.done = true; // 실패: 아직 미클리어 → 오늘의 낱말로 다시 도전 가능
+    }
+    composing = [];
+    renderSolo();
+  }
+
+  function renderSolo() {
+    if (!solo) return;
+    const { answerLength, maxAttempts, attempts, solved, done, locked, diff } = solo;
+    canGuessNow      = soloMode && !done;
+    composeAnswerLen = answerLength;
+    if (done) composing = [];
+
+    soloDiffBadge.textContent = `오늘의 '${diff.label}' · 자모 ${answerLength}칸`;
+
+    const alreadyCleared = locked && attempts.length === 0; // 클리어 상태로 재진입
+    if (alreadyCleared) {
+      soloBanner.className = 'solo-win';
+      soloBanner.textContent = `✅ 오늘의 '${diff.label}' 문제는 이미 클리어했어요 · 정답 "${solo.answer}" · 내일 새 낱말!`;
+    } else if (solved) {
+      soloBanner.className = 'solo-win';
+      soloBanner.textContent = `🎉 클리어! "${solo.answer}" — ${attempts.length}번 만에 맞혔어요 · 내일 새 낱말!`;
+    } else if (done) {
+      soloBanner.className = 'solo-lose';
+      soloBanner.textContent = `😢 실패… 정답은 "${solo.answer}" · 아직 미클리어 — 다시 도전할 수 있어요`;
+    } else {
+      soloBanner.className = '';
+      soloBanner.textContent = `${attempts.length}/${maxAttempts}회 · 오늘의 '${diff.label}' 낱말을 맞혀보세요`;
+    }
+
+    // 보드: 시도한 줄 + 남은 빈 줄. 현재 입력 줄엔 jamo-active-row id 를 붙여 조합 자모를 채운다.
+    soloBoard.innerHTML = '';
+    attempts.forEach((a, idx) => soloBoard.appendChild(renderAttemptRow(a, idx, answerLength)));
+    for (let r = attempts.length; r < maxAttempts; r++) {
+      const empty = renderEmptyRow(answerLength);
+      if (canGuessNow && r === attempts.length) empty.id = 'jamo-active-row';
+      soloBoard.appendChild(empty);
+    }
+
+    // 키보드: 색상 힌트는 항상 노출(솔플이므로), 끝나면 숨김
+    soloKeyboard.style.display = done ? 'none' : 'flex';
+    soloKeyboard.innerHTML = '';
+    if (!done) soloKeyboard.appendChild(renderKeyboard(keyboardFromAttempts(attempts), true, canGuessNow));
+
+    // '다시 도전' 버튼: 실패(미클리어)일 때만 노출 — 클리어했으면 다음 날까지 잠금
+    soloRetryBtn.style.display = (done && !solved && !locked) ? '' : 'none';
+
+    updateComposingCells();
+  }
+
   // ── Socket events ─────────────────────────────────────────────────────────
   socket.on('jamo_rooms_update', (list) => renderRoomList(roomListEl, list, socket, myName, nameHtml));
 
@@ -525,6 +742,14 @@ import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
   });
 
   $('btn-toggle-spectator').addEventListener('click', () => socket.emit('toggle_spectator_allowed'));
+
+  // ── 솔로 플레이 버튼 (로비: 난이도 선택 / 솔로 화면: 다시 도전·나가기) ─────────
+  document.querySelectorAll('.solo-diff-btn').forEach(btn => {
+    btn.addEventListener('click', () => startSolo(btn.dataset.diff));
+  });
+  $('solo-exit').addEventListener('click', exitSolo);
+  soloRetryBtn.addEventListener('click', () => { if (solo) startSolo(solo.diff.key); });
+  updateSoloLaunchState(); // 로비 최초 렌더 시 '오늘 클리어' 표시
 
   btnLeaveLobby.addEventListener('click', () => {
     isSpectator = false;
