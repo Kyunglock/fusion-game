@@ -47,8 +47,10 @@ function applyOpacity(v) {
 // ── 스타일 ─────────────────────────────────────────────────────────────────────
 const style = document.createElement('style');
 style.textContent = `
-/* 게임 화면(전경)만 흐리게 — 위장 배경(#pg-camo)과 조작 도크(#pg-dock)는 또렷하게 유지 */
-body > :not(#pg-camo):not(#pg-dock):not(script):not(style):not(link) {
+/* 게임 화면(전경)만 흐리게 — 위장 배경(#pg-camo)과 조작 도크(#pg-dock)는 또렷하게 유지.
+   플래시/토스트는 자신의 opacity로 숨김 상태를 관리하므로 제외한다
+   (:not(#id)는 ID급 특이도가 붙어 이 규칙이 각 게임 CSS의 opacity: 0을 덮어써 버림) */
+body > :not(#pg-camo):not(#pg-dock):not(script):not(style):not(link):not(#flash-overlay):not(#error-toast):not(#join-toast) {
   opacity: var(--pg-fg-opacity, 1);
   transition: opacity 0.15s;
 }
