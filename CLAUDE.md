@@ -45,6 +45,7 @@ src/
     users.js             ← 계정(닉네임) 조회/생성/수정
     stats.js             ← 전적 기록(recordPlayers/recordRound) + 조회(getUserStats)
     ranking.js           ← 백분위 기반 등급 티어 계산(getRanking/getUserRank)
+    playerCards.js       ← 방 참가자 목록에 실어 보내는 전적 카드(getPlayerCard, 3초 캐시)
     soloStats.js         ← 자모 솔플 전적(난이도별 하루 첫 판만 기록, jamo_solo_daily)
     sessionStore.js      ← express-session SQLite 저장소
   routes/
@@ -200,6 +201,10 @@ client/
   - 마크업은 `+waitingRoom({ showMyRank: true })` 옵션으로 넣는다(다른 게임은 옵션만 켜면 그대로 재사용 가능). 전적이 하나도 없으면 언랭크 배지 + 안내문만 나온다
   - 갱신: 페이지 진입(로그인 확인 직후) 1회 → 이후 대기실을 그릴 때마다(최소 5초 간격). 라운드를 마치고 대기실로 돌아온 순간과 솔플 전적을 기록한 직후에는 간격을 무시하고 바로 다시 조회한다
   - 티어 색 팔레트(`$tier-colors`)와 `.tier-badge`는 홈·대기실 공용이라 `_variables.scss`/`_components.scss`에 있다(예전에는 `index.scss`에만 있었음)
+- **방에 있는 사람들의 전적도 서로 볼 수 있다.** 대기실 참가자 목록의 이름 아래에 티어 배지 + `자모 n승 n패` + `전체 n승 n패`가, 관전자 칩에는 티어 배지 + 자모 승패가 붙는다
+  - 서버가 `safePlayer`/`safeSpectator`에 `card`(`src/db/playerCards.js`의 `getPlayerCard(accountId, 'jamo')`)를 실어 보낸다. `safeState`는 자주 호출되므로 전체 등급 계산은 3초 TTL로 캐시한다(전적이 바뀌어도 TTL 안에 반영)
+  - 관전자도 티어를 보여줘야 하므로 `join_as_spectator`가 관전자 객체에 `accountId`를 넣고, `createRoomManager`에 `safeSpectator` 옵션이 생겼다(기본값은 기존과 동일하게 id/이름/아바타)
+  - 클라이언트 렌더는 공용(`lobbyRenderer` + `myRank.js`의 `playerCardHtml`/`tierBadgeHtml`)이라 `card`를 안 보내는 다른 게임은 화면이 그대로다. 게임 이름 라벨은 `renderWaiting`의 `cardGameLabel` 옵션으로 넘긴다
 
 ## 끝말잇기 — 게임 규칙
 - 최소 2명, 최대 8명. 방장도 게임에 직접 참여한다

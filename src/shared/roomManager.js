@@ -16,6 +16,8 @@ export function createRoomManager({
   extraStateFields = (_room) => ({}),
   /** 플레이어를 safe 변환 (기본: 그대로) */
   safePlayer = (p) => p,
+  /** 관전자를 safe 변환 (기본: id/이름/아바타만) */
+  safeSpectator = (s) => ({ id: s.id, name: s.name, avatar: s.avatar }),
   /** removePlayer 후 게임 상태 초기화 로직 */
   resetGameState = (_room) => {},
   /** removePlayer 중 게임 고유 처리 (폭탄 넘기기 등). 반환값이 있으면 그것을 result에 merge */
@@ -83,7 +85,7 @@ export function createRoomManager({
     return {
       code:            room.code,
       players:         room.players.map(safePlayer),
-      spectators:      room.spectators.map(s => ({ id: s.id, name: s.name, avatar: s.avatar })),
+      spectators:      room.spectators.map(safeSpectator),
       allowSpectators: room.allowSpectators,
       state:           room.state,
       ...extraStateFields(room),
