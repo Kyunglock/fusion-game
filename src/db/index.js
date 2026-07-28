@@ -59,6 +59,22 @@ const MIGRATIONS = [
   );
   CREATE INDEX idx_sessions_expires ON sessions(expires);
   `,
+  `
+  -- 자모 워들 솔플의 '난이도별 하루 한 판' 기록.
+  -- 솔플은 브라우저 안에서만 돌기 때문에 결과를 그대로 믿을 수밖에 없다. 대신
+  -- 이 표가 (유저, 날짜, 난이도)당 한 줄만 허용해 반복 제출로 전적을 부풀리는 것을
+  -- 막고, 하루 1회 클리어 잠금도 기기와 무관하게 유지시킨다.
+  CREATE TABLE jamo_solo_daily (
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    play_date  TEXT    NOT NULL,  -- '오늘의 낱말' 기준일 (YYYY-MM-DD)
+    difficulty TEXT    NOT NULL,  -- easy | medium | hard
+    solved     INTEGER NOT NULL DEFAULT 0,
+    attempts   INTEGER NOT NULL DEFAULT 0,
+    cleared_at TEXT,
+    created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, play_date, difficulty)
+  );
+  `,
 ];
 
 function migrate() {

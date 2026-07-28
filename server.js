@@ -10,6 +10,7 @@ import session        from 'express-session';
 import { PORT }            from './src/config.js';
 import { SqliteSessionStore } from './src/db/sessionStore.js';
 import authRouter          from './src/routes/auth.js';
+import soloRouter          from './src/routes/solo.js';
 import { registerHandlers } from './src/game/crocodile/socket.js';
 import { registerBombHandlers }   from './src/game/bomb/socket.js';
 import { registerTetrisHandlers } from './src/game/tetris/socket.js';
@@ -45,6 +46,7 @@ app.use(sessionMiddleware);
 io.use((socket, next) => sessionMiddleware(socket.request, socket.request.res || {}, next));
 
 app.use('/api', authRouter);
+app.use('/api/solo', soloRouter);
 app.use(express.static(join(__dirname, 'client')));
 
 // ── SVG 사전 로드 ──────────────────────────────────────────────────────────────
