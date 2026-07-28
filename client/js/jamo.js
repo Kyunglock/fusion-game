@@ -5,6 +5,7 @@ import { initChat, setChatVisible, showJoinNotice } from './shared/chatManager.j
 import { checkAuth }       from './shared/authCheck.js';
 import { renderRoomList, renderSpectatorList, renderWaiting as renderWaitingBase } from './shared/lobbyRenderer.js';
 import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
+import { createMyRankPanel } from './shared/myRank.js';
 import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
 
 {
@@ -229,12 +230,20 @@ import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
     socket.emit('get_rooms');
   });
 
+  // 대기실 '내 등급 · 전적' 패널 (자모 워들 멀티 + 솔로 + 전체)
+  const myRank = createMyRankPanel($('my-rank-panel'), { games: ['jamo', 'jamoSolo'] });
+
   checkAuth(inputName).then(data => {
-    if (data) myName = data.username;
+    if (data) {
+      myName = data.username;
+      myRank.refresh(true);
+    }
   });
 
   // ── Render waiting ───────────────────────────────────────────────────────
-  function renderWaiting(state) {
+  // forceRank: 라운드를 마치고 돌아온 경우엔 전적이 바뀌었으니 바로 다시 조회한다.
+  function renderWaiting(state, forceRank = false) {
+    myRank.refresh(forceRank);
     amHost = renderWaitingBase(state, {
       myId, socket, playerListEl, btnReady, btnStart, waitingHint,
       avatarIcons: AVATAR_ICONS, playerAvatarEmojis, nameHtml,
@@ -589,6 +598,7 @@ import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
         : '오늘 이 난이도는 이미 기록해서 전적에는 반영되지 않아요';
       if (solo === target) renderSolo();
       updateSoloLaunchState();
+      if (data.recorded) myRank.refresh(true); // 솔플 전적도 대기실 패널에 반영
     } catch { /* 무시 — 전적 기록 실패가 게임을 막지 않는다 */ }
   }
 
@@ -710,6 +720,9 @@ import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
   socket.on('jamo_rooms_update', (list) => renderRoomList(roomListEl, list, socket, myName, nameHtml));
 
   socket.on('room_update', (state) => {
+    const prevState = roomState?.state ?? null;
+    // 게임(라운드)을 마치고 대기실로 돌아온 순간엔 전적이 갱신됐다
+    const backFromGame = prevState !== null && prevState !== 'lobby' && state.state === 'lobby';
     roomState = state;
 
     // 관전자였다가 참여자로 승격되면 관전 모드 해제
@@ -723,7 +736,7 @@ import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
       if (state.state === 'lobby') {
         // 게임이 끝나 대기실로 돌아옴 → 관전자도 대기실을 보고 참여할 수 있게
         showScreen('waiting');
-        renderWaiting(state);
+        renderWaiting(state, backFromGame);
       } else {
         renderSpectatorList(state.spectators ?? []);
         renderBoards(state);
@@ -734,7 +747,7 @@ import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
 
     if (state.state === 'lobby') {
       showScreen('waiting');
-      renderWaiting(state);
+      renderWaiting(state, backFromGame);
     } else {
       // intermission(라운드 대기) / playing(라운드 진행) 모두 게임 화면 유지
       showScreen('game');

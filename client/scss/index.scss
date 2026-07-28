@@ -107,41 +107,8 @@
 }
 
 // ── 등급(티어) 배지 ───────────────────────────────────────────────────────────
-// 색은 리그 오브 레전드 티어 색을 참고했다. 값이 없으면(언랭크) 기본 회색.
-// 키는 CSS 색상 이름(gold/silver)과 겹치므로 반드시 따옴표로 감싼다.
-$tier-colors: (
-  'challenger':  #00d5ff,
-  'grandmaster': #ff4655,
-  'master':      #b45cff,
-  'diamond':     #5cc8ff,
-  'emerald':     #35d07f,
-  'platinum':    #4fd1c5,
-  'gold':        #f0b429,
-  'silver':      #b8c2cc,
-  'bronze':      #b06f3a,
-  'iron':        #8a8f98,
-  'unranked':    #6b7280,
-);
-
-@mixin tier-tint($color) {
-  color: $color;
-  background: rgba($color, 0.14);
-  border-color: rgba($color, 0.45);
-}
-
-.tier-badge {
-  font-size: 0.72rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 20px;
-  border: 1px solid var(--border);
-  white-space: nowrap;
-  @include tier-tint(map.get($tier-colors, 'unranked'));
-
-  @each $key, $color in $tier-colors {
-    &[data-tier='#{$key}'] { @include tier-tint($color); }
-  }
-}
+// 티어 색 팔레트(`$tier-colors`)와 `.tier-badge` 는 대기실에서도 쓰므로
+// variables / components 로 옮겼다.
 
 // ── 전적 모달 ─────────────────────────────────────────────────────────────────
 .modal-card-wide { max-width: 520px; }

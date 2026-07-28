@@ -83,6 +83,7 @@ client/
       lobbyRenderer.js  ← renderRoomList, renderSpectatorList, renderWaiting
       uiHelpers.js      ← triggerFlash, triggerShake, 카운트다운, aloneOverlay
       authCheck.js      ← /api/me 호출 + 세션 정보 표시
+      myRank.js         ← 대기실 '내 등급 · 전적' 패널 (/api/me/stats)
     index.js            ← 홈(로비 선택) 페이지 로직, 각 네임스페이스 방 개수 표시
     online-widget.js    ← 우측 하단 접속자 위젯
     crocodile.js        ← 게임 고유 로직 (이빨 렌더링, 턴 타이머)
@@ -195,6 +196,10 @@ client/
 - 참가자는 자신의 시도는 전체 공개, 다른 참가자의 시도는 색깔 결과만 보이고 단어/자모는 마스킹됨. 방장·관전자는 전체 열람 가능 (`socket.js`의 `emitGameState`가 뷰어별로 개인화된 `jamo_state` 이벤트 전송, 방장 보드는 없으므로 참가자만 전송)
 - 참가자 보드는 방장이 한 눈에 볼 수 있도록 그리드로 배치 (`#jamo-boards`, 스코어보드도 방장 제외)
 - 방장이 대기실에서 참가자 키보드(자모별 최고 등급 색상) 노출 여부 토글 가능 (`toggle_keyboard_visible`)
+- 대기실 위쪽에 **내 등급 · 전적 패널**(`#my-rank-panel`)이 뜬다. 게임 시작 전에 자기 티어와 승패를 확인할 수 있게 한 것. `client/js/shared/myRank.js`의 `createMyRankPanel(el, { games })`이 `GET /api/me/stats`를 받아 티어 배지 + 순위/상위 %/점수 + 게임별(자모 워들·자모 워들 솔로) 및 전체 승패를 그린다
+  - 마크업은 `+waitingRoom({ showMyRank: true })` 옵션으로 넣는다(다른 게임은 옵션만 켜면 그대로 재사용 가능). 전적이 하나도 없으면 언랭크 배지 + 안내문만 나온다
+  - 갱신: 페이지 진입(로그인 확인 직후) 1회 → 이후 대기실을 그릴 때마다(최소 5초 간격). 라운드를 마치고 대기실로 돌아온 순간과 솔플 전적을 기록한 직후에는 간격을 무시하고 바로 다시 조회한다
+  - 티어 색 팔레트(`$tier-colors`)와 `.tier-badge`는 홈·대기실 공용이라 `_variables.scss`/`_components.scss`에 있다(예전에는 `index.scss`에만 있었음)
 
 ## 끝말잇기 — 게임 규칙
 - 최소 2명, 최대 8명. 방장도 게임에 직접 참여한다

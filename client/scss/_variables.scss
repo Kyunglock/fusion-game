@@ -42,6 +42,30 @@ $font-stack:  'Segoe UI', 'Apple SD Gothic Neo', sans-serif;
   --chip:        #1c3a28; // 준비중 배지 등 옅은 칩
 }
 
+// ── 등급 티어 색 ─────────────────────────────────────────────────────────────
+// 리그 오브 레전드 티어 색을 참고했다. 값이 없으면(언랭크) 기본 회색.
+// 키는 CSS 색상 이름(gold/silver)과 겹치므로 반드시 따옴표로 감싼다.
+// 홈(등급표)과 게임 대기실(내 등급 패널)이 함께 쓰므로 여기에 둔다.
+$tier-colors: (
+  'challenger':  #00d5ff,
+  'grandmaster': #ff4655,
+  'master':      #b45cff,
+  'diamond':     #5cc8ff,
+  'emerald':     #35d07f,
+  'platinum':    #4fd1c5,
+  'gold':        #f0b429,
+  'silver':      #b8c2cc,
+  'bronze':      #b06f3a,
+  'iron':        #8a8f98,
+  'unranked':    #6b7280,
+);
+
+@mixin tier-tint($color) {
+  color: $color;
+  background: rgba($color, 0.14);
+  border-color: rgba($color, 0.45);
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // 테마 (회사에서 몰래 하는 컨셉 — 위장 테마)
 // 색상은 모두 CSS 변수로 오버라이드한다. --green-* 는 이름은 그대로지만
