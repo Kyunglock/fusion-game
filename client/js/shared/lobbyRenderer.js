@@ -1,5 +1,14 @@
 import { escHtml } from '../utils.js';
 import { $ } from './screenManager.js';
+import { playerCardHtml, tierBadgeHtml } from './myRank.js';
+
+/** 관전자 칩 안에 들어갈 내용 (전적 카드가 오면 티어·승패를 함께 보여준다) */
+function spectatorChipHtml(s) {
+  if (!s.card) return escHtml(s.name);
+  const g   = s.card.game;
+  const rec = g?.plays > 0 ? `<span class="chip-rec">${g.wins}승 ${g.losses}패</span>` : '';
+  return `${escHtml(s.name)}${tierBadgeHtml(s.card)}${rec}`;
+}
 
 /**
  * 로비 방 목록 렌더링
@@ -45,7 +54,7 @@ export function renderRoomList(roomListEl, roomList, socket, myName, nameHtml) {
 }
 
 /**
- * 관전자 목록 렌더링
+ * 관전자 목록 렌더링 (전적 카드가 실려 오면 칩에 티어·승패도 함께 표시)
  */
 export function renderSpectatorList(spectators) {
   const section  = $('spectator-section');
@@ -65,21 +74,21 @@ export function renderSpectatorList(spectators) {
     spectators.forEach(s => {
       const li = document.createElement('li');
       li.className = 'spectator-chip';
-      li.textContent = s.name;
+      li.innerHTML = spectatorChipHtml(s);
       listEl.appendChild(li);
     });
   }
 
   if (gameList) {
     gameList.style.display = '';
-    namesEl.innerHTML = spectators.map(s => `<span class="spectator-chip">${escHtml(s.name)}</span>`).join('');
+    namesEl.innerHTML = spectators.map(s => `<span class="spectator-chip">${spectatorChipHtml(s)}</span>`).join('');
   }
 }
 
 /**
  * 대기실 렌더링 (공통 부분)
  */
-export function renderWaiting(state, { myId, socket, playerListEl, btnReady, btnStart, waitingHint, avatarIcons, playerAvatarEmojis, nameHtml, minPlayers = 2 }) {
+export function renderWaiting(state, { myId, socket, playerListEl, btnReady, btnStart, waitingHint, avatarIcons, playerAvatarEmojis, nameHtml, minPlayers = 2, cardGameLabel = '이 게임' }) {
   const iAmHost = state.players.find(p => p.id === myId)?.isHost ?? false;
   playerListEl.innerHTML = '';
 
@@ -97,6 +106,7 @@ export function renderWaiting(state, { myId, socket, playerListEl, btnReady, btn
       ${p.isHost   ? '<span class="badge-host">방장</span>' : ''}
       ${!p.isHost  ? `<span class="badge-ready ${p.ready ? 'is-ready' : ''}">${p.ready ? '준비 완료' : '준비 중'}</span>` : ''}
       ${iAmHost && !p.isHost ? `<button class="btn btn-danger btn-sm kick-btn" data-id="${p.id}">강퇴</button>` : ''}
+      ${playerCardHtml(p.card, cardGameLabel)}
     `;
     playerListEl.appendChild(li);
   });

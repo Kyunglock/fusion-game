@@ -247,6 +247,7 @@ import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
     amHost = renderWaitingBase(state, {
       myId, socket, playerListEl, btnReady, btnStart, waitingHint,
       avatarIcons: AVATAR_ICONS, playerAvatarEmojis, nameHtml,
+      cardGameLabel: '자모',
     });
     jamoHostSetup.style.display = amHost ? '' : 'none';
     if (amHost) inputKeyboardToggle.checked = state.keyboardVisible !== false;

@@ -1,4 +1,5 @@
 import { createRoomManager } from '../../shared/roomManager.js';
+import { getPlayerCard } from '../../db/playerCards.js';
 import { JAMO_MAX_PLAYERS, JAMO_MIN_PLAYERS } from '../../config.js';
 
 const manager = createRoomManager({
@@ -13,11 +14,17 @@ const manager = createRoomManager({
   defaultPlayerFields: { attempts: [], solved: false, score: 0, wins: 0 },
   // 시도 내용(word/jamo)은 뷰어별로 마스킹해야 하므로 socket.js에서 별도 이벤트로 전송한다.
   // safeState에는 진행 상황(시도 횟수/정답 여부/점수)만 포함한다.
+  // card: 방에 있는 사람들끼리 서로의 티어·전적을 볼 수 있도록 함께 내려보낸다.
   safePlayer: (p) => ({
     id: p.id, name: p.name, avatar: p.avatar,
     isHost: p.isHost, ready: p.ready,
     solved: p.solved, attemptCount: p.attempts.length,
     score: p.score || 0, wins: p.wins || 0,
+    card: getPlayerCard(p.accountId ?? null, 'jamo'),
+  }),
+  safeSpectator: (s) => ({
+    id: s.id, name: s.name, avatar: s.avatar,
+    card: getPlayerCard(s.accountId ?? null, 'jamo'),
   }),
   extraStateFields: (room) => ({
     keyboardVisible: room.keyboardVisible,

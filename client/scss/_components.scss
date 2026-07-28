@@ -415,6 +415,39 @@ input[type='password'] {
   }
 }
 
+// ── 대기실 참가자 목록의 전적 줄 ──────────────────────────────────────────────
+// 방에 있는 사람들끼리 서로의 티어·승패를 볼 수 있게 이름 아래 한 줄로 붙인다.
+// li 를 wrap 시켜 두 번째 줄로 떨어지게 하므로 기존 배지 배치(margin-left:auto)는 그대로다.
+.player-list li { flex-wrap: wrap; }
+
+.player-rank {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.player-rank-rec {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+
+  .label { color: var(--muted); }
+  .win   { color: var(--green-light); font-weight: 800; }
+  .lose  { color: #e06c6c; font-weight: 800; }
+}
+
+.spectator-chip .chip-rec {
+  margin-left: 4px;
+  font-size: 0.68rem;
+  color: var(--muted);
+}
+
 // ── 대기실 '내 등급 · 전적' 패널 ──────────────────────────────────────────────
 // 게임 시작 전에 자기 티어와 승패를 바로 확인할 수 있게 대기실 위쪽에 붙는다.
 .my-rank-panel {

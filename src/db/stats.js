@@ -23,6 +23,7 @@ const SQL = {
   insertResult: db.prepare(`INSERT INTO game_results (user_id, game, outcome, score)
                             VALUES (@userId, @game, @outcome, @score)`),
   statsOf:  db.prepare('SELECT game, plays, wins, losses, score FROM game_stats WHERE user_id = ? ORDER BY plays DESC'),
+  gameOf:   db.prepare('SELECT plays, wins, losses, score FROM game_stats WHERE user_id = ? AND game = ?'),
   recentOf: db.prepare(`SELECT game, outcome, score, created_at FROM game_results
                         WHERE user_id = ? ORDER BY id DESC LIMIT ?`),
   trimOld: db.prepare(`DELETE FROM game_results
@@ -81,6 +82,12 @@ export function recordPlayers(game, players, outcomeOf, scoreOf = () => 0) {
     entries.push({ accountId: p.accountId ?? null, outcome, score: scoreOf(p) });
   }
   recordRound(game, entries);
+}
+
+/** 한 게임의 누적 전적 한 줄 (기록이 없으면 0) */
+export function getGameRecord(userId, game) {
+  const row = SQL.gameOf.get(userId, game) ?? { plays: 0, wins: 0, losses: 0, score: 0 };
+  return { ...row, winRate: row.plays > 0 ? Math.round((row.wins / row.plays) * 100) : 0 };
 }
 
 /** 프로필용: 게임별 누적 전적 + 최근 기록 */

@@ -15,6 +15,30 @@ export function tierLabel(rank) {
   return `${emoji} ${name}${division ? ` ${division}` : ''}`;
 }
 
+/** 티어 배지 한 조각 (등급이 없으면 언랭크 배지) */
+export function tierBadgeHtml(rank) {
+  const key = rank?.tier?.key ?? 'unranked';
+  return `<span class="tier-badge" data-tier="${escHtml(key)}">${escHtml(tierLabel(rank) || '⬜ 언랭크')}</span>`;
+}
+
+/**
+ * 방 참가자 목록에 붙는 한 줄짜리 전적 (티어 배지 + 이 게임 전적 + 전체 전적).
+ * 서버가 `safePlayer` 에 실어 보내는 `card` 를 그대로 받는다.
+ * @param {object|null} card
+ * @param {string} gameLabel 이 게임 전적 앞에 붙일 짧은 이름 (예: '자모')
+ */
+export function playerCardHtml(card, gameLabel = '이 게임') {
+  if (!card) return ''; // 게스트(로그인 계정 없음)
+
+  const badge = tierBadgeHtml(card);
+  const rec   = (label, r) => (r && r.plays > 0)
+    ? `<span class="player-rank-rec"><span class="label">${escHtml(label)}</span><b class="win">${r.wins}승</b><b class="lose">${r.losses}패</b></span>`
+    : '';
+
+  const recs = `${rec(gameLabel, card.game)}${rec('전체', card.total)}`;
+  return `<div class="player-rank">${badge}${recs || '<span class="player-rank-rec">전적 없음</span>'}</div>`;
+}
+
 function statChip(label, { wins = 0, losses = 0, winRate = 0 }) {
   return `
     <span class="my-rank-stat">
@@ -59,7 +83,7 @@ export function createMyRankPanel(el, { games = [], minInterval = 5000 } = {}) {
     el.innerHTML = `
       <div class="my-rank-head">
         <span class="my-rank-title">내 등급</span>
-        <span class="tier-badge" data-tier="${escHtml(tierKey)}">${escHtml(tierLabel(rank) || '⬜ 언랭크')}</span>
+        ${tierBadgeHtml(rank)}
         <span class="my-rank-meta">${escHtml(meta)}</span>
       </div>
       ${chips.length

@@ -98,7 +98,10 @@ export function registerCommonHandlers(io, socket, manager, opts) {
     if (room.spectators.some(s => s.id === socket.id)) return err('이미 관전 중인 방입니다.');
     if (room.players.some(p => p.id === socket.id))  return err('이미 플레이어로 참여 중입니다.');
 
-    room.spectators.push({ id: socket.id, name, avatar: sessionAvatar() });
+    room.spectators.push({
+      id: socket.id, userId: session()?.userId ?? null, accountId: sessionAccountId(),
+      name, avatar: sessionAvatar(),
+    });
     socket.join(code);
     socket.emit('chat_history', room.chatHistory);
     socket.emit('spectate_start', safeState(room));
