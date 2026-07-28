@@ -29,6 +29,7 @@ src/
     socket.js            ← registerCommonHandlers() + 게임 고유 핸들러만
     jamoLogic.js         ← (jamo 전용) 한글 자모 분해/판정 순수 로직 (decompose, judge, keyboardFromAttempts)
     chainLogic.js        ← (wordchain 전용) 한글 음절 분해/두음법칙/단어 검증 순수 로직 (allowedStarts, validateWord)
+    dictionary.js        ← (wordchain 전용) words.txt.gz(표준국어대사전 기반 36만 단어)를 기동 시 Set으로 로드 (hasWord)
 
 views/
   layouts/base.pug      ← 공통 HTML head, script, 채팅 포함
@@ -170,7 +171,7 @@ client/
 - 게임 상태: `lobby` → `playing` → `roundEnd` → (자동 복귀 타이머 후) `lobby`
 - 턴제: 라운드마다 첫 차례를 돌아가며 배정(`players[(round-1) % n]`), 이후 players 배열 순서대로 진행. 첫 단어는 자유, 이후 이전 단어의 끝 글자로 시작하는 단어를 이어야 한다
 - 제한시간(`WORDCHAIN_TURN_TIMEOUT`, 15초) 안에 단어를 내지 못하면 탈락(`alive: false`, `wordchain_out` 이벤트). 탈락해도 방에는 남아 채팅/관람 가능. 마지막 1명이 남으면 라운드 종료(`wordchain_result`), 우승자 `wins` +1, `WORDCHAIN_RETURN_DELAY`(6초) 후 대기실 자동 복귀
-- 단어 검증(`chainLogic.js`의 `validateWord`): 완성형 한글만, 2~15글자, 끝말 규칙(두음법칙 허용: 력→역, 로→노, 녀→여 등 — `allowedStarts`), 같은 라운드 내 중복 단어 금지. **사전 검증은 하지 않는다** — 실제 단어인지는 참가자들이 채팅으로 감시하는 컨셉
+- 단어 검증(`chainLogic.js`의 `validateWord`): 완성형 한글만, 2~15글자, 끝말 규칙(두음법칙 허용: 력→역, 로→노, 녀→여 등 — `allowedStarts`), 같은 라운드 내 중복 단어 금지, **사전 검증**(표준국어대사전 기반 공개 단어 목록 `words.txt.gz` 약 36만 단어, `dictionary.js`가 기동 시 로드). `validateWord`는 순수 로직을 유지하기 위해 사전 체커(`hasWord`)를 인자로 주입받으며, 사전 파일이 없으면 사전 검증만 건너뛰고 게임은 정상 동작한다
 - 검증 실패 시 `error_msg`만 보내고 턴/타이머는 유지된다 (제출 실패가 패널티가 아님)
 - 자기 차례인 사람이 이탈하면 `onPlayerLeave`가 다음 생존자에게 턴을 넘기고 socket.js가 타이머를 재시작. 생존자가 1명이 되면 즉시 라운드 종료
 - `safeState`에 `chain`(단어 목록)/`currentTurn`/`turnDeadline`/`allowedStarts`(두음법칙 포함 시작 가능 글자)/`winner` 포함. 클라이언트 타이머는 `turnDeadline` 기준으로 표시만 담당(판정은 서버)

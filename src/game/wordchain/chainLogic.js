@@ -47,9 +47,9 @@ export function allowedStarts(lastChar) {
 
 /**
  * 다음 단어 검증. 통과하면 null, 실패하면 사용자에게 보여줄 에러 메시지를 반환.
- * (사전 검증은 하지 않는다 — 실제 단어인지는 참가자들이 채팅으로 감시하는 컨셉)
+ * isRealWord를 넘기면 사전 검증도 수행한다 (순수 로직을 유지하려고 사전은 주입받는다).
  */
-export function validateWord(word, prevWord, usedWords, maxLen = 15) {
+export function validateWord(word, prevWord, usedWords, maxLen = 15, isRealWord = null) {
   if (!word || !isHangulWord(word)) return '완성된 한글 단어만 낼 수 있습니다.';
   if (word.length < 2)              return '두 글자 이상의 단어만 낼 수 있습니다.';
   if (word.length > maxLen)         return `단어는 최대 ${maxLen}글자입니다.`;
@@ -60,5 +60,6 @@ export function validateWord(word, prevWord, usedWords, maxLen = 15) {
     }
   }
   if (usedWords.has(word))          return '이미 나온 단어입니다.';
+  if (isRealWord && !isRealWord(word)) return `'${word}'은(는) 사전에 없는 단어입니다.`;
   return null;
 }
