@@ -1,5 +1,6 @@
 import { rooms, getRoomOf, getRooms, safeState, removePlayer, removeSpectator, manager, RETURN_DELAY } from './rooms.js';
 import { registerCommonHandlers } from '../../shared/socketHandlers.js';
+import { recordPlayers } from '../../db/stats.js';
 
 // ── 타이머 관리 ───────────────────────────────────────────────────────────────
 const returnTimers = new Map();
@@ -94,6 +95,11 @@ export function registerTetrisHandlers(io, socket) {
       room.state    = 'gameOver';
       room.winner   = winner?.id ?? null;
 
+      recordPlayers('tetris', room.players, p => {
+        if (!winner)            return 'draw';
+        return p.id === winner.id ? 'win' : 'lose';
+      });
+
       io.to(room.code).emit('game_result', {
         winnerId:   winner?.id   ?? null,
         winnerName: winner?.name ?? null,
@@ -135,6 +141,11 @@ export function registerTetrisHandlers(io, socket) {
       io.to(room.code).emit('room_update', safeState(room));
     } else if (result.gameEnded) {
       const winner = room.players.find(p => p.id === room.winner);
+      // 이탈로 승부가 갈린 경우도 남은 사람들의 전적에 반영한다 (나간 사람은 이미 제외됨)
+      recordPlayers('tetris', room.players, p => {
+        if (!winner)            return 'draw';
+        return p.id === winner.id ? 'win' : 'lose';
+      });
       io.to(room.code).emit('game_result', {
         winnerId:   room.winner,
         winnerName: winner?.name ?? null,

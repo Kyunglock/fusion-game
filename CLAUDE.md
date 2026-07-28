@@ -4,7 +4,7 @@
 - **백엔드**: Node.js + Express + Socket.IO
 - **프론트엔드**: Vanilla JS (ES Modules), SCSS → CSS 빌드 (`npm run build:css`)
 - **뷰 엔진**: Pug (게임 페이지를 서버사이드 렌더링)
-- 사용자 정보(닉네임/아바타)는 DB 없이 express-session에만 저장 (서버 재시작 시 초기화됨)
+- **DB**: SQLite (better-sqlite3). 계정(닉네임)·아바타·전적·세션이 모두 여기에 저장된다. 파일 경로는 `DB_PATH`(기본 `data/app.db`)
 
 ## Socket.IO 네임스페이스
 | 네임스페이스 | 게임 | 방 목록 이벤트 |
@@ -15,12 +15,39 @@
 | `/jamo` | 자모 워들 | `jamo_rooms_update` |
 | `/wordchain` | 끝말잇기 | `wordchain_rooms_update` |
 
+## 계정 · 전적 · 등급 (DB)
+
+### 계정 = 닉네임 (비밀번호 없음)
+- 홈에서 닉네임만 입력하면 `POST /api/auth`가 그 닉네임의 계정으로 접속시킨다. 처음 보는 닉네임이면 그 자리에서 계정을 만든다(`loginOrCreate`). 대소문자 구분 없이 같은 닉네임 = 같은 계정(`UNIQUE COLLATE NOCASE`)
+- 세션에는 `userId`(`user:<id>` 문자열, 접속자 위젯·방 참가자 식별용), `accountId`(users.id, 전적 기록 기준), `username`, `avatar`를 캐시한다. **정본은 항상 DB**이고 `GET /api/me`가 매번 DB로 세션 캐시를 맞춘다
+- 세션은 SQLite(`sessions` 테이블, `src/db/sessionStore.js`)에 저장되므로 서버를 재시작·재배포해도 접속이 유지된다
+- 닉네임 변경(`PUT /api/me/username`)은 계정 이름 변경이다(전적·등급 유지). 이미 쓰는 닉네임이면 409
+
+### 전적
+- 게임 한 판이 끝날 때 `recordPlayers(game, players, outcomeOf, scoreOf)`(`src/db/stats.js`)로 기록한다. 소켓 플레이어 객체에 실린 `accountId`가 기준이며, 기록 실패는 로그만 남기고 게임 진행을 막지 않는다
+- 기록 시점: 악어=물린 사람 패/나머지 승, 폭탄=터뜨린 사람 패/나머지 승, 테트리스=마지막 생존자 승(이탈로 끝난 경우 포함), 끝말잇기=최후 1인 승, 자모=첫 정답자 승(방장은 참여하지 않으므로 제외, 전원 소진이면 무승부)
+- `game_stats`(게임별 누적) + `game_results`(판별 기록, 유저당 최근 100건만 보관) 두 테이블에 함께 쌓인다
+
+### 등급 (리그 오브 레전드식)
+- `src/db/ranking.js`. 절대 점수 구간이 아니라 **전체 유저 중 상위 몇 %인지**로 티어를 나눈다 → 인원이 적어도 위아래가 골고루 갈린다(5명이면 5명이 서로 다른 티어)
+- 점수: 승 +25, 패 -10(0 미만은 0). 동점자는 승 → 판수 → 가입순으로 갈라 등급이 겹치지 않게 한다
+- 티어 상한(상위 누적 %): 챌린저 0.05 / 그랜드마스터 0.2 / 마스터 1 / 다이아 4 / 에메랄드 12 / 플래티넘 25 / 골드 45 / 실버 65 / 브론즈 85 / 아이언 100. 마스터 이상을 뺀 티어는 구간 내 위치로 IV~I 디비전을 매긴다
+- 한 판도 안 한 유저는 언랭크. 등급은 `GET /api/me`·`GET /api/me/stats`에 실려 오고 전체 등급표는 `GET /api/ranking`(상위 100명)
+- 홈 화면: 유저바에 티어 배지, `전적 · 등급` 버튼 → 등급 카드 + 게임별 전적표 + 최근 전적 + 전체 등급표 모달
+
 ## 파일 구조
 ```
 src/
   config.js              ← 게임별 설정 상수 (인원 제한, 타이머 등)
+  db/
+    index.js             ← SQLite 연결 + 마이그레이션(user_version 기반, 배열 끝에 추가만)
+    users.js             ← 계정(닉네임) 조회/생성/수정
+    stats.js             ← 전적 기록(recordPlayers/recordRound) + 조회(getUserStats)
+    ranking.js           ← 백분위 기반 등급 티어 계산(getRanking/getUserRank)
+    sessionStore.js      ← express-session SQLite 저장소
   routes/
-    auth.js              ← /api/auth, /api/me, /api/me/username, /api/me/avatar (세션 기반)
+    auth.js              ← /api/auth, /api/auth/logout, /api/me, /api/me/username,
+                           /api/me/avatar, /api/me/stats, /api/ranking
   shared/
     roomManager.js       ← 범용 방 관리 팩토리 (createRoomManager)
     socketHandlers.js    ← 공통 소켓 핸들러 등록 (registerCommonHandlers)

@@ -13,6 +13,11 @@ const manager = createRoomManager({
     turnDeadline:     null,
   },
   defaultPlayerFields: { score: 0 },
+  // 계정 식별자(userId/accountId)는 서버 내부용이므로 클라이언트로 내보내지 않는다.
+  safePlayer: (p) => ({
+    id: p.id, name: p.name, avatar: p.avatar,
+    isHost: p.isHost, ready: p.ready, score: p.score ?? 0,
+  }),
   extraStateFields: (room) => ({
     pressedTeeth:     room.pressedTeeth,
     currentTurnIndex: room.currentTurnIndex,

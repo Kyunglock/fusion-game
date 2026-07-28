@@ -10,6 +10,7 @@
     "build:css": "sass --no-source-map client/scss:client/css"
   },
   "dependencies": {
+    "better-sqlite3": "^13.0.1",
     "dotenv": "^17.3.1",
     "express": "^4.18.2",
     "express-session": "^1.19.0",

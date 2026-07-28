@@ -28,6 +28,10 @@ PORT=4000
 EOF
 chmod 600 .env
 
+# 계정·전적·세션이 담기는 SQLite 데이터 디렉터리.
+# 컨테이너가 node(uid 1000)로 돌기 때문에 소유자를 맞춰줘야 쓰기가 된다.
+mkdir -p data && sudo chown -R 1000:1000 data
+
 # Docker / compose 플러그인 설치 후, Tailscale 설치·로그인
 curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
@@ -72,4 +76,17 @@ sudo tailscale up
 ```bash
 cd /srv/fusion-game
 IMAGE_TAG=<되돌릴-커밋-SHA> docker compose up -d
+```
+
+## 데이터 백업 (SQLite)
+계정·전적·등급·로그인 세션은 모두 `/srv/fusion-game/data/app.db` 하나에 들어 있다.
+이미지를 갈아끼워도 이 디렉터리는 그대로 남지만, 디스크가 날아가면 전적도 함께 사라지므로
+가끔 복사해 두는 것이 좋다. WAL 모드라 파일을 그냥 `cp` 하면 깨질 수 있으니 SQLite 의
+백업 명령을 쓴다.
+
+```bash
+cd /srv/fusion-game
+# 컨테이너 안에서 일관된 스냅샷 뜨기 (서비스 중단 없이 가능)
+docker compose exec app node -e "const D=require('better-sqlite3'); new D('/app/data/app.db').backup('/app/data/backup.db').then(()=>console.log('backup ok'))"
+mv data/backup.db ~/backups/app-$(date +%F).db
 ```

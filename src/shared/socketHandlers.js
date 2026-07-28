@@ -32,9 +32,11 @@ export function registerCommonHandlers(io, socket, manager, opts) {
   }
 
   // ── 세션 헬퍼 ───────────────────────────────────────────────────────��───
-  const session       = () => socket.request.session;
-  const sessionName   = () => session()?.username;
-  const sessionAvatar = () => session()?.avatar    ?? null;
+  const session          = () => socket.request.session;
+  const sessionName      = () => session()?.username;
+  const sessionAvatar    = () => session()?.avatar    ?? null;
+  // 로그인 계정(users.id). 게스트는 null → 전적을 남기지 않는다.
+  const sessionAccountId = () => session()?.accountId ?? null;
 
   // ── 브로드캐스트 헬퍼 ────────────────────────────────────────────────────
   const broadcast      = (room) => io.to(room.code).emit('room_update', safeState(room));
@@ -47,7 +49,7 @@ export function registerCommonHandlers(io, socket, manager, opts) {
   // ── create_room ──────────────────────────────────────────────────────────
   socket.on('create_room', ({ playerName } = {}) => {
     const name     = (sessionName() || playerName || '플레이어').trim().slice(0, 16);
-    const room     = createRoom(socket.id, name, sessionAvatar(), session()?.userId ?? null);
+    const room     = createRoom(socket.id, name, sessionAvatar(), session()?.userId ?? null, sessionAccountId());
     socket.join(room.code);
     socket.emit('room_created', { code: room.code });
     socket.emit('chat_history', room.chatHistory);
@@ -68,7 +70,7 @@ export function registerCommonHandlers(io, socket, manager, opts) {
     if (room.players.some(p => p.name === name))     return err(`'${name}' 닉네임이 이미 사용 중입니다.`);
 
     room.players.push({
-      id: socket.id, userId: session()?.userId ?? null,
+      id: socket.id, userId: session()?.userId ?? null, accountId: sessionAccountId(),
       name, avatar: sessionAvatar(),
       isHost: false, ready: false,
       ...joinPlayerFields(),
@@ -182,7 +184,7 @@ export function registerCommonHandlers(io, socket, manager, opts) {
 
   // 공개 API
   return {
-    session, sessionName, sessionAvatar,
+    session, sessionName, sessionAvatar, sessionAccountId,
     broadcast, broadcastRooms, err,
     validateStartGame,
   };
