@@ -199,7 +199,15 @@ import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
   const jamoSpectateJoin = $('jamo-spectate-join');
   const jamoReturnLobby = $('jamo-return-lobby');
   const jamoBoards     = $('jamo-boards');
+  const jamoMyBoard    = $('jamo-my-board');
   const jamoMyKeyboard = $('jamo-my-keyboard');
+
+  // 모바일에서는 내 보드를 다른 참가자 보드 목록이 아니라 답 입력 키보드 바로 위에
+  // 둔다 (입력하면서 내 시도를 바로 볼 수 있게). PC 레이아웃은 그대로 유지한다.
+  const mobileLayout = window.matchMedia('(max-width: 500px)');
+  mobileLayout.addEventListener('change', () => {
+    if (roomState && roomState.state !== 'lobby') renderBoards(roomState);
+  });
   const jamoSpectatorJoin = $('jamo-spectator-join');
 
   // 솔로 플레이 화면
@@ -430,6 +438,7 @@ import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
 
     // ── 참가자별 보드 (방장은 보드 없음) ──────────────────────────────────
     jamoBoards.innerHTML = '';
+    jamoMyBoard.innerHTML = '';
     const ordered = [...participants].sort((a, b) => (a.id === myId ? 0 : 1) - (b.id === myId ? 0 : 1));
 
     ordered.forEach((p, i) => {
@@ -463,7 +472,9 @@ import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
         card.appendChild(empty);
       }
 
-      jamoBoards.appendChild(card);
+      // 모바일에서는 내 보드만 키보드 바로 위 전용 컨테이너(#jamo-my-board)로 분리
+      const intoMyBoard = isMe && mobileLayout.matches;
+      (intoMyBoard ? jamoMyBoard : jamoBoards).appendChild(card);
     });
 
     // ── 내 키보드 (보드 카드 밖 별도 렌더 = 답 입력 수단) ──────────────────

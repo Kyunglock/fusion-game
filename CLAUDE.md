@@ -191,6 +191,7 @@ client/
 - 테트리스 보드 셀 크기는 `client/js/tetris.js`의 `calcCellSize()`가 뷰포트 기준으로 계산하고 `resize`에 재계산. 악어 이빨 그리드도 `resize`에 `positionTeethGrid()`로 재배치(회전 대응)
 - 전역(_base/_components): 입력창 `font-size:16px`(iOS 포커스 확대 방지), `-webkit-text-size-adjust:100%`, `overscroll-behavior-y:contain`(당겨서 새로고침 방지), `body .screen`/`body .page`에 `min-height:100dvh`(주소창 감안, 미지원 시 100vh 폴백)
 - `<head>` meta viewport에 `viewport-fit=cover`. 우측 하단 공용 도크(`#pg-dock`)는 `env(safe-area-inset-*)` + `flex-wrap`으로 노치/좁은 화면 대응
+- 자모 워들 멀티는 모바일(`≤500px`)에서만 **내 보드를 답 입력 키보드 바로 위**(`#jamo-my-board`)로 분리해 렌더한다. 좁은 화면에서 내가 입력 중인 자모가 다른 참가자 보드에 밀려 안 보이는 문제를 막기 위함. PC에서는 기존대로 내 보드도 `#jamo-boards` 그리드 안에 들어가고 `#jamo-my-board`는 `:empty`로 숨겨진다. 분기는 `jamo.js`의 `mobileLayout` (`matchMedia`, `change`에 재렌더). 모바일에서는 `#jamo-boards`(다른 참가자)를 `max-height:20vh`로 줄여 내 보드+키보드가 한 화면에 들어오게 한다
 
 ## CSS 빌드
 ```bash
