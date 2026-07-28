@@ -1,0 +1,35 @@
+extends ../layouts/base
+include ../mixins/lobby
+include ../mixins/waiting
+include ../mixins/overlays
+
+block content
+  +lobby({ logoEmoji: '🔗', title: '끝말잇기', titleClass: 'title-croc', subtitle: '끝말을 이어라, 막히면 탈락! 🗣️' })
+
+  +waitingRoom({ subtext: '제한시간 안에 끝말을 잇지 못하면 탈락! 마지막까지 살아남으면 우승합니다. 실제 단어인지는 서로 채팅으로 감시하세요 👀' })
+
+  #screen-game.screen
+    +spectatorGame
+    #turn-banner ...
+
+    #player-row
+
+    #chain-panel
+      #chain-empty 첫 단어는 자유! 아무 단어로 시작하세요
+      #chain-list
+
+    #turn-info
+      #required-wrap
+        span.required-label 시작 글자
+        #required-char -
+      #timer-wrap
+        #timer-bar-track
+          #timer-bar
+        #timer-num -
+
+    form#word-form(autocomplete="off")
+      input#word-input(type="text" placeholder="단어 입력" maxlength="15" autocomplete="off" enterkeyhint="send")
+      button#btn-submit.btn.btn-primary(type="submit") 제출
+
+  +aloneOverlay('🔗💨')
+  +resultOverlay({ emoji: '🏆', title: '우승!' })
