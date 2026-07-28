@@ -13,6 +13,7 @@ import { registerHandlers } from './src/game/crocodile/socket.js';
 import { registerBombHandlers }   from './src/game/bomb/socket.js';
 import { registerTetrisHandlers } from './src/game/tetris/socket.js';
 import { registerJamoHandlers }   from './src/game/jamo/socket.js';
+import { registerWordchainHandlers } from './src/game/wordchain/socket.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -59,6 +60,10 @@ app.get('/jamo', (_req, res) => {
   res.render('pages/jamo', { title: '자모 워들', cssFile: 'jamo', jsFile: 'jamo', hasFlash: false });
 });
 
+app.get('/wordchain', (_req, res) => {
+  res.render('pages/wordchain', { title: '끝말잇기', cssFile: 'wordchain', jsFile: 'wordchain', hasFlash: true });
+});
+
 // ── Socket.IO ─────────────────────────────────────────────────────────────────
 io.on('connection', (socket) => {
   console.log(`[connect] ${socket.id}`);
@@ -84,6 +89,13 @@ jamoIo.use((socket, next) => sessionMiddleware(socket.request, socket.request.re
 jamoIo.on('connection', (socket) => {
   console.log(`[jamo connect] ${socket.id}`);
   registerJamoHandlers(jamoIo, socket);
+});
+
+const wordchainIo = io.of('/wordchain');
+wordchainIo.use((socket, next) => sessionMiddleware(socket.request, socket.request.res || {}, next));
+wordchainIo.on('connection', (socket) => {
+  console.log(`[wordchain connect] ${socket.id}`);
+  registerWordchainHandlers(wordchainIo, socket);
 });
 
 server.listen(PORT, () => console.log(`파티 게임즈 → http://localhost:${PORT}`));

@@ -13,6 +13,7 @@
 | `/bomb` | 폭탄 돌리기 | `bomb_rooms_update` |
 | `/tetris` | 테트리스 | `tetris_rooms_update` |
 | `/jamo` | 자모 워들 | `jamo_rooms_update` |
+| `/wordchain` | 끝말잇기 | `wordchain_rooms_update` |
 
 ## 파일 구조
 ```
@@ -23,10 +24,11 @@ src/
   shared/
     roomManager.js       ← 범용 방 관리 팩토리 (createRoomManager)
     socketHandlers.js    ← 공통 소켓 핸들러 등록 (registerCommonHandlers)
-  game/{crocodile,bomb,tetris,jamo}/
+  game/{crocodile,bomb,tetris,jamo,wordchain}/
     rooms.js             ← createRoomManager() 호출 + 게임별 설정/함수
     socket.js            ← registerCommonHandlers() + 게임 고유 핸들러만
     jamoLogic.js         ← (jamo 전용) 한글 자모 분해/판정 순수 로직 (decompose, judge, keyboardFromAttempts)
+    chainLogic.js        ← (wordchain 전용) 한글 음절 분해/두음법칙/단어 검증 순수 로직 (allowedStarts, validateWord)
 
 views/
   layouts/base.pug      ← 공통 HTML head, script, 채팅 포함
@@ -40,6 +42,7 @@ views/
     bomb.pug
     tetris.pug
     jamo.pug             ← +waitingRoom() 블록으로 방장 제시어 입력 UI 주입
+    wordchain.pug
 
 client/
   js/
@@ -55,10 +58,11 @@ client/
     bomb.js             ← 게임 고유 로직 (폭탄 패스, 위험 표시)
     tetris.js           ← 테트리스 엔진 + 게임 고유 UI
     jamo.js              ← 자모 보드/키보드 렌더링, 답 제출
+    wordchain.js         ← 끝말잇기 고유 로직 (단어 체인 렌더링, 턴 타이머, 단어 제출)
     utils.js            ← escHtml, showError
   partials/
     crocodile-svg.html  ← 악어 SVG (서버에서 읽어 Pug 변수로 주입)
-  scss/{crocodile,bomb,tetris,jamo}.scss  ← @use 'components' 공통 임포트
+  scss/{crocodile,bomb,tetris,jamo,wordchain}.scss  ← @use 'components' 공통 임포트
   scss/_components.scss              ← 공통 UI 컴포넌트
   scss/_variables.scss
   scss/_base.scss
@@ -94,6 +98,7 @@ client/
 - `GET /bomb` → Pug 렌더링 (`views/pages/bomb.pug`)
 - `GET /tetris` → Pug 렌더링 (`views/pages/tetris.pug`)
 - `GET /jamo` → Pug 렌더링 (`views/pages/jamo.pug`)
+- `GET /wordchain` → Pug 렌더링 (`views/pages/wordchain.pug`)
 - 기존 정적 HTML 파일은 제거 가능 (Pug로 대체됨). 단, 홈(로비 선택) 페이지인 `client/index.html`은 정적 파일로 유지
 
 ## 관전 시스템
@@ -111,6 +116,7 @@ client/
   - 악어/폭탄: `['🐊','🦁','🐸','🦊']`
   - 테트리스: `['🟦','🟧','🟥','🟩']`
   - 자모 워들: `['🔤','🔡','🔠','📝']`
+  - 끝말잇기: `['🔗','🗣️','💬','📣']`
 
 ## 테마 (위장 테마)
 - "회사에서 몰래 하는" 컨셉 — 대놓고 게임처럼 안 보이도록 여러 위장 테마를 제공한다.
@@ -158,6 +164,17 @@ client/
 - 참가자는 자신의 시도는 전체 공개, 다른 참가자의 시도는 색깔 결과만 보이고 단어/자모는 마스킹됨. 방장·관전자는 전체 열람 가능 (`socket.js`의 `emitGameState`가 뷰어별로 개인화된 `jamo_state` 이벤트 전송, 방장 보드는 없으므로 참가자만 전송)
 - 참가자 보드는 방장이 한 눈에 볼 수 있도록 그리드로 배치 (`#jamo-boards`, 스코어보드도 방장 제외)
 - 방장이 대기실에서 참가자 키보드(자모별 최고 등급 색상) 노출 여부 토글 가능 (`toggle_keyboard_visible`)
+
+## 끝말잇기 — 게임 규칙
+- 최소 2명, 최대 8명. 방장도 게임에 직접 참여한다
+- 게임 상태: `lobby` → `playing` → `roundEnd` → (자동 복귀 타이머 후) `lobby`
+- 턴제: 라운드마다 첫 차례를 돌아가며 배정(`players[(round-1) % n]`), 이후 players 배열 순서대로 진행. 첫 단어는 자유, 이후 이전 단어의 끝 글자로 시작하는 단어를 이어야 한다
+- 제한시간(`WORDCHAIN_TURN_TIMEOUT`, 15초) 안에 단어를 내지 못하면 탈락(`alive: false`, `wordchain_out` 이벤트). 탈락해도 방에는 남아 채팅/관람 가능. 마지막 1명이 남으면 라운드 종료(`wordchain_result`), 우승자 `wins` +1, `WORDCHAIN_RETURN_DELAY`(6초) 후 대기실 자동 복귀
+- 단어 검증(`chainLogic.js`의 `validateWord`): 완성형 한글만, 2~15글자, 끝말 규칙(두음법칙 허용: 력→역, 로→노, 녀→여 등 — `allowedStarts`), 같은 라운드 내 중복 단어 금지. **사전 검증은 하지 않는다** — 실제 단어인지는 참가자들이 채팅으로 감시하는 컨셉
+- 검증 실패 시 `error_msg`만 보내고 턴/타이머는 유지된다 (제출 실패가 패널티가 아님)
+- 자기 차례인 사람이 이탈하면 `onPlayerLeave`가 다음 생존자에게 턴을 넘기고 socket.js가 타이머를 재시작. 생존자가 1명이 되면 즉시 라운드 종료
+- `safeState`에 `chain`(단어 목록)/`currentTurn`/`turnDeadline`/`allowedStarts`(두음법칙 포함 시작 가능 글자)/`winner` 포함. 클라이언트 타이머는 `turnDeadline` 기준으로 표시만 담당(판정은 서버)
+- 클라이언트 `TURN_TIME`(wordchain.js)은 서버 `WORDCHAIN_TURN_TIMEOUT`과 같은 값으로 유지해야 타이머 바가 정확하다
 
 ## 자모 워들 — 솔로 플레이(솔플)
 - 로비에서 방을 만들지 않고 난이도(하/중/상)만 골라 바로 시작하는 **완전 로컬** 모드. 서버/소켓 통신 없이 이 브라우저 안에서만 돈다 (테트리스 솔플과 동일 컨셉)

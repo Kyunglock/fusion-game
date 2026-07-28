@@ -2,10 +2,11 @@ import { showError }              from './utils.js';
 import { io } from '/socket.io/socket.io.esm.min.js';
 
 // ── 방 개수 실시간 표시 ────────────────────────────────────────────────────────
-const roomCountCroc   = document.getElementById('room-count-croc');
-const roomCountBomb   = document.getElementById('room-count-bomb');
-const roomCountTetris = document.getElementById('room-count-tetris');
-const roomCountJamo   = document.getElementById('room-count-jamo');
+const roomCountCroc      = document.getElementById('room-count-croc');
+const roomCountBomb      = document.getElementById('room-count-bomb');
+const roomCountTetris    = document.getElementById('room-count-tetris');
+const roomCountJamo      = document.getElementById('room-count-jamo');
+const roomCountWordchain = document.getElementById('room-count-wordchain');
 
 function updateRoomCount(el, rooms) {
   if (!el) return;
@@ -13,17 +14,20 @@ function updateRoomCount(el, rooms) {
   el.textContent = count > 0 ? `방 ${count}개 대기중` : '';
 }
 
-const sockBomb   = io('/bomb');
-const sockTetris = io('/tetris');
-const sockJamo   = io('/jamo');
+const sockBomb      = io('/bomb');
+const sockTetris    = io('/tetris');
+const sockJamo      = io('/jamo');
+const sockWordchain = io('/wordchain');
 
-sockBomb  .on('connect', () => sockBomb  .emit('get_rooms'));
-sockTetris.on('connect', () => sockTetris.emit('get_rooms'));
-sockJamo  .on('connect', () => sockJamo  .emit('get_rooms'));
+sockBomb     .on('connect', () => sockBomb     .emit('get_rooms'));
+sockTetris   .on('connect', () => sockTetris   .emit('get_rooms'));
+sockJamo     .on('connect', () => sockJamo     .emit('get_rooms'));
+sockWordchain.on('connect', () => sockWordchain.emit('get_rooms'));
 
-sockBomb  .on('bomb_rooms_update',   rooms => updateRoomCount(roomCountBomb,   rooms));
-sockTetris.on('tetris_rooms_update', rooms => updateRoomCount(roomCountTetris, rooms));
-sockJamo  .on('jamo_rooms_update',   rooms => updateRoomCount(roomCountJamo,   rooms));
+sockBomb     .on('bomb_rooms_update',      rooms => updateRoomCount(roomCountBomb,      rooms));
+sockTetris   .on('tetris_rooms_update',    rooms => updateRoomCount(roomCountTetris,    rooms));
+sockJamo     .on('jamo_rooms_update',      rooms => updateRoomCount(roomCountJamo,      rooms));
+sockWordchain.on('wordchain_rooms_update', rooms => updateRoomCount(roomCountWordchain, rooms));
 
 const pageAuth    = document.getElementById('page-auth');
 const pageSelect  = document.getElementById('page-select');
