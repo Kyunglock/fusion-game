@@ -29,8 +29,10 @@ EOF
 chmod 600 .env
 
 # 계정·전적·세션이 담기는 SQLite 데이터 디렉터리.
-# 컨테이너가 node(uid 1000)로 돌기 때문에 소유자를 맞춰줘야 쓰기가 된다.
-mkdir -p data && sudo chown -R 1000:1000 data
+mkdir -p data
+# Linux 홈서버라면 컨테이너가 node(uid 1000)로 돌므로 소유자를 맞춰줘야 쓰기가 된다.
+# (macOS + Docker Desktop 은 파일 공유 계층이 알아서 매핑하므로 필요 없다)
+#   sudo chown -R 1000:1000 data
 
 # Docker / compose 플러그인 설치 후, Tailscale 설치·로그인
 curl -fsSL https://tailscale.com/install.sh | sh
@@ -64,6 +66,22 @@ sudo tailscale up
 ### 4) 저장소 거버넌스 (권한 있는 사람도 직접 push 금지)
 - `main` 브랜치 보호: **Require a pull request** + **Require review from Code Owners**(CODEOWNERS) + **Do not allow bypassing**
 - 배포 승인 게이트가 필요하면 Environment `production` 에 **Required reviewers** 설정
+
+## ⚠️ DB 도입(SQLite) 이후 최초 1회만 필요한 작업
+
+CI 는 이미지만 갱신하고 `docker-compose.yml` 은 홈서버에 있는 파일을 그대로 쓴다.
+즉 저장소의 compose 파일을 고쳐도 **홈서버 파일을 직접 갱신하지 않으면 볼륨이 안 붙는다.**
+볼륨이 없으면 DB 가 컨테이너 안에만 생겨서 **배포로 컨테이너가 새로 만들어질 때마다
+계정·전적이 전부 사라진다.**
+
+```bash
+cd /srv/fusion-game            # (홈서버 실제 경로에 맞게)
+mkdir -p data
+# 이 저장소의 docker-compose.yml 을 다시 복사해 덮어쓴다 (app 서비스에 volumes 추가됨)
+docker compose up -d
+```
+
+`docker compose config | grep -A2 volumes` 로 `./data:/app/data` 가 보이면 정상이다.
 
 ## 매 배포
 1. 지수짱이 feature 브랜치 → PR
