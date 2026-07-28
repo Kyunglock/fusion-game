@@ -26,6 +26,7 @@
 ### 전적
 - 게임 한 판이 끝날 때 `recordPlayers(game, players, outcomeOf, scoreOf)`(`src/db/stats.js`)로 기록한다. 소켓 플레이어 객체에 실린 `accountId`가 기준이며, 기록 실패는 로그만 남기고 게임 진행을 막지 않는다
 - 기록 시점: 악어=물린 사람 패/나머지 승, 폭탄=터뜨린 사람 패/나머지 승, 테트리스=마지막 생존자 승(이탈로 끝난 경우 포함), 끝말잇기=최후 1인 승, 자모=첫 정답자 승(방장은 참여하지 않으므로 제외, 전원 소진이면 무승부)
+- 자모 워들 솔플은 소켓이 아니라 HTTP(`POST /api/solo/jamo`)로 기록한다. 게임 키가 `jamoSolo`(자모 워들 솔로)로 멀티(`jamo`)와 분리돼 쌓인다 → 아래 '자모 워들 — 솔로 플레이' 참고
 - `game_stats`(게임별 누적) + `game_results`(판별 기록, 유저당 최근 100건만 보관) 두 테이블에 함께 쌓인다
 
 ### 등급 (리그 오브 레전드식)
@@ -44,10 +45,12 @@ src/
     users.js             ← 계정(닉네임) 조회/생성/수정
     stats.js             ← 전적 기록(recordPlayers/recordRound) + 조회(getUserStats)
     ranking.js           ← 백분위 기반 등급 티어 계산(getRanking/getUserRank)
+    soloStats.js         ← 자모 솔플 전적(난이도별 하루 첫 판만 기록, jamo_solo_daily)
     sessionStore.js      ← express-session SQLite 저장소
   routes/
     auth.js              ← /api/auth, /api/auth/logout, /api/me, /api/me/username,
                            /api/me/avatar, /api/me/stats, /api/ranking
+    solo.js              ← /api/solo/jamo (GET 오늘 상태 / POST 솔플 한 판 결과)
   shared/
     roomManager.js       ← 범용 방 관리 팩토리 (createRoomManager)
     socketHandlers.js    ← 공통 소켓 핸들러 등록 (registerCommonHandlers)
@@ -205,11 +208,20 @@ client/
 - 클라이언트 `TURN_TIME`(wordchain.js)은 서버 `WORDCHAIN_TURN_TIMEOUT`과 같은 값으로 유지해야 타이머 바가 정확하다
 
 ## 자모 워들 — 솔로 플레이(솔플)
-- 로비에서 방을 만들지 않고 난이도(하/중/상)만 골라 바로 시작하는 **완전 로컬** 모드. 서버/소켓 통신 없이 이 브라우저 안에서만 돈다 (테트리스 솔플과 동일 컨셉)
+- 로비에서 방을 만들지 않고 난이도(하/중/상)만 골라 바로 시작하는 모드. **채점은 전부 이 브라우저 안에서** 돈다(소켓 없음). 판이 끝났을 때만 전적 기록용으로 서버에 결과를 한 번 보낸다
 - 낱말 사전은 `client/js/jamoWords.js`의 `WORD_LIST`(5~12 자모 낱말 513개). 난이도는 저장하지 않고 실제 자모 분해 길이로 그때그때 거른다 → 사전과 채점 기준이 항상 일치
   - **하**: 자모 5개 / **중**: 자모 6~9개 / **상**: 자모 9~12개 (`SOLO_DIFFICULTY`, 9는 중·상이 겹칠 수 있음)
 - **하루 1문제/난이도**: '오늘의 낱말'은 `날짜(로컬 YYYY-MM-DD) + 난이도`를 FNV-1a 해시한 인덱스로 결정(무작위 아님) → 같은 날 재접속·재도전해도 항상 같은 낱말이라 중복 출제가 없다
 - **하루 1회 클리어 잠금**: 난이도별로 하루 한 번만 클리어 가능. 정답을 맞히면 `localStorage('pg-jamo-solo-cleared')`에 `{ date, diffs }`로 기록하고 다음 날까지 잠금(재진입 시 '이미 클리어' 안내). 실패(6회 소진)는 미클리어이므로 '다시 도전'으로 같은 오늘의 낱말에 재도전 가능
+  - 잠금 정본은 서버(`jamo_solo_daily`)에도 있다. 페이지 진입 시 `GET /api/solo/jamo?date=`로 받아 localStorage에 합치므로(`mergeCleared`) 다른 기기·브라우저에서 클리어해도 잠금이 이어지고, 캐시를 지워도 되살아난다
+
+### 솔플 전적
+- 판이 끝나면(`solo.done`) `reportSolo()`가 `POST /api/solo/jamo { date, difficulty, solved, attempts }`를 보낸다. 전적 게임 키는 `jamoSolo`(자모 워들 솔로)로 멀티 `jamo`와 분리 — 홈의 `전적 · 등급` 표에 별도 줄로 나오고 등급 점수(승 +25 / 패 -10)에도 함께 반영된다
+- **난이도별 하루 첫 판만 기록한다.** 솔플은 클라이언트가 채점하므로 결과를 그대로 믿을 수밖에 없다 → `jamo_solo_daily`가 (유저, 날짜, 난이도)당 한 줄만 허용해 반복 제출로 전적을 부풀리는 것을 막는다(하루 최대 3판). 실패 후 '다시 도전'으로 맞힌 판은 클리어 잠금만 갱신하고 전적은 건드리지 않는다
+- 승패: 맞히면 승(점수 = `max(1, 7 - 시도횟수)` → 1회 6점 … 6회 1점), 6회 소진이면 패(0점)
+- 날짜는 '오늘의 낱말'과 기준을 맞추려고 클라이언트 로컬 날짜를 쓰되, 서버 날짜와 ±1일(시차 범위)을 벗어나면 서버 날짜로 되돌린다(`resolveDate`) → 날짜를 바꿔가며 여러 판 기록하는 것 방지
+- 기록 결과는 솔플 배너 끝에 `📊 …`로 덧붙는다. 전적 기록이 실패해도 솔플 자체는 그대로 돈다
+- 서버 상수 `JAMO_SOLO_MAX_ATTEMPTS`·`JAMO_SOLO_DIFFICULTIES`(`src/config.js`)는 클라이언트 `SOLO_MAX_ATTEMPTS`·`SOLO_DIFFICULTY`(`client/js/jamoWords.js`)와 같은 값으로 유지해야 한다
 - 시도는 최대 6회(`SOLO_MAX_ATTEMPTS`). 채점/분해 로직(`decompose`/`judge`/`keyboardFromAttempts`)은 서버 `jamoLogic.js`와 동일 규칙을 `client/js/jamo.js`에 그대로 둔다(멀티는 서버가 채점하지만 솔플은 로컬이므로). 멀티용 렌더 함수(`renderAttemptRow`/`renderEmptyRow`/`renderKeyboard`/`updateComposingCells`)와 입력 조합 로직을 그대로 재사용
 - 화면: `#screen-solo`(뷰는 `views/pages/jamo.pug`). 로비 진입 버튼은 `+lobby` 블록의 `.solo-diff-btn`(오늘 클리어한 난이도는 `.cleared` + '오늘 클리어 ✅' 표시). `/jamo` 페이지 자체는 닉네임(세션)이 있어야 진입 가능(홈에서 로그인)
 

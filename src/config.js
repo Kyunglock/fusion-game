@@ -21,6 +21,11 @@ export const JAMO_MIN_PLAYERS   = 2; // 방장 + 참가자 1명 이상
 export const JAMO_MAX_ATTEMPTS  = 5;
 // 라운드 종료 후 방장이 게임 안에서 직접 다음 제시어를 내므로 자동 복귀 타이머는 없다.
 
+// 자모 워들 솔로 플레이(솔플). 채점은 클라이언트가 하지만 전적은 서버가 남기므로
+// 두 값은 client/js/jamoWords.js 의 SOLO_MAX_ATTEMPTS·SOLO_DIFFICULTY 와 같아야 한다.
+export const JAMO_SOLO_MAX_ATTEMPTS = 6;
+export const JAMO_SOLO_DIFFICULTIES = { easy: '하', medium: '중', hard: '상' };
+
 export const WORDCHAIN_MAX_PLAYERS  = 8;
 export const WORDCHAIN_MIN_PLAYERS  = 2;
 export const WORDCHAIN_TURN_TIMEOUT = 15; // 단어 제출 제한시간 (초)

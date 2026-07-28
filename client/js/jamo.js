@@ -535,10 +535,61 @@ import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
     } catch { return {}; }
   }
   function isClearedToday(diffKey) { return !!getClearedToday()[diffKey]; }
+  function writeCleared(diffs) {
+    try { localStorage.setItem(CLEAR_KEY, JSON.stringify({ date: todayKey(), diffs })); } catch { /* 무시 */ }
+  }
   function markClearedToday(diffKey) {
     const diffs = getClearedToday();
     diffs[diffKey] = true;
-    try { localStorage.setItem(CLEAR_KEY, JSON.stringify({ date: todayKey(), diffs })); } catch { /* 무시 */ }
+    writeCleared(diffs);
+  }
+  // 서버가 아는 클리어 기록을 localStorage 에 합친다 → 다른 기기/브라우저에서 클리어해도 잠금이 이어진다.
+  function mergeCleared(serverCleared) {
+    if (!serverCleared) return;
+    const diffs = getClearedToday();
+    let changed = false;
+    for (const key of Object.keys(serverCleared)) {
+      if (serverCleared[key] && !diffs[key]) { diffs[key] = true; changed = true; }
+    }
+    if (changed) writeCleared(diffs);
+  }
+
+  // ── 솔플 전적 (서버 기록) ────────────────────────────────────────────────────
+  // 채점은 로컬이지만 결과는 서버에 남겨 홈의 '전적 · 등급'에 함께 쌓이게 한다.
+  // 서버는 난이도별로 하루 첫 판만 전적에 반영한다(재도전으로 부풀릴 수 없음).
+  async function syncSoloClears() {
+    try {
+      const res = await fetch(`/api/solo/jamo?date=${todayKey()}`);
+      if (!res.ok) return;
+      mergeCleared((await res.json()).cleared);
+      updateSoloLaunchState();
+    } catch { /* 전적 서버가 안 되더라도 솔플 자체는 그대로 돈다 */ }
+  }
+
+  async function reportSolo() {
+    const target = solo;
+    if (!target || target.reported) return;
+    target.reported = true; // 한 판당 한 번만 보낸다
+    try {
+      const res = await fetch('/api/solo/jamo', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          date:       todayKey(),
+          difficulty: target.diff.key,
+          solved:     target.solved,
+          attempts:   target.attempts.length,
+        }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      mergeCleared(data.cleared);
+      target.statNote = data.recorded
+        ? (target.solved ? '전적에 승리로 기록했어요' : '전적에 패배로 기록했어요')
+        : '오늘 이 난이도는 이미 기록해서 전적에는 반영되지 않아요';
+      if (solo === target) renderSolo();
+      updateSoloLaunchState();
+    } catch { /* 무시 — 전적 기록 실패가 게임을 막지 않는다 */ }
   }
 
   // 로비 난이도 버튼에 '오늘 클리어' 표시 갱신
@@ -606,6 +657,7 @@ import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
     }
     composing = [];
     renderSolo();
+    if (solo.done) reportSolo(); // 판이 끝났으면 전적 기록
   }
 
   function renderSolo() {
@@ -631,6 +683,8 @@ import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
       soloBanner.className = '';
       soloBanner.textContent = `${attempts.length}/${maxAttempts}회 · 오늘의 '${diff.label}' 낱말을 맞혀보세요`;
     }
+    // 전적 기록 결과는 서버 응답이 온 뒤에 덧붙는다.
+    if (solo.statNote) soloBanner.textContent += ` · 📊 ${solo.statNote}`;
 
     // 보드: 시도한 줄 + 남은 빈 줄. 현재 입력 줄엔 jamo-active-row id 를 붙여 조합 자모를 채운다.
     soloBoard.innerHTML = '';
@@ -761,6 +815,7 @@ import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
   $('solo-exit').addEventListener('click', exitSolo);
   soloRetryBtn.addEventListener('click', () => { if (solo) startSolo(solo.diff.key); });
   updateSoloLaunchState(); // 로비 최초 렌더 시 '오늘 클리어' 표시
+  syncSoloClears();        // 서버에 남은 오늘 기록을 받아 잠금 상태를 맞춘다
 
   btnLeaveLobby.addEventListener('click', () => {
     isSpectator = false;
