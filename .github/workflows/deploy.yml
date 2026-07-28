@@ -88,6 +88,12 @@ jobs:
     environment: production
     timeout-minutes: 15
     steps:
+      # compose·nginx 설정을 서버로 동기화하려면 러너에 리포 파일이 있어야 한다.
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
       # 러너를 tailnet 에 임시(ephemeral) 노드로 연결. OAuth 클라이언트로 인증하며
       # job 이 끝나면 자동으로 tailnet 에서 사라진다.
       - name: Connect to Tailscale
@@ -116,6 +122,18 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           # 모든 호스트키 타입 등록 (협상 타입 불일치로 인한 검증 실패 방지)
           ssh-keyscan -T 15 "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          # ── compose·nginx 설정 동기화 ───────────────────────────────────────
+          # 저장소가 정본인 배포 설정을 서버로 밀어 드리프트를 막는다(예: DB 볼륨
+          # 누락으로 재배포마다 SQLite 가 초기화되던 사고 방지). 서버에만 있는 비밀
+          # (.env, deploy/certs/)은 절대 건드리지 않으려고 통째 동기화 대신 정본
+          # 파일만 개별 scp 한다.
+          SSHOPT="-i $HOME/.ssh/deploy_key -o StrictHostKeyChecking=yes"
+          RDIR="/Users/kynugroak/srv/fusion-game"
+          ssh $SSHOPT "$SSH_USER@$SSH_HOST" "mkdir -p '$RDIR/deploy'"
+          scp $SSHOPT docker-compose.yml "$SSH_USER@$SSH_HOST:$RDIR/docker-compose.yml"
+          scp $SSHOPT deploy/nginx.conf  "$SSH_USER@$SSH_HOST:$RDIR/deploy/nginx.conf"
+
           # 홈서버(macOS)에서 실행할 배포 스크립트를 stdin(heredoc)으로 전달.
           # GHCR 자격증명은 명령줄 인자(VAR=val)로 넘겨 원격 sh 에 주입한다.
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
