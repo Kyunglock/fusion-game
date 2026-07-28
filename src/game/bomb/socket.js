@@ -1,6 +1,7 @@
 import { rooms, getRoomOf, getRooms, safeState, removePlayer, removeSpectator, manager } from './rooms.js';
 import { BOMB_TIME_PER_PLAYER_MIN, BOMB_TIME_PER_PLAYER_MAX, BOMB_RETURN_DELAY, BOMB_WARN_MIN, BOMB_WARN_MAX } from '../../config.js';
 import { registerCommonHandlers } from '../../shared/socketHandlers.js';
+import { recordPlayers } from '../../db/stats.js';
 
 // ── 타이머 관리 ───────────────────────────────────────────────────────────────
 const bombTimers   = new Map();
@@ -79,6 +80,9 @@ export function registerBombHandlers(io, socket) {
       r.loser             = holder.id;
       r.state             = 'roundEnd';
       r.bombHoldStartedAt = null;
+
+      // 폭탄을 들고 있던 사람만 패배, 나머지는 승리
+      recordPlayers('bomb', r.players, p => (p.id === holder.id ? 'lose' : 'win'));
 
       io.to(r.code).emit('bomb_explode', { loserId: holder.id, loserName: holder.name });
       io.to(r.code).emit('room_update', safeState(r));

@@ -2,6 +2,7 @@ import { decompose, judge, keyboardFromAttempts } from './jamoLogic.js';
 import { rooms, getRoomOf, getRooms, safeState, removePlayer, removeSpectator, manager } from './rooms.js';
 import { JAMO_MAX_ATTEMPTS } from '../../config.js';
 import { registerCommonHandlers } from '../../shared/socketHandlers.js';
+import { recordPlayers } from '../../db/stats.js';
 
 // ── 뷰어별 개인화 상태 전송 ──────────────────────────────────────────────────
 // 방장/관전자는 모든 시도 내용을 볼 수 있고, 참가자는 자신의 시도만 전체 공개,
@@ -31,6 +32,18 @@ function emitGameState(io, room) {
       answer: canSeeAll ? room.answer : '',
     });
   });
+}
+
+// 라운드 전적 기록. 방장은 진행만 하고 게임에 참여하지 않으므로 제외한다.
+// 승자가 없으면(전원 소진) 참가자 모두 무승부로 남긴다.
+function recordJamoRound(room, winner = null, winnerScore = 0) {
+  const participants = room.players.filter(p => !p.isHost);
+  recordPlayers(
+    'jamo',
+    participants,
+    p => (!winner ? 'draw' : (p.id === winner.id ? 'win' : 'lose')),
+    p => (winner && p.id === winner.id ? winnerScore : 0),
+  );
 }
 
 // 라운드 종료 판정: 참가자(non-host) 전원이 정답을 맞혔거나 시도를 모두 소진했는지
@@ -135,6 +148,7 @@ export function registerJamoHandlers(io, socket) {
     room.spectators = room.spectators.filter(s => s.id !== socket.id);
     room.players.push({
       id: socket.id, userId: socket.request.session?.userId ?? null,
+      accountId: socket.request.session?.accountId ?? null,
       name: spec.name, avatar: spec.avatar ?? null,
       isHost: false, ready: false,
       attempts: [], solved: false, score: 0, wins: 0,
@@ -168,13 +182,16 @@ export function registerJamoHandlers(io, socket) {
     player.attempts.push({ word: cleanGuess, jamo: guessJamo, result });
 
     if (solved) {
+      const roundScore = Math.max(1, 6 - player.attempts.length);
       player.solved   = true;
       player.wins     = (player.wins  || 0) + 1;
-      player.score    = (player.score || 0) + Math.max(1, 6 - player.attempts.length);
+      player.score    = (player.score || 0) + roundScore;
       room.winnerName = player.name;
       room.state      = 'intermission'; // 첫 정답자가 나오면 라운드 종료
+      recordJamoRound(room, player, roundScore);
     } else if (allParticipantsDone(room)) {
       room.state = 'intermission';       // 전원 소진 → 무승부로 라운드 종료
+      recordJamoRound(room);
     }
 
     broadcast(room);
@@ -215,6 +232,7 @@ export function registerJamoHandlers(io, socket) {
     // 라운드 진행 중 참가자가 나가 남은 참가자가 모두 끝났다면 라운드를 종료한다.
     if (room.state === 'playing' && allParticipantsDone(room)) {
       room.state = 'intermission';
+      recordJamoRound(room);
     }
 
     io.to(room.code).emit('room_update', safeState(room));

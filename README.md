@@ -17,7 +17,8 @@
 - **백엔드**: Node.js + Express + Socket.IO
 - **프론트엔드**: Vanilla JS (ES Modules), SCSS → CSS 빌드
 - **뷰 엔진**: Pug (서버사이드 렌더링)
-- **세션**: express-session (DB 없이 세션에만 닉네임/아바타 저장, 서버 재시작 시 초기화됨)
+- **DB**: SQLite (better-sqlite3) — 계정(닉네임)·아바타·전적·세션 저장
+- **세션**: express-session + SQLite 저장소 (서버를 재시작해도 접속이 유지됨)
 
 ## 시작하기
 
@@ -39,6 +40,7 @@ cp .env.sample .env
 |---|---|---|
 | `SESSION_SECRET` | ✅ | 세션 서명용 비밀 키. 아래 명령으로 랜덤 값을 생성해 채워주세요. |
 | `PORT` | ❌ | 서버 포트. 비워두면 `4000`번을 사용합니다. |
+| `DB_PATH` | ❌ | SQLite 파일 경로. 비워두면 `data/app.db`가 자동 생성됩니다. |
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
@@ -60,6 +62,7 @@ npm run build:css  # SCSS → CSS만 빌드
 src/
   shared/            공통 방 관리(roomManager)·소켓 핸들러(socketHandlers)
   game/{crocodile,bomb,tetris,jamo}/  게임별 방 상태(rooms.js) + 소켓 로직(socket.js)
+  db/                SQLite 연결·마이그레이션, 계정(users)·전적(stats)·등급(ranking)·세션 저장소
   routes/            REST API (인증)
   config.js          게임별 설정 상수
 
@@ -78,3 +81,5 @@ client/
 - 관전 모드 (방장이 허용 시 진행 중인 방도 관전 가능)
 - 실시간 채팅 (플레이어 + 관전자)
 - 아바타 업로드, 닉네임 변경
+- 닉네임 = 계정 (비밀번호 없이 닉네임만 입력하면 그 계정으로 접속, 전적이 이어짐)
+- 게임별 누적 전적 + 리그 오브 레전드식 등급 티어 (전체 유저 백분위로 산정)

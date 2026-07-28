@@ -16,6 +16,12 @@ services:
     env_file:
       - .env
 
+    # 계정·전적·세션이 담긴 SQLite 파일. 이미지를 새로 pull 해도 살아남도록
+    # 호스트 디렉터리에 저장한다. 컨테이너는 node(uid 1000)로 돌아가므로
+    # 최초 1회 `mkdir -p data && sudo chown -R 1000:1000 data` 가 필요하다.
+    volumes:
+      - ./data:/app/data
+
     # 앱은 호스트 포트를 열지 않는다(내부 전용). nginx 가 docker 네트워크에서
     # 컨테이너 이름 `fusion-game:4000` 으로 직접 접근한다. 외부 노출은 nginx 담당.
     # (host 4000 은 아래 nginx 가 쓰므로 여기서 4000 을 열면 충돌한다)

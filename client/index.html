@@ -16,21 +16,21 @@
 <body>
 
 <!-- ══════════════════════════════════════
-     PAGE 1: 닉네임 입력
+     PAGE 1: 로그인 / 회원가입 / 게스트
 ══════════════════════════════════════ -->
 <div id="page-auth" class="page active">
   <div class="site-logo">🎮 파티 게임즈</div>
   <div class="site-tagline">친구들과 함께하는 실시간 파티 게임</div>
 
   <div class="card">
-    <!-- 신규 사용자 → 닉네임 입력 -->
+    <!-- 닉네임 = 계정. 비밀번호 없이 닉네임만 입력하면 바로 접속된다. -->
     <div id="new-user-form">
-      <label for="input-username">닉네임 <span style="color:#456355;font-weight:400">(2~16자, 게임에 표시됩니다)</span></label>
+      <label for="input-username">닉네임 <span class="label-hint">(2~16자, 게임에 표시됩니다)</span></label>
       <input type="text" id="input-username" placeholder="사용할 닉네임" maxlength="16" autocomplete="off" />
     </div>
 
     <button class="btn btn-primary" id="btn-start">시작하기 →</button>
-    <p class="auth-note" id="auth-note">닉네임은 이 브라우저 세션에 저장됩니다</p>
+    <p class="auth-note" id="auth-note">닉네임이 곧 계정입니다. 같은 닉네임으로 접속하면 전적·등급이 이어집니다</p>
   </div>
 </div>
 
@@ -46,8 +46,11 @@
     <div class="avatar" id="user-avatar">😊</div>
     <div class="nick-info">
       <span class="nick" id="display-nick">-</span>
+      <span class="tier-badge" id="tier-badge" hidden></span>
     </div>
+    <button class="btn-edit-profile" id="btn-stats">전적 · 등급</button>
     <button class="btn-edit-profile" id="btn-edit-profile">프로필 설정</button>
+    <button class="btn-edit-profile" id="btn-logout">닉네임 변경 · 나가기</button>
   </div>
 
   <p class="section-label">게임 목록</p>
@@ -113,8 +116,19 @@
     <label for="input-new-username" style="margin-top:16px;">닉네임 변경 <span class="label-hint">(2~16자)</span></label>
     <input type="text" id="input-new-username" maxlength="16" autocomplete="off" />
 
+    <p class="avatar-hint">닉네임을 바꾸면 지금 계정의 이름이 바뀝니다 (전적·등급 유지)</p>
+
     <button class="btn btn-primary" id="btn-save-profile" disabled>저장</button>
     <button class="btn btn-secondary" id="btn-cancel-profile">취소</button>
+  </div>
+</div>
+
+<!-- Stats modal -->
+<div id="stats-modal" class="modal-overlay">
+  <div class="modal-card modal-card-wide">
+    <h3 class="modal-title">내 전적</h3>
+    <div id="stats-body">불러오는 중…</div>
+    <button class="btn btn-secondary" id="btn-close-stats">닫기</button>
   </div>
 </div>
 

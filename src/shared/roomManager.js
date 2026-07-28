@@ -29,12 +29,12 @@ export function createRoomManager({
     return code;
   }
 
-  function createRoom(hostId, hostName, hostAvatar = null, hostUserId = null) {
+  function createRoom(hostId, hostName, hostAvatar = null, hostUserId = null, hostAccountId = null) {
     const code = generateRoomCode();
     rooms.set(code, {
       code,
       players: [{
-        id: hostId, userId: hostUserId, name: hostName,
+        id: hostId, userId: hostUserId, accountId: hostAccountId, name: hostName,
         avatar: hostAvatar,
         isHost: true, ready: false,
         ...defaultPlayerFields,

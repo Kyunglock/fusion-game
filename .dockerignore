@@ -9,6 +9,7 @@ client/css
 *.db
 *.db-shm
 *.db-wal
+data
 .DS_Store
 Dockerfile
 .dockerignore

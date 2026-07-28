@@ -3,6 +3,7 @@ import { WORDCHAIN_TURN_TIMEOUT, WORDCHAIN_RETURN_DELAY, WORDCHAIN_MAX_WORD_LEN 
 import { validateWord } from './chainLogic.js';
 import { hasWord } from './dictionary.js';
 import { registerCommonHandlers } from '../../shared/socketHandlers.js';
+import { recordPlayers } from '../../db/stats.js';
 
 // ── 타이머 관리 ───────────────────────────────────────────────────────────────
 const turnTimers   = new Map();
@@ -52,6 +53,12 @@ function endRound(io, room, winnerPlayer) {
   room.turnDeadline = null;
   room.winner       = winnerPlayer ? { id: winnerPlayer.id, name: winnerPlayer.name } : null;
   if (winnerPlayer) winnerPlayer.wins = (winnerPlayer.wins ?? 0) + 1;
+
+  // 마지막까지 살아남은 사람이 승리, 나머지는 패배
+  recordPlayers('wordchain', room.players, p => {
+    if (!winnerPlayer)              return 'draw';
+    return p.id === winnerPlayer.id ? 'win' : 'lose';
+  });
 
   io.to(room.code).emit('wordchain_result', {
     winnerId:    winnerPlayer?.id   ?? null,

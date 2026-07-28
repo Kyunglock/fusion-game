@@ -1,3 +1,4 @@
+@use 'sass:map';
 @use 'variables' as *;
 @use 'base';
 @use 'components';
@@ -46,7 +47,8 @@
 .user-bar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 40px;
@@ -74,6 +76,7 @@
     flex: 1;
     display: flex;
     align-items: baseline;
+    flex-wrap: wrap;
     gap: 5px;
     min-width: 0;
   }
@@ -100,6 +103,146 @@
   &:hover {
     border-color: var(--green-light);
     color: var(--green-light);
+  }
+}
+
+// ── 등급(티어) 배지 ───────────────────────────────────────────────────────────
+// 색은 리그 오브 레전드 티어 색을 참고했다. 값이 없으면(언랭크) 기본 회색.
+// 키는 CSS 색상 이름(gold/silver)과 겹치므로 반드시 따옴표로 감싼다.
+$tier-colors: (
+  'challenger':  #00d5ff,
+  'grandmaster': #ff4655,
+  'master':      #b45cff,
+  'diamond':     #5cc8ff,
+  'emerald':     #35d07f,
+  'platinum':    #4fd1c5,
+  'gold':        #f0b429,
+  'silver':      #b8c2cc,
+  'bronze':      #b06f3a,
+  'iron':        #8a8f98,
+  'unranked':    #6b7280,
+);
+
+@mixin tier-tint($color) {
+  color: $color;
+  background: rgba($color, 0.14);
+  border-color: rgba($color, 0.45);
+}
+
+.tier-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+  @include tier-tint(map.get($tier-colors, 'unranked'));
+
+  @each $key, $color in $tier-colors {
+    &[data-tier='#{$key}'] { @include tier-tint($color); }
+  }
+}
+
+// ── 전적 모달 ─────────────────────────────────────────────────────────────────
+.modal-card-wide { max-width: 520px; }
+
+.rank-card {
+  text-align: center;
+  padding: 16px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  margin-bottom: 18px;
+  background: var(--sunken);
+
+  @each $key, $color in $tier-colors {
+    &[data-tier='#{$key}'] {
+      border-color: rgba($color, 0.5);
+      .rank-tier { color: $color; }
+    }
+  }
+}
+
+.rank-tier {
+  font-size: 1.35rem;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+}
+
+.rank-sub {
+  font-size: 0.76rem;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.stats-subtitle {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin: 20px 0 8px;
+}
+
+.stats-empty {
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--muted);
+  padding: 18px 0;
+}
+
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+
+  th, td {
+    padding: 6px 4px;
+    text-align: right;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 600; font-size: 0.72rem; }
+
+  td.win  { color: var(--green-light); font-weight: 700; }
+  td.lose { color: #e06c6c; font-weight: 700; }
+
+  tfoot td { font-weight: 800; border-bottom: none; }
+
+  &.ranking-table {
+    th:nth-child(2), td:nth-child(2),
+    th:nth-child(3), td:nth-child(3) { text-align: left; }
+
+    tr.me td { background: var(--chip); font-weight: 800; }
+  }
+}
+
+.recent-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 190px;
+  overflow-y: auto;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.78rem;
+    padding: 4px 8px;
+    border-radius: 8px;
+    background: var(--sunken);
+  }
+
+  .recent-game   { flex: 1; }
+  .recent-date   { color: var(--muted); font-size: 0.68rem; }
+  .recent-outcome {
+    font-weight: 800;
+    &.win  { color: var(--green-light); }
+    &.lose { color: #e06c6c; }
+    &.draw { color: var(--muted); }
   }
 }
 

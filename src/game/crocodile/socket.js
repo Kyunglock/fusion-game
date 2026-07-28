@@ -1,6 +1,7 @@
 import { rooms, getRoomOf, getRooms, startGame, safeState, removePlayer, removeSpectator, manager } from './rooms.js';
 import { TURN_TIMEOUT, AUTO_RETURN_DELAY } from '../../config.js';
 import { registerCommonHandlers } from '../../shared/socketHandlers.js';
+import { recordPlayers } from '../../db/stats.js';
 
 // ── 타이머 관리 ───────────────────────────────────────────────────────────────
 const turnTimers   = new Map();
@@ -31,6 +32,9 @@ function startTurnTimer(io, room) {
     r.loser        = current.id;
     r.state        = 'roundEnd';
     r.turnDeadline = null;
+
+    // 물린 사람만 패배, 나머지는 생존 승리
+    recordPlayers('crocodile', r.players, p => (p.id === current.id ? 'lose' : 'win'));
 
     io.to(r.code).emit('room_update', { ...safeState(r), loserName: current.name, trapTooth: r.trapTooth });
     io.to(r.code).emit('bite_event',  { loserId: current.id, loserName: current.name, trapTooth: r.trapTooth, timeout: true });
@@ -125,6 +129,8 @@ export function registerHandlers(io, socket) {
       room.loser        = current.id;
       room.state        = 'roundEnd';
       room.turnDeadline = null;
+
+      recordPlayers('crocodile', room.players, p => (p.id === current.id ? 'lose' : 'win'));
 
       io.to(room.code).emit('room_update', { ...safeState(room), loserName: current.name, trapTooth: room.trapTooth });
       io.to(room.code).emit('bite_event',  { loserId: current.id, loserName: current.name, trapTooth: room.trapTooth });
