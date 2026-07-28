@@ -5,6 +5,10 @@ mixin waitingRoom(opts)
       if opts && opts.subtext
         p(style="text-align:center;font-size:0.78rem;color:var(--muted);margin-bottom:16px;")= opts.subtext
 
+      //- 내 등급 · 전적 (opts.showMyRank 인 게임만. 데이터 도착 전에는 숨김)
+      if opts && opts.showMyRank
+        #my-rank-panel.my-rank-panel(hidden)
+
       ul#player-list.player-list
 
       #spectator-section(style="display:none")
