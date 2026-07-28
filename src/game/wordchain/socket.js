@@ -1,6 +1,7 @@
 import { rooms, getRoomOf, getRooms, safeState, removePlayer, removeSpectator, manager, nextAlive } from './rooms.js';
 import { WORDCHAIN_TURN_TIMEOUT, WORDCHAIN_RETURN_DELAY, WORDCHAIN_MAX_WORD_LEN } from '../../config.js';
 import { validateWord } from './chainLogic.js';
+import { hasWord } from './dictionary.js';
 import { registerCommonHandlers } from '../../shared/socketHandlers.js';
 
 // ── 타이머 관리 ───────────────────────────────────────────────────────────────
@@ -113,7 +114,7 @@ export function registerWordchainHandlers(io, socket) {
 
     const w        = typeof word === 'string' ? word.trim() : '';
     const prevWord = room.chain.length ? room.chain[room.chain.length - 1].word : null;
-    const errMsg   = validateWord(w, prevWord, room.usedWords, WORDCHAIN_MAX_WORD_LEN);
+    const errMsg   = validateWord(w, prevWord, room.usedWords, WORDCHAIN_MAX_WORD_LEN, hasWord);
     if (errMsg) return err(errMsg);
 
     room.chain.push({ word: w, playerId: player.id, playerName: player.name });
