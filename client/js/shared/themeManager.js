@@ -181,6 +181,20 @@ function getDock() {
   return d;
 }
 
+// 도크가 화면 아래에서 실제로 가리는 높이(도크 높이 + 하단 여백 + 안전영역)를
+// --pg-dock-space 로 노출한다. 좁은 화면에서 필이 줄바꿈되면 높이가 달라지므로
+// 고정값 대신 측정해서 쓴다. 각 게임 CSS 가 이 값만큼 하단 여백을 확보해
+// 아래쪽 버튼이 도크에 덮여 눌리지 않는 일을 막는다.
+function trackDockSpace(dock) {
+  const update = () => {
+    const space = Math.ceil(window.innerHeight - dock.getBoundingClientRect().top);
+    document.documentElement.style.setProperty('--pg-dock-space', `${Math.max(0, space)}px`);
+  };
+  update();
+  if (window.ResizeObserver) new ResizeObserver(update).observe(dock);
+  window.addEventListener('resize', update);
+}
+
 const wrap = document.createElement('div');
 wrap.id = 'tw-wrap';
 wrap.innerHTML = `
@@ -206,7 +220,9 @@ wrap.innerHTML = `
     </div>
   </div>
 `;
-getDock().appendChild(wrap);
+const dock = getDock();
+dock.appendChild(wrap);
+trackDockSpace(dock);
 
 const pill        = wrap.querySelector('#tw-pill');
 const panel       = wrap.querySelector('#tw-panel');
