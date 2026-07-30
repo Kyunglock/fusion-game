@@ -331,6 +331,10 @@
   &::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 }
 
+// 방장·관전자(is-viewer)는 아래에 내 보드/답 입력 키보드가 없으므로,
+// 참가자 기준 높이 제한 대신 남은 화면을 보드 목록에 그대로 내준다.
+#screen-game.is-viewer #jamo-boards { max-height: 78vh; }
+
 .jamo-board-card {
   background: var(--card);
   border: 1.5px solid var(--border);
@@ -965,6 +969,9 @@
   // (스크롤로 계속 볼 수 있음) 내 보드 + 입력 키보드가 한 화면에 들어오게 한다.
   #jamo-boards { max-height: 20vh; }
 
+  // 방장·관전자는 내 보드/키보드가 없으니 보드 목록이 화면을 다 쓰게 한다.
+  #screen-game.is-viewer #jamo-boards { max-height: none; }
+
   // 모바일: 답 입력 키보드를 화면 폭에 꽉 채워 터치하기 쉽게
   .jamo-keyboard { padding: 10px 8px; }
   .jamo-key-row { gap: 3px; margin-bottom: 4px; }
@@ -1171,6 +1178,7 @@
   }
 
   // 확보한 하단 여백만큼 다른 참가자 보드 영역을 줄여, 내 보드 + 키보드가
-  // 여전히 한 화면에 들어오게 한다.
-  #jamo-boards { max-height: 14vh; }
+  // 여전히 한 화면에 들어오게 한다. 방장·관전자(is-viewer)는 내 보드/키보드가
+  // 없으므로 이 제한을 적용하지 않는다(위 is-viewer 규칙이 우선).
+  #screen-game:not(.is-viewer) #jamo-boards { max-height: 14vh; }
 }
