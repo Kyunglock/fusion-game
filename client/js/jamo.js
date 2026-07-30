@@ -391,6 +391,12 @@ import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
     const participants  = state.players.filter(p => !p.isHost);
     const isIntermission = state.state === 'intermission';
 
+    // ── 입력 UI 유무로 레이아웃 분기 ────────────────────────────────────────
+    // 방장·관전자에게는 내 보드/답 입력 키보드가 없다. 참가자 기준으로 잡아둔
+    // 보드 목록 높이 제한(모바일 14vh 등)을 그대로 쓰면 없는 입력창 자리만큼
+    // 화면이 비고 보드가 잘리므로, is-viewer 로 CSS 를 갈라준다.
+    screens.game.classList.toggle('is-viewer', isSpectator || iAmHost);
+
     // ── 배너 ──────────────────────────────────────────────────────────────
     if (state.state === 'playing') {
       // 방장·관전자에게만 정답이 내려오므로(gameState.answer), 있으면 노출한다.
