@@ -1,4 +1,4 @@
-import { io }               from '/socket.io/socket.io.esm.min.js';
+import { createSocket, initReconnect, leaveRoom } from './shared/connection.js';
 import { showError }        from './utils.js';
 import { $, screens, showScreen, initScreenManager } from './shared/screenManager.js';
 import { initChat, setChatVisible, showJoinNotice } from './shared/chatManager.js';
@@ -220,14 +220,28 @@ import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
   const soloRetryBtn  = $('solo-new'); // 실패 시 오늘의 낱말 다시 도전
 
   // ── Socket ───────────────────────────────────────────────────────────────
-  const socket = io('/jamo');
+  const NS     = '/jamo';
+  const socket = createSocket(NS);
 
   initScreenManager(setChatVisible);
   initChat(socket, () => myId, playerAvatarEmojis);
 
-  socket.on('connect', () => {
-    myId = socket.id;
-    socket.emit('get_rooms');
+  socket.on('connect', () => { myId = socket.id; });
+
+  // 절전·앱 전환으로 끊겼다 돌아오면 있던 방으로 복귀시킨다.
+  initReconnect(socket, NS, {
+    onResumed: ({ isSpectator: spec }) => {
+      isSpectator = !!spec;
+      screens.game.classList.toggle('is-spectating', isSpectator);
+      $('spectator-banner').style.display = isSpectator ? '' : 'none';
+    },
+    onLost: () => {
+      isSpectator = false;
+      screens.game.classList.remove('is-spectating');
+      roomState = null;
+      gameState = { players: [], myKeyboard: {} };
+      showScreen('lobby');
+    },
   });
 
   // 대기실 '내 등급 · 전적' 패널 (자모 워들 멀티 + 솔로 + 전체)
@@ -784,12 +798,11 @@ import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
 
   socket.on('kicked', ({ message }) => {
     showError(message);
-    socket.disconnect();
-    socket.connect();
     roomState = null;
     isSpectator = false;
     screens.game.classList.remove('is-spectating');
     showScreen('lobby');
+    socket.emit('get_rooms');
   });
 
   socket.on('alone_in_room', ({ message }) => {
@@ -840,8 +853,7 @@ import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
   btnLeaveLobby.addEventListener('click', () => {
     isSpectator = false;
     screens.game.classList.remove('is-spectating');
-    socket.disconnect();
-    socket.connect();
+    leaveRoom(socket, NS);
     showScreen('lobby');
     roomState   = null;
     gameState   = { players: [], myKeyboard: {} };

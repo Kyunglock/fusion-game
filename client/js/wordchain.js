@@ -1,4 +1,4 @@
-import { io }                 from '/socket.io/socket.io.esm.min.js';
+import { createSocket, initReconnect, leaveRoom } from './shared/connection.js';
 import { escHtml, showError } from './utils.js';
 import { $, screens, showScreen, initScreenManager } from './shared/screenManager.js';
 import { initChat, setChatVisible, showJoinNotice } from './shared/chatManager.js';
@@ -47,14 +47,32 @@ import { nameHtml, nameText, triggerFlash, triggerShake, startReturnCountdown, c
   const resultSub      = $('result-sub');
 
   // ── Socket ───────────────────────────────────────────────────────────────
-  const socket = io('/wordchain');
+  const NS     = '/wordchain';
+  const socket = createSocket(NS);
 
   initScreenManager(setChatVisible);
   initChat(socket, () => myId, playerAvatarEmojis);
 
-  socket.on('connect', () => {
-    myId = socket.id;
-    socket.emit('get_rooms');
+  socket.on('connect', () => { myId = socket.id; });
+
+  // 절전·앱 전환으로 끊겼다 돌아오면 있던 방으로 복귀시킨다.
+  initReconnect(socket, NS, {
+    onResumed: ({ isSpectator: spec }) => {
+      isSpectator = !!spec;
+      screens.game.classList.toggle('is-spectating', isSpectator);
+      if (isSpectator) {
+        $('spectator-banner').style.display = '';
+        showScreen('game');
+      }
+    },
+    onLost: () => {
+      isSpectator = false;
+      screens.game.classList.remove('is-spectating');
+      roomState = null;
+      stopTimer();
+      hideResult();
+      showScreen('lobby');
+    },
   });
 
   checkAuth(inputName).then(data => {
@@ -249,10 +267,9 @@ import { nameHtml, nameText, triggerFlash, triggerShake, startReturnCountdown, c
 
   socket.on('kicked', ({ message }) => {
     showError(message);
-    socket.disconnect();
-    socket.connect();
     roomState = null;
     showScreen('lobby');
+    socket.emit('get_rooms');
   });
 
   socket.on('alone_in_room', ({ message }) => {
@@ -275,8 +292,7 @@ import { nameHtml, nameText, triggerFlash, triggerShake, startReturnCountdown, c
   btnLeaveLobby.addEventListener('click', () => {
     isSpectator = false;
     screens.game.classList.remove('is-spectating');
-    socket.disconnect();
-    socket.connect();
+    leaveRoom(socket, NS);
     showScreen('lobby');
     roomState = null;
   });

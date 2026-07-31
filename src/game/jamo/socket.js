@@ -54,7 +54,7 @@ function allParticipantsDone(room) {
 }
 
 export function registerJamoHandlers(io, socket) {
-  const { broadcast, broadcastRooms, err, validateStartGame } =
+  const { broadcast, broadcastRooms, err, validateStartGame, registerLeaveFlow } =
     registerCommonHandlers(io, socket, manager, {
       roomsEvent:    'jamo_rooms_update',
       spectateCheck: 'notLobby',
@@ -205,23 +205,22 @@ export function registerJamoHandlers(io, socket) {
     if (room && room.state !== 'lobby') emitGameState(io, room);
   });
 
-  // ── 연결 끊김 ────────────────────────────────────────────────────────────
-  socket.on('disconnect', () => {
-    console.log(`[jamo disconnect] ${socket.id}`);
-
-    const spectatorRoom = manager.getRoomOfSpectator(socket.id);
+  // ── 방 이탈 ──────────────────────────────────────────────────────────────
+  // 연결이 끊긴 경우에는 재접속 유예가 끝난 뒤에 호출된다 (registerLeaveFlow).
+  function leaveRoom(id) {
+    const spectatorRoom = manager.getRoomOfSpectator(id);
     if (spectatorRoom) {
-      removeSpectator(spectatorRoom, socket.id);
+      removeSpectator(spectatorRoom, id);
       io.to(spectatorRoom.code).emit('room_update', safeState(spectatorRoom));
       broadcastRooms();
       return;
     }
 
-    const room = getRoomOf(socket.id);
+    const room = getRoomOf(id);
     if (!room) return;
 
     const wasIngame = room.state !== 'lobby';
-    const result = removePlayer(room, socket.id);
+    const result = removePlayer(room, id);
 
     if (result.deleted) { broadcastRooms(); return; }
 
@@ -238,5 +237,11 @@ export function registerJamoHandlers(io, socket) {
     io.to(room.code).emit('room_update', safeState(room));
     if (room.state !== 'lobby') emitGameState(io, room);
     broadcastRooms();
+  }
+
+  registerLeaveFlow(leaveRoom, {
+    immediate: () => console.log(`[jamo disconnect] ${socket.id}`),
+    // 보드·키보드·(방장/관전자용) 정답은 개인화 이벤트로만 오므로 재접속 시 다시 보낸다.
+    onResume: (room) => { if (room.state !== 'lobby') emitGameState(io, room); },
   });
 }

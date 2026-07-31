@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 import { readFileSync }  from 'fs';
 import session        from 'express-session';
 
-import { PORT }            from './src/config.js';
+import { PORT, SOCKET_PING_INTERVAL, SOCKET_PING_TIMEOUT, SOCKET_RECONNECT_GRACE_MS } from './src/config.js';
 import { SqliteSessionStore } from './src/db/sessionStore.js';
 import authRouter          from './src/routes/auth.js';
 import soloRouter          from './src/routes/solo.js';
@@ -21,7 +21,17 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const app    = express();
 const server = createServer(app);
-const io     = new Server(server, { cors: { origin: '*' } });
+const io     = new Server(server, {
+  cors: { origin: '*' },
+  // 모바일 절전·앱 전환으로 잠깐 응답이 끊긴 정도로는 연결을 버리지 않는다.
+  pingInterval: SOCKET_PING_INTERVAL,
+  pingTimeout:  SOCKET_PING_TIMEOUT,
+  // 그래도 끊겼다면 재접속 시 소켓 id·방·놓친 패킷까지 그대로 복구한다.
+  connectionStateRecovery: {
+    maxDisconnectionDuration: SOCKET_RECONNECT_GRACE_MS,
+    skipMiddlewares:          false, // 세션 미들웨어는 다시 태워야 한다
+  },
+});
 
 // ── Pug 뷰 엔진 설정 ─────────────────────────────────────────────────────────
 app.set('view engine', 'pug');

@@ -1,3 +1,6 @@
+import { SOCKET_RECONNECT_GRACE_MS } from '../config.js';
+import { holdSeat, claimSeat, expireSeat } from './reconnect.js';
+
 /**
  * 공통 소켓 핸들러 등록.
  * 8개의 중복 핸들러를 한 곳에서 관리한다.
@@ -21,7 +24,12 @@ export function registerCommonHandlers(io, socket, manager, opts) {
     rooms, maxPlayers, minPlayers,
     createRoom, getRoomOf, getRoomOfSpectator,
     getRooms, safeState, removePlayer, removeSpectator, reapDisconnected,
+    markDisconnected, rebind,
   } = manager;
+
+  // 재접속 유예 식별자. ns 는 네임스페이스 이름, cid 는 브라우저 탭마다 하나씩 발급되는 값.
+  const nsName = io.name ?? io.sockets?.name ?? '/';
+  const cid    = socket.handshake?.auth?.cid ?? null;
 
   // 이 네임스페이스에 현재 연결된 소켓 id 집합.
   // (기본 네임스페이스는 io=Server → io.sockets.sockets, 그 외는 io=Namespace → io.sockets)
@@ -48,6 +56,7 @@ export function registerCommonHandlers(io, socket, manager, opts) {
 
   // ── create_room ──────────────────────────────────────────────────────────
   socket.on('create_room', ({ playerName } = {}) => {
+    expireSeat(nsName, cid); // 재접속 유예로 붙잡아 둔 이전 자리가 있으면 정리한다
     const name     = (sessionName() || playerName || '플레이어').trim().slice(0, 16);
     const room     = createRoom(socket.id, name, sessionAvatar(), session()?.userId ?? null, sessionAccountId());
     socket.join(room.code);
@@ -59,6 +68,7 @@ export function registerCommonHandlers(io, socket, manager, opts) {
 
   // ── join_room ────────────────────────────────────────────────────────────
   socket.on('join_room', ({ roomCode, playerName } = {}) => {
+    expireSeat(nsName, cid);
     const code     = (roomCode || '').trim();
     const name     = (sessionName() || playerName || '플레이어').trim().slice(0, 16);
     const room     = getRoomOf(socket.id)?.code === code ? null : rooms.get(code);
@@ -84,6 +94,7 @@ export function registerCommonHandlers(io, socket, manager, opts) {
 
   // ── join_as_spectator ────────────────────────────────────────────────────
   socket.on('join_as_spectator', ({ roomCode, playerName } = {}) => {
+    expireSeat(nsName, cid);
     const code = (roomCode || '').trim();
     const name = (sessionName() || playerName || '관전자').trim().slice(0, 16);
     const room = rooms.get(code);
@@ -131,6 +142,8 @@ export function registerCommonHandlers(io, socket, manager, opts) {
 
     room.players = room.players.filter(p => p.id !== targetId);
     io.to(targetId).emit('kicked', { message: '방장에 의해 강퇴되었습니다.' });
+    // 방 브로드캐스트를 더 받지 않도록 소켓도 방에서 빼준다.
+    io.in(targetId).socketsLeave(room.code);
 
     if (room.players.length === 0) {
       rooms.delete(room.code);
@@ -185,10 +198,85 @@ export function registerCommonHandlers(io, socket, manager, opts) {
     return { ok: true, room };
   }
 
+  // ── 이탈 / 재접속 ─────────────────────────────────────────────────────────
+  /**
+   * 게임별 이탈 처리를 등록한다. 연결이 끊겼다고 곧바로 방에서 빼지 않고
+   * SOCKET_RECONNECT_GRACE_MS 동안 자리를 붙잡아 둔 뒤, 돌아오지 않으면 그때 뺀다.
+   * (모바일 절전·앱 전환으로 소켓이 닫히는 경우를 판이 끝난 것으로 오해하지 않기 위함)
+   *
+   * @param {function(string):void} leaveFn - 실제 이탈 처리. socket id 를 인자로 받는다
+   * @param {object}   [opts]
+   * @param {function} [opts.immediate] - 유예 없이 disconnect 즉시 해야 하는 처리 (접속자 목록 등)
+   * @param {function} [opts.onResume]  - 재접속 성공 시 게임별 상태 재전송 (room, socket)
+   */
+  function registerLeaveFlow(leaveFn, { immediate = null, onResume = null } = {}) {
+    socket.on('disconnect', () => {
+      immediate?.();
+
+      const marked = markDisconnected(socket.id);
+      if (!marked) return; // 방에 속해 있지 않으면 붙잡아 둘 자리도 없다
+
+      const { room, kind } = marked;
+      const leaverId = socket.id;
+      const held = holdSeat({
+        ns: nsName, cid, roomCode: room.code, oldId: leaverId, kind,
+        graceMs:  SOCKET_RECONNECT_GRACE_MS,
+        onExpire: () => leaveFn(leaverId),
+      });
+      // cid 가 없는 클라이언트는 holdSeat 안에서 이미 이탈 처리됐다.
+      if (!held) return;
+
+      const member = kind === 'spectator'
+        ? room.spectators.find(s => s.id === leaverId)
+        : room.players.find(p => p.id === leaverId);
+      io.to(room.code).emit('member_connection', { name: member?.name ?? '', connected: false });
+      io.to(room.code).emit('room_update', safeState(room));
+      broadcastRooms();
+    });
+
+    // 사용자가 직접 '나가기'를 누른 경우 — 유예 없이 바로 뺀다.
+    socket.on('leave_room', () => {
+      expireSeat(nsName, cid);
+      const room = getRoomOf(socket.id) ?? getRoomOfSpectator(socket.id);
+      leaveFn(socket.id);
+      if (room) socket.leave(room.code);
+      socket.emit(roomsEvent, getRooms());
+    });
+
+    // 재접속 — 붙잡아 둔 자리에 새 소켓을 다시 연결한다.
+    socket.on('resume_room', ({ roomCode } = {}) => {
+      const seat = claimSeat(nsName, cid);
+      const fail = () => socket.emit('resume_failed');
+
+      if (!seat) return fail();
+      // 클라이언트가 기억하는 방과 붙잡아 둔 자리가 다르면 자리를 정리하고 로비로 돌린다.
+      if (roomCode && seat.roomCode !== roomCode) { seat.onExpire(); return fail(); }
+
+      const room = rooms.get(seat.roomCode);
+      if (!room || !rebind(room, seat.oldId, socket.id, seat.kind)) {
+        seat.onExpire();
+        return fail();
+      }
+
+      socket.join(room.code);
+      socket.emit('chat_history', room.chatHistory);
+      socket.emit('resumed', { roomCode: room.code, isSpectator: seat.kind === 'spectator' });
+
+      const member = seat.kind === 'spectator'
+        ? room.spectators.find(s => s.id === socket.id)
+        : room.players.find(p => p.id === socket.id);
+      socket.to(room.code).emit('member_connection', { name: member?.name ?? '', connected: true });
+
+      onResume?.(room, socket);
+      io.to(room.code).emit('room_update', safeState(room));
+      broadcastRooms();
+    });
+  }
+
   // 공개 API
   return {
     session, sessionName, sessionAvatar, sessionAccountId,
     broadcast, broadcastRooms, err,
-    validateStartGame,
+    validateStartGame, registerLeaveFlow,
   };
 }

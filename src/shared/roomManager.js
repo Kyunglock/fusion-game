@@ -22,6 +22,11 @@ export function createRoomManager({
   resetGameState = (_room) => {},
   /** removePlayer 중 게임 고유 처리 (폭탄 넘기기 등). 반환값이 있으면 그것을 result에 merge */
   onPlayerLeave = (_room, _socketId) => null,
+  /**
+   * 재접속으로 소켓 id 가 바뀔 때 게임 상태에 박혀 있는 id 참조를 갱신한다.
+   * (폭탄 소유자·현재 차례·승자 등. 인덱스로만 관리하는 값은 손댈 필요 없다)
+   */
+  remapPlayerId = (_room, _oldId, _newId) => {},
 }) {
   const rooms = new Map();
 
@@ -82,14 +87,47 @@ export function createRoomManager({
   }
 
   function safeState(room) {
+    // disconnected: 재접속 유예 중(잠시 연결이 끊긴 상태)임을 모든 게임에서 공통으로 알린다.
     return {
       code:            room.code,
-      players:         room.players.map(safePlayer),
-      spectators:      room.spectators.map(safeSpectator),
+      players:         room.players.map(p => ({ ...safePlayer(p), disconnected: !!p.disconnected })),
+      spectators:      room.spectators.map(s => ({ ...safeSpectator(s), disconnected: !!s.disconnected })),
       allowSpectators: room.allowSpectators,
       state:           room.state,
       ...extraStateFields(room),
     };
+  }
+
+  // ── 재접속 유예 ────────────────────────────────────────────────────────────
+  /**
+   * 연결이 끊긴 사람을 방에서 빼지 않고 '연결 끊김' 표시만 한다.
+   * @returns {{room: object, kind: 'player'|'spectator'}|null} 방에 속해 있지 않으면 null
+   */
+  function markDisconnected(socketId) {
+    for (const room of rooms.values()) {
+      const p = room.players.find(x => x.id === socketId);
+      if (p) { p.disconnected = true; return { room, kind: 'player' }; }
+      const s = room.spectators.find(x => x.id === socketId);
+      if (s) { s.disconnected = true; return { room, kind: 'spectator' }; }
+    }
+    return null;
+  }
+
+  /** 재접속한 소켓을 붙잡아 둔 자리에 다시 연결한다. */
+  function rebind(room, oldId, newId, kind) {
+    const list   = kind === 'spectator' ? room.spectators : room.players;
+    const member = list.find(x => x.id === oldId);
+    if (!member) return false;
+    // 같은 소켓 id 로 복구된 경우(연결 상태 복구)는 플래그만 내린다.
+    if (oldId !== newId) {
+      if (list.some(x => x.id === newId)) return false;
+      member.id = newId;
+      // 지난 채팅의 '내 메시지' 판별이 어긋나지 않도록 발신자 id 도 함께 옮긴다.
+      room.chatHistory.forEach(m => { if (m.senderId === oldId) m.senderId = newId; });
+      if (kind !== 'spectator') remapPlayerId(room, oldId, newId);
+    }
+    member.disconnected = false;
+    return true;
   }
 
   function removePlayer(room, socketId) {
@@ -130,7 +168,8 @@ export function createRoomManager({
   function reapDisconnected(liveIds) {
     let changed = false;
     for (const [code, room] of rooms) {
-      const anyAlive = room.players.some(p => liveIds.has(p.id));
+      // 재접속 유예 중인 사람(disconnected)은 아직 살아 있는 자리로 본다.
+      const anyAlive = room.players.some(p => liveIds.has(p.id) || p.disconnected);
       if (!anyAlive) { rooms.delete(code); changed = true; }
     }
     return changed;
@@ -148,5 +187,7 @@ export function createRoomManager({
     removePlayer,
     removeSpectator,
     reapDisconnected,
+    markDisconnected,
+    rebind,
   };
 }

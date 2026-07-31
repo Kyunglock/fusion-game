@@ -24,7 +24,7 @@ function startReturnTimer(io, room) {
 }
 
 export function registerTetrisHandlers(io, socket) {
-  const { broadcast, broadcastRooms, err, validateStartGame } =
+  const { broadcast, broadcastRooms, err, validateStartGame, registerLeaveFlow } =
     registerCommonHandlers(io, socket, manager, {
       roomsEvent:    'tetris_rooms_update',
       spectateCheck: 'playing',
@@ -110,25 +110,24 @@ export function registerTetrisHandlers(io, socket) {
     }
   });
 
-  // ── 연결 끊김 ──────────────────────────────────────────────────────────────
-  socket.on('disconnect', () => {
-    console.log(`[tetris disconnect] ${socket.id}`);
-
-    const spectatorRoom = manager.getRoomOfSpectator(socket.id);
+  // ── 방 이탈 ────────────────────────────────────────────────────────────────
+  // 연결이 끊긴 경우에는 재접속 유예가 끝난 뒤에 호출된다 (registerLeaveFlow).
+  function leaveRoom(id) {
+    const spectatorRoom = manager.getRoomOfSpectator(id);
     if (spectatorRoom) {
-      removeSpectator(spectatorRoom, socket.id);
-      broadcast(spectatorRoom);
+      removeSpectator(spectatorRoom, id);
+      io.to(spectatorRoom.code).emit('room_update', safeState(spectatorRoom));
       broadcastRooms();
       return;
     }
 
-    const room = getRoomOf(socket.id);
+    const room = getRoomOf(id);
     if (!room) return;
 
     if (room.state !== 'gameOver') clearReturnTimer(room.code);
 
     const wasPlaying = room.state === 'playing' || room.state === 'gameOver';
-    const result     = removePlayer(room, socket.id);
+    const result     = removePlayer(room, id);
 
     if (result.deleted) { broadcastRooms(); return; }
 
@@ -156,5 +155,17 @@ export function registerTetrisHandlers(io, socket) {
       io.to(room.code).emit('room_update', safeState(room));
     }
     broadcastRooms();
+  }
+
+  registerLeaveFlow(leaveRoom, {
+    immediate: () => console.log(`[tetris disconnect] ${socket.id}`),
+    // 재접속하면 다른 플레이어들의 현재 보드를 다시 받아야 화면이 채워진다.
+    onResume: (room, sock) => {
+      room.players.forEach(p => {
+        if (p.id !== sock.id && p.board) {
+          sock.emit('player_board_update', { playerId: p.id, board: p.board });
+        }
+      });
+    },
   });
 }

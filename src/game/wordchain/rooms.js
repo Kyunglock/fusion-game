@@ -45,6 +45,12 @@ const manager = createRoomManager({
     winner:        room.winner,
     allowedStarts: currentAllowedStarts(room),
   }),
+  // 재접속으로 소켓 id 가 바뀌어도 차례·승자·단어 주인이 어긋나지 않게 한다.
+  remapPlayerId: (room, oldId, newId) => {
+    if (room.currentTurn === oldId) room.currentTurn = newId;
+    if (room.winner?.id  === oldId) room.winner.id   = newId;
+    room.chain.forEach(c => { if (c.playerId === oldId) c.playerId = newId; });
+  },
   onPlayerLeave: (room, socketId) => {
     // 자기 차례인 사람이 나가면 다음 생존자에게 턴을 넘긴다
     const wasCurrent = room.currentTurn === socketId;

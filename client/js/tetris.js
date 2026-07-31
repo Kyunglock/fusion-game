@@ -1,4 +1,4 @@
-import { io }               from '/socket.io/socket.io.esm.min.js';
+import { createSocket, initReconnect, leaveRoom } from './shared/connection.js';
 import { escHtml, showError } from './utils.js';
 import { $, screens, showScreen, initScreenManager } from './shared/screenManager.js';
 import { initChat, setChatVisible, showJoinNotice } from './shared/chatManager.js';
@@ -389,12 +389,29 @@ let roomState   = null;
 let amHost      = false;
 
 const opponentCanvases = new Map();
-const socket = io('/tetris');
+const NS     = '/tetris';
+const socket = createSocket(NS);
 
 initScreenManager(setChatVisible);
 initChat(socket, () => myId, playerAvatarEmojis);
 
-socket.on('connect', () => { myId = socket.id; socket.emit('get_rooms'); });
+socket.on('connect', () => { myId = socket.id; });
+
+// 절전·앱 전환으로 끊겼다 돌아오면 있던 방으로 복귀시킨다.
+initReconnect(socket, NS, {
+  onResumed: ({ isSpectator: spec }) => {
+    isSpectator = !!spec;
+    screens['game'].classList.toggle('spectating', isSpectator);
+    if (isSpectator) showScreen('game');
+  },
+  onLost: () => {
+    isSpectator = false;
+    screens['game'].classList.remove('spectating');
+    roomState = null; gameActive = false; isAlive = false;
+    stopSyncInterval(); clearTimeout(dropTimer);
+    showScreen('lobby');
+  },
+});
 
 checkAuth(inputName).then(data => { if (data) myName = data.username; });
 
@@ -559,7 +576,7 @@ socket.on('game_result', (result) => showResultOverlay(result));
 socket.on('error_msg', ({ message }) => showError(message));
 
 socket.on('kicked', ({ message }) => {
-  showError(message); socket.disconnect(); socket.connect();
+  showError(message); socket.emit('get_rooms');
   roomState = null; gameActive = false; isAlive = false; stopSyncInterval(); clearTimeout(dropTimer); showScreen('lobby');
 });
 
@@ -633,7 +650,7 @@ if (btnToggleSpectator) btnToggleSpectator.addEventListener('click', () => socke
 
 btnLeaveLobby.addEventListener('click', () => {
   isSpectator = false; screens['game'].classList.remove('spectating');
-  socket.disconnect(); socket.connect(); showScreen('lobby');
+  leaveRoom(socket, NS); showScreen('lobby');
   roomState = null; gameActive = false; isAlive = false; stopSyncInterval(); clearTimeout(dropTimer);
 });
 

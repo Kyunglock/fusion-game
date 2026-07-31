@@ -2,7 +2,7 @@ doctype html
 html(lang="ko")
   head
     meta(charset="UTF-8")
-    meta(name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover")
+    meta(name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover")
     title #{title} | 파티 게임즈
     script.
       try {
@@ -27,4 +27,5 @@ html(lang="ko")
       script(type="module" src=`/js/${jsFile}.js`)
       script(type="module" src="/js/online-widget.js")
       script(type="module" src="/js/shared/themeManager.js")
+      script(type="module" src="/js/shared/noZoom.js")
       script(type="module" src="/js/shared/camouflage.js")

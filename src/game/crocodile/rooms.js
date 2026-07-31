@@ -34,6 +34,11 @@ const manager = createRoomManager({
     room.turnDeadline = null;
     if (room.currentTurnIndex >= room.players.length) room.currentTurnIndex = 0;
   },
+  // 재접속으로 소켓 id 가 바뀌어도 물린 사람 표시가 어긋나지 않게 한다.
+  // (차례는 인덱스로 관리하므로 손댈 필요 없다)
+  remapPlayerId: (room, oldId, newId) => {
+    if (room.loser === oldId) room.loser = newId;
+  },
 });
 
 export const { rooms, createRoom, getRoomOf, getRoomOfSpectator, getRooms, safeState, removePlayer, removeSpectator } = manager;
