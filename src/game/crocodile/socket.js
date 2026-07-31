@@ -72,7 +72,7 @@ function broadcastOnline(io) {
 }
 
 export function registerHandlers(io, socket) {
-  const { broadcast, broadcastRooms, err, validateStartGame } =
+  const { broadcast, broadcastRooms, err, validateStartGame, registerLeaveFlow } =
     registerCommonHandlers(io, socket, manager, {
       roomsEvent:    'rooms_update',
       spectateCheck: 'notLobby',
@@ -173,37 +173,41 @@ export function registerHandlers(io, socket) {
     broadcastRooms();
   });
 
-  // ── 연결 끊김 ──────────────────────────────────────────────────────────────
-  socket.on('disconnect', () => {
-    console.log(`[disconnect] ${socket.id}`);
-    onlineUsers.delete(socket.id);
-    broadcastOnline(io);
-
-    const spectatorRoom = manager.getRoomOfSpectator(socket.id);
+  // ── 방 이탈 ────────────────────────────────────────────────────────────────
+  // 연결이 끊긴 경우에는 재접속 유예가 끝난 뒤에 호출된다 (registerLeaveFlow).
+  function leaveRoom(id) {
+    const spectatorRoom = manager.getRoomOfSpectator(id);
     if (spectatorRoom) {
-      removeSpectator(spectatorRoom, socket.id);
+      removeSpectator(spectatorRoom, id);
       io.to(spectatorRoom.code).emit('room_update', safeState(spectatorRoom));
       broadcastRooms();
       return;
     }
 
-    const room = getRoomOf(socket.id);
+    const room = getRoomOf(id);
     if (!room) return;
 
     clearTurnTimer(room.code);
     clearReturnTimer(room.code);
 
     const wasPlaying = room.state === 'playing' || room.state === 'roundEnd';
-    const result = removePlayer(room, socket.id);
+    const result = removePlayer(room, id);
 
     if (result.deleted) { broadcastRooms(); return; }
 
     if (result.alone && wasPlaying) {
       io.to(result.remainingId).emit('alone_in_room', { message: `${result.leaverName}님이 나가 혼자 남았습니다.` });
     }
-    if (!result.deleted) {
-      io.to(room.code).emit('room_update', safeState(room));
-    }
+    io.to(room.code).emit('room_update', safeState(room));
     broadcastRooms();
+  }
+
+  registerLeaveFlow(leaveRoom, {
+    // 접속자 위젯은 유예 없이 바로 반영한다.
+    immediate: () => {
+      console.log(`[disconnect] ${socket.id}`);
+      onlineUsers.delete(socket.id);
+      broadcastOnline(io);
+    },
   });
 }

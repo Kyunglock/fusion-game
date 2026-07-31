@@ -95,6 +95,7 @@ export function renderWaiting(state, { myId, socket, playerListEl, btnReady, btn
   state.players.forEach((p, i) => {
     if (!p.avatar) playerAvatarEmojis.set(p.id, avatarIcons[i % avatarIcons.length]);
     const li = document.createElement('li');
+    if (p.disconnected) li.classList.add('is-offline'); // 재접속 유예 중
     const isMe = p.id === myId;
     const avatarHtml = p.avatar
       ? `<div class="avatar av-${i % 4}" style="overflow:hidden;"><img src="${p.avatar}" style="width:100%;height:100%;object-fit:cover;" /></div>`
@@ -104,6 +105,7 @@ export function renderWaiting(state, { myId, socket, playerListEl, btnReady, btn
       <span>${nameHtml(p.name)}</span>
       ${isMe       ? '<span class="badge-you">나</span>' : ''}
       ${p.isHost   ? '<span class="badge-host">방장</span>' : ''}
+      ${p.disconnected ? '<span class="badge-offline">연결 끊김</span>' : ''}
       ${!p.isHost  ? `<span class="badge-ready ${p.ready ? 'is-ready' : ''}">${p.ready ? '준비 완료' : '준비 중'}</span>` : ''}
       ${iAmHost && !p.isHost ? `<button class="btn btn-danger btn-sm kick-btn" data-id="${p.id}">강퇴</button>` : ''}
       ${playerCardHtml(p.card, cardGameLabel)}

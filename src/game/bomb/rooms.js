@@ -41,6 +41,11 @@ const manager = createRoomManager({
     room.bombHoldStartedAt = null;
     room.loser             = null;
   },
+  // 재접속으로 소켓 id 가 바뀌어도 폭탄이 엉뚱한 사람에게 남지 않도록 옮겨준다.
+  remapPlayerId: (room, oldId, newId) => {
+    if (room.bombHolder === oldId) room.bombHolder = newId;
+    if (room.loser      === oldId) room.loser      = newId;
+  },
 });
 
 export const { rooms, createRoom, getRoomOf, getRoomOfSpectator, getRooms, safeState, removePlayer, removeSpectator } = manager;

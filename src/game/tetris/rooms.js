@@ -20,6 +20,10 @@ const manager = createRoomManager({
     room.winner = null;
     room.players.forEach(p => { p.alive = true; p.board = null; });
   },
+  // 재접속으로 소켓 id 가 바뀌어도 승자 표시가 어긋나지 않게 한다.
+  remapPlayerId: (room, oldId, newId) => {
+    if (room.winner === oldId) room.winner = newId;
+  },
   onPlayerLeave: (room, socketId) => {
     // 게임 중 이탈 시 승리 판정
     if (room.state === 'playing') {

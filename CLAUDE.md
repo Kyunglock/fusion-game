@@ -55,6 +55,7 @@ src/
   shared/
     roomManager.js       ← 범용 방 관리 팩토리 (createRoomManager)
     socketHandlers.js    ← 공통 소켓 핸들러 등록 (registerCommonHandlers)
+    reconnect.js         ← 재접속 유예 자리 관리 (holdSeat/claimSeat/expireSeat)
   game/{crocodile,bomb,tetris,jamo,wordchain}/
     rooms.js             ← createRoomManager() 호출 + 게임별 설정/함수
     socket.js            ← registerCommonHandlers() + 게임 고유 핸들러만
@@ -84,6 +85,8 @@ client/
       lobbyRenderer.js  ← renderRoomList, renderSpectatorList, renderWaiting
       uiHelpers.js      ← triggerFlash, triggerShake, 카운트다운, aloneOverlay
       authCheck.js      ← /api/me 호출 + 세션 정보 표시
+      connection.js     ← 소켓 생성 + 재접속/방 복귀 (createSocket, initReconnect, leaveRoom)
+      noZoom.js         ← 모바일 확대(핀치·더블탭) 차단
       myRank.js         ← 대기실 '내 등급 · 전적' 패널 (/api/me/stats)
     index.js            ← 홈(로비 선택) 페이지 로직, 각 네임스페이스 방 개수 표시
     online-widget.js    ← 우측 하단 접속자 위젯
@@ -113,10 +116,12 @@ client/
   - `safePlayer(p)` — 플레이어 직렬화 커스텀
   - `resetGameState(room)` — 인원 부족 시 게임 상태 초기화
   - `onPlayerLeave(room, socketId)` — 이탈 시 게임별 처리 (폭탄 넘기기 등)
+  - `remapPlayerId(room, oldId, newId)` — 재접속으로 소켓 id가 바뀔 때 게임 상태에 박힌 id 참조 갱신 (폭탄 소유자·현재 차례·승자 등)
 
 ### 서버: registerCommonHandlers (src/shared/socketHandlers.js)
 - 8개 공통 핸들러 한 번에 등록: `get_rooms`, `create_room`, `join_room`, `join_as_spectator`, `toggle_spectator_allowed`, `kick_player`, `toggle_ready`, `chat_message`
-- `validateStartGame()` 유틸 반환 (게임별 socket.js에서 사용)
+- 여기에 더해 이탈·재접속 핸들러 3개(`disconnect`, `leave_room`, `resume_room`)를 `registerLeaveFlow()`로 등록
+- `validateStartGame()`·`registerLeaveFlow()` 유틸 반환 (게임별 socket.js에서 사용)
 - opts로 차이 주입: `roomsEvent`, `spectateCheck`, `joinPlayerFields`
 
 ### 클라이언트: shared 모듈 (client/js/shared/)
@@ -235,10 +240,35 @@ client/
 - 시도는 최대 6회(`SOLO_MAX_ATTEMPTS`). 채점/분해 로직(`decompose`/`judge`/`keyboardFromAttempts`)은 서버 `jamoLogic.js`와 동일 규칙을 `client/js/jamo.js`에 그대로 둔다(멀티는 서버가 채점하지만 솔플은 로컬이므로). 멀티용 렌더 함수(`renderAttemptRow`/`renderEmptyRow`/`renderKeyboard`/`updateComposingCells`)와 입력 조합 로직을 그대로 재사용
 - 화면: `#screen-solo`(뷰는 `views/pages/jamo.pug`). 로비 진입 버튼은 `+lobby` 블록의 `.solo-diff-btn`(오늘 클리어한 난이도는 `.cleared` + '오늘 클리어 ✅' 표시). `/jamo` 페이지 자체는 닉네임(세션)이 있어야 진입 가능(홈에서 로그인)
 
+## 연결 유지 · 재접속 (모바일 절전 / 앱 전환)
+
+휴대폰 화면이 꺼지거나 다른 앱으로 잠깐 넘어가면 브라우저가 얼어붙어 ping에 답하지 못하고 OS가 소켓을 닫는다. 예전에는 그 즉시 `disconnect` → 방에서 제거였기 때문에 돌아오면 판이 사라져 있었다. 세 겹으로 막는다.
+
+1. **잠깐 멈춘 정도로는 끊지 않는다** — `SOCKET_PING_INTERVAL`(25초) / `SOCKET_PING_TIMEOUT`(60초). 세 상수 모두 환경변수(`SOCKET_PING_INTERVAL`·`SOCKET_PING_TIMEOUT`·`RECONNECT_GRACE_MS`)로 조절 가능
+2. **연결이 복구되면 그대로 이어붙인다** — Socket.IO `connectionStateRecovery`. 소켓 id·방·놓친 패킷까지 복구된다. 세션 미들웨어를 다시 태워야 하므로 `skipMiddlewares: false`
+3. **그래도 끊겼다면 자리를 붙잡아 둔다** — `SOCKET_RECONNECT_GRACE_MS`(90초) 동안 방에서 빼지 않고 `disconnected: true` 표시만 하고 기다린다. 유예가 끝나야 원래의 이탈 처리가 돈다
+
+### 서버 흐름 (`src/shared/reconnect.js` + `registerLeaveFlow`)
+- 게임별 socket.js는 `socket.on('disconnect')`를 직접 달지 않고 **이탈 처리 함수 `leaveRoom(id)`를 `registerLeaveFlow(leaveRoom, { immediate, onResume })`에 넘긴다**. `leaveRoom`은 소켓 id를 인자로 받아야 한다(유예 만료 시점에는 소켓이 이미 사라졌으므로 `socket.id`를 쓰면 안 된다)
+  - `immediate` — 유예 없이 disconnect 즉시 할 일 (악어의 접속자 위젯 정리 등)
+  - `onResume(room, socket)` — 재접속 성공 시 게임별 개인화 상태 재전송 (자모의 `emitGameState`, 테트리스의 상대 보드)
+- 자리는 `${네임스페이스}:${cid}`로 관리한다. `cid`는 **브라우저 탭마다 하나씩** 발급돼 `socket.handshake.auth.cid`로 온다 (소켓 id는 재접속 때 바뀌므로 기준이 될 수 없다). `cid`가 없는 클라이언트는 예전처럼 즉시 이탈 처리
+- 복귀(`resume_room`)는 `manager.rebind()`로 붙잡아 둔 자리에 새 소켓 id를 연결한다. 이때 `chatHistory`의 `senderId`와 게임별 id 참조(`remapPlayerId`)도 함께 옮겨야 '내 메시지'·폭탄 소유자·현재 차례가 어긋나지 않는다
+- **명시적 퇴장(`leave_room`)은 유예 없이 즉시 뺀다.** '나가기'를 눌렀는데 90초간 유령이 남으면 안 되기 때문. `create_room`/`join_room`/`join_as_spectator`도 붙잡아 둔 이전 자리를 먼저 정리한다
+- `reapDisconnected`는 `disconnected` 플레이어를 살아 있는 자리로 취급한다 (유예 중인 방이 유령 방으로 지워지면 안 됨)
+
+### 클라이언트 흐름 (`client/js/shared/connection.js`)
+- 게임 클라이언트는 `io(ns)` 대신 **`createSocket(ns)` + `initReconnect(socket, ns, { onResumed, onLost })`** 를 쓴다
+- 지금 있는 방 코드는 `sessionStorage('pg-room:<ns>')`에 기억한다 → 새로고침이나 탭 복원으로 페이지가 다시 떠도 복귀한다. 복귀할 자리가 없으면 서버가 `resume_failed`를 보내고 클라이언트는 `onLost`로 로비로 돌아간다
+- 화면이 돌아오면(`visibilitychange`·`pageshow(persisted)`·`online`) 재접속 백오프를 기다리지 말고 바로 붙는다. **단 최초 연결 중에는 건드리면 안 된다** — 진행 중인 핸드셰이크를 망가뜨려 engine.io가 400(Session ID unknown)을 뱉는다. `everConnected` 플래그로 막는다
+- '나가기' 버튼은 `socket.disconnect()/connect()` 대신 `leaveRoom(socket, ns)`를 부른다. 강퇴는 서버가 `socketsLeave`로 방에서 빼주므로 클라이언트가 소켓을 다시 맺을 필요가 없다
+- UI: 끊긴 사람은 참가자 목록에 `연결 끊김` 배지(`.badge-offline` + `li.is-offline`), 끊긴 본인에게는 상단 재연결 배너(`#pg-reconnect`), 같은 방 사람들에게는 채팅 시스템 메시지(`member_connection`)
+
 ## 모바일 대응
 - 레이아웃은 대부분 `max-width` + flex-wrap + `%` 기반으로 유동적. 각 게임 scss에 `@media (max-width: 500px)` 보정, 테트리스는 `@media (pointer: coarse)`로 `#mobile-controls`(터치 버튼) 노출
 - 테트리스 보드 셀 크기는 `client/js/tetris.js`의 `calcCellSize()`가 뷰포트 기준으로 계산하고 `resize`에 재계산. 악어 이빨 그리드도 `resize`에 `positionTeethGrid()`로 재배치(회전 대응)
 - 전역(_base/_components): 입력창 `font-size:16px`(iOS 포커스 확대 방지), `-webkit-text-size-adjust:100%`, `overscroll-behavior-y:contain`(당겨서 새로고침 방지), `body .screen`/`body .page`에 `min-height:100dvh`(주소창 감안, 미지원 시 100vh 폴백)
+- **확대(줌) 차단**: 게임 중 실수로 화면이 확대되면 조작이 어긋나므로 세 겹으로 막는다 — meta viewport의 `maximum-scale=1, user-scalable=no`, `html { touch-action: manipulation }`(더블탭 줌), `client/js/shared/noZoom.js`(iOS는 `user-scalable=no`를 무시하므로 `gesturestart/change/end`·멀티터치·더블탭을 스크립트로 차단). `noZoom.js`는 `base.pug`의 scripts 블록과 `client/index.html`에서 모두 로드한다. 입력 요소(input/textarea/select)의 더블탭은 커서 조작을 위해 그대로 둔다
 - `<head>` meta viewport에 `viewport-fit=cover`. 우측 하단 공용 도크(`#pg-dock`)는 `env(safe-area-inset-*)` + `flex-wrap`으로 노치/좁은 화면 대응
 - 자모 워들 멀티는 모바일(`≤500px`)에서만 **내 보드를 답 입력 키보드 바로 위**(`#jamo-my-board`)로 분리해 렌더한다. 좁은 화면에서 내가 입력 중인 자모가 다른 참가자 보드에 밀려 안 보이는 문제를 막기 위함. PC에서는 기존대로 내 보드도 `#jamo-boards` 그리드 안에 들어가고 `#jamo-my-board`는 `:empty`로 숨겨진다. 분기는 `jamo.js`의 `mobileLayout` (`matchMedia`, `change`에 재렌더). 모바일에서는 `#jamo-boards`(다른 참가자)를 `max-height:14vh`로 줄여 내 보드+키보드가 한 화면에 들어오게 한다
 - **방장·관전자는 입력 UI가 없으므로 레이아웃을 분기한다.** 위 `14vh`/`20vh` 제한은 아래에 내 보드+답 입력 키보드가 오는 참가자 기준이라, 그 둘이 없는 방장·관전자에게 그대로 적용하면 없는 입력창 자리만큼 화면이 비고 참가자 보드만 잘려 보인다 → `renderBoards`가 `#screen-game`에 `is-viewer` 클래스를 토글(`isSpectator || iAmHost`)하고, `jamo.scss`는 `#screen-game:not(.is-viewer)`에만 모바일 높이 제한을 걸고 `is-viewer`에는 `max-height:none`(PC는 `78vh`)로 화면을 다 내준다. 하단 위젯 회피 여백(`--pg-dock-space`)은 방장·관전자에게도 그대로 필요하므로 유지
@@ -274,5 +304,6 @@ chore: .env.sample 추가
 - `safeState(room)` — 클라이언트에 보내는 직렬화된 방 상태 (순환참조 제거)
 - `getRoomOf(socketId)` — socketId로 플레이어가 있는 방 찾기
 - `getRoomOfSpectator(socketId)` — socketId로 관전자가 있는 방 찾기
-- disconnect 시 관전자 먼저 확인, 없으면 플레이어 처리
+- 이탈 처리는 관전자 먼저 확인, 없으면 플레이어 처리 (`leaveRoom(id)` — socket.id가 아니라 인자로 받은 id를 쓴다)
+- `registerLeaveFlow(leaveFn, opts)` — disconnect를 재접속 유예로 감싸고 `leave_room`/`resume_room`을 함께 등록
 - `reapDisconnected(liveIds)` — 방 목록을 낼 때(`get_rooms`/`broadcastRooms`) 해당 네임스페이스에 연결된 소켓만 남기고, 연결이 끊긴 소켓만 있는 유령 방을 삭제. `liveIds`는 네임스페이스의 실제 연결 소켓 집합(기본 ns는 `io.sockets.sockets`, 그 외는 `io.sockets`)

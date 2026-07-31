@@ -1,4 +1,14 @@
 export const PORT        = process.env.PORT || 4000;
+
+// ── 연결 유지 (모바일 절전·백그라운드 대응) ───────────────────────────────────
+// 휴대폰 화면이 꺼지거나 다른 앱으로 넘어가면 브라우저가 얼어붙어 ping 에 답하지 못하고,
+// OS 가 소켓을 닫아버리기도 한다. 이때 곧바로 방에서 빼버리면 돌아왔을 때 판이 사라진다.
+// 1) ping 을 넉넉히 기다려 잠깐 멈춘 정도로는 끊지 않고,
+// 2) 그래도 끊겼다면 자리를 SOCKET_RECONNECT_GRACE_MS 동안 붙잡아 두고 재접속을 기다린다.
+// 세 값 모두 환경변수로 조절할 수 있다 (배포 환경에 맞춰 늘리거나 줄이기 위함).
+export const SOCKET_PING_INTERVAL      = Number(process.env.SOCKET_PING_INTERVAL) || 25_000;
+export const SOCKET_PING_TIMEOUT       = Number(process.env.SOCKET_PING_TIMEOUT)  || 60_000;
+export const SOCKET_RECONNECT_GRACE_MS = Number(process.env.RECONNECT_GRACE_MS)   || 90_000;
 export const TOTAL_TEETH = 24;
 export const MAX_PLAYERS = 12;
 export const MIN_PLAYERS = 2;

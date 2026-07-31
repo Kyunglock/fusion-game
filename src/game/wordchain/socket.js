@@ -85,7 +85,7 @@ function startReturnTimer(io, room) {
 }
 
 export function registerWordchainHandlers(io, socket) {
-  const { broadcastRooms, err, validateStartGame } =
+  const { broadcastRooms, err, validateStartGame, registerLeaveFlow } =
     registerCommonHandlers(io, socket, manager, {
       roomsEvent:       'wordchain_rooms_update',
       spectateCheck:    'notLobby',
@@ -132,23 +132,22 @@ export function registerWordchainHandlers(io, socket) {
     startTurnTimer(io, room);
   });
 
-  // ── 연결 끊김 ──────────────────────────────────────────────────────────────
-  socket.on('disconnect', () => {
-    console.log(`[wordchain disconnect] ${socket.id}`);
-
-    const spectatorRoom = manager.getRoomOfSpectator(socket.id);
+  // ── 방 이탈 ────────────────────────────────────────────────────────────────
+  // 연결이 끊긴 경우에는 재접속 유예가 끝난 뒤에 호출된다 (registerLeaveFlow).
+  function leaveRoom(id) {
+    const spectatorRoom = manager.getRoomOfSpectator(id);
     if (spectatorRoom) {
-      removeSpectator(spectatorRoom, socket.id);
+      removeSpectator(spectatorRoom, id);
       io.to(spectatorRoom.code).emit('room_update', safeState(spectatorRoom));
       broadcastRooms();
       return;
     }
 
-    const room = getRoomOf(socket.id);
+    const room = getRoomOf(id);
     if (!room) return;
 
     const wasPlaying = room.state === 'playing';
-    const result     = removePlayer(room, socket.id); // onPlayerLeave가 currentTurn을 다음 생존자로 넘긴다
+    const result     = removePlayer(room, id); // onPlayerLeave가 currentTurn을 다음 생존자로 넘긴다
 
     if (result.deleted) {
       clearTurnTimer(room.code);
@@ -181,5 +180,9 @@ export function registerWordchainHandlers(io, socket) {
       io.to(room.code).emit('room_update', safeState(room));
     }
     broadcastRooms();
+  }
+
+  registerLeaveFlow(leaveRoom, {
+    immediate: () => console.log(`[wordchain disconnect] ${socket.id}`),
   });
 }
