@@ -5,6 +5,7 @@ import { initChat, setChatVisible, showJoinNotice } from './shared/chatManager.j
 import { checkAuth }       from './shared/authCheck.js';
 import { renderRoomList, renderSpectatorList, renderWaiting as renderWaitingBase } from './shared/lobbyRenderer.js';
 import { nameHtml, nameText, triggerFlash, triggerShake, startReturnCountdown, clearReturnCountdown, showAloneOverlay } from './shared/uiHelpers.js';
+import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js';
 
 {
   // ── State ────────────────────────────────────────────────────────────────
@@ -47,6 +48,8 @@ import { nameHtml, nameText, triggerFlash, triggerShake, startReturnCountdown, c
   // ── Init shared modules ──────────────────────────────────────────────────
   initScreenManager(setChatVisible);
   initChat(socket, () => myId, playerAvatarEmojis);
+  initStatsDockButton();
+  socket.on('room_update', refreshStatsIfOpen);
 
   socket.on('connect', () => { myId = socket.id; });
 

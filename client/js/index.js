@@ -1,5 +1,7 @@
-import { showError, escHtml }     from './utils.js';
+import { showError }     from './utils.js';
 import { io } from '/socket.io/socket.io.esm.min.js';
+import { tierLabel } from './shared/myRank.js';
+import { openStatsModal } from './shared/statsModal.js';
 
 // ── 방 개수 실시간 표시 ────────────────────────────────────────────────────────
 const roomCountCroc      = document.getElementById('room-count-croc');
@@ -48,10 +50,6 @@ const btnEditProfile   = document.getElementById('btn-edit-profile');
 const btnSaveProfile   = document.getElementById('btn-save-profile');
 const btnCancelProfile = document.getElementById('btn-cancel-profile');
 
-const statsModal    = document.getElementById('stats-modal');
-const statsBody     = document.getElementById('stats-body');
-const btnCloseStats = document.getElementById('btn-close-stats');
-
 const socket = io();
 socket.on('connect', () => socket.emit('get_rooms'));
 socket.on('rooms_update', rooms => updateRoomCount(roomCountCroc, rooms));
@@ -66,12 +64,6 @@ function setAvatar(el, avatar) {
   } else {
     el.textContent = '😊';
   }
-}
-
-function tierLabel(rank) {
-  if (!rank?.tier) return '';
-  const { emoji, name, division } = rank.tier;
-  return `${emoji} ${name}${division ? ` ${division}` : ''}`;
 }
 
 function showSelectPage(me) {
@@ -197,111 +189,11 @@ btnEditProfile.addEventListener('click', openProfileModal);
 btnCancelProfile.addEventListener('click', closeProfileModal);
 profileModal.addEventListener('click', e => { if (e.target === profileModal) closeProfileModal(); });
 
-// ── 전적 모달 ─────────────────────────────────────────────────────────────────
-const OUTCOME_LABEL = { win: '승', lose: '패', draw: '무' };
-
-function renderRankCard(rank) {
-  if (!rank) return '';
-  const unranked = !rank.rank;
-  const sub = unranked
-    ? '게임을 한 판 이상 하면 등급이 매겨집니다'
-    : `${rank.totalUsers}명 중 ${rank.rank}위 · 상위 ${rank.percentile}% · ${rank.points}p`;
-
-  return `
-    <div class="rank-card" data-tier="${escHtml(rank.tier.key)}">
-      <div class="rank-tier">${escHtml(tierLabel(rank))}</div>
-      <div class="rank-sub">${escHtml(sub)}</div>
-      ${unranked ? '' : `<div class="rank-sub">${rank.plays}판 ${rank.wins}승 ${rank.losses}패 · 승률 ${rank.winRate}%</div>`}
-    </div>`;
-}
-
-function renderStatsTable({ stats, totals }) {
-  if (!stats.length) return '<p class="stats-empty">아직 전적이 없습니다. 게임을 한 판 해보세요!</p>';
-
-  const rows = stats.map(s => `
-    <tr>
-      <td>${escHtml(s.gameName)}</td>
-      <td>${s.plays}</td>
-      <td class="win">${s.wins}</td>
-      <td class="lose">${s.losses}</td>
-      <td>${s.winRate}%</td>
-    </tr>`).join('');
-
-  return `
-    <table class="stats-table">
-      <thead><tr><th>게임</th><th>판</th><th>승</th><th>패</th><th>승률</th></tr></thead>
-      <tbody>${rows}</tbody>
-      <tfoot>
-        <tr>
-          <td>합계</td><td>${totals.plays}</td>
-          <td class="win">${totals.wins}</td><td class="lose">${totals.losses}</td>
-          <td>${totals.winRate}%</td>
-        </tr>
-      </tfoot>
-    </table>`;
-}
-
-// DB 는 UTC('YYYY-MM-DD HH:MM:SS')로 저장하므로 브라우저 시간대로 바꿔 보여준다.
-function formatDate(utc) {
-  const d = new Date(`${String(utc).replace(' ', 'T')}Z`);
-  if (Number.isNaN(d.getTime())) return utc;
-  const pad = n => String(n).padStart(2, '0');
-  return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function renderRecent(recent) {
-  if (!recent.length) return '';
-  const items = recent.slice(0, 10).map(r => `
-    <li>
-      <span class="recent-game">${escHtml(r.gameName)}</span>
-      <span class="recent-outcome ${r.outcome}">${OUTCOME_LABEL[r.outcome] ?? r.outcome}</span>
-      <span class="recent-date">${escHtml(formatDate(r.created_at))}</span>
-    </li>`).join('');
-  return `<p class="stats-subtitle">최근 전적</p><ul class="recent-list">${items}</ul>`;
-}
-
-function renderRanking(ranking, myId) {
-  if (!ranking.length) return '';
-  const rows = ranking.slice(0, 20).map(r => `
-    <tr class="${r.userId === myId ? 'me' : ''}">
-      <td>${r.rank}</td>
-      <td>${escHtml(r.username)}</td>
-      <td>${escHtml(tierLabel(r))}</td>
-      <td>${r.points}p</td>
-      <td>${r.wins}승 ${r.losses}패</td>
-    </tr>`).join('');
-
-  return `
-    <p class="stats-subtitle">전체 등급표</p>
-    <table class="stats-table ranking-table">
-      <thead><tr><th>#</th><th>닉네임</th><th>등급</th><th>점수</th><th>전적</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
-}
-
-async function openStatsModal() {
-  statsModal.classList.add('show');
-  statsBody.innerHTML = '<p class="stats-empty">불러오는 중…</p>';
-  try {
-    const [mine, ranking] = await Promise.all([api('/api/me/stats'), api('/api/ranking')]);
-    statsBody.innerHTML =
-      renderRankCard(mine.rank) +
-      renderStatsTable(mine) +
-      renderRecent(mine.recent) +
-      renderRanking(ranking, mine.rank?.userId);
-  } catch (e) {
-    statsBody.innerHTML = `<p class="stats-empty">${escHtml(e.message)}</p>`;
-  }
-}
-
+// ── 전적 모달 (shared/statsModal.js — 게임 방 안에서도 같은 모달을 쓴다) ─────
 btnStats.addEventListener('click', openStatsModal);
-btnCloseStats.addEventListener('click', () => statsModal.classList.remove('show'));
-statsModal.addEventListener('click', e => { if (e.target === statsModal) statsModal.classList.remove('show'); });
 
 document.addEventListener('keydown', e => {
-  if (e.key !== 'Escape') return;
-  closeProfileModal();
-  statsModal.classList.remove('show');
+  if (e.key === 'Escape') closeProfileModal();
 });
 
 // ── 로드 시: 세션 확인 ────────────────────────────────────────────────────────
