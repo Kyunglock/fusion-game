@@ -210,7 +210,8 @@ export function registerCommonHandlers(io, socket, manager, opts) {
    * @param {function} [opts.onResume]  - 재접속 성공 시 게임별 상태 재전송 (room, socket)
    */
   function registerLeaveFlow(leaveFn, { immediate = null, onResume = null } = {}) {
-    socket.on('disconnect', () => {
+    socket.on('disconnect', (reason) => {
+      console.log(`[reconnect-debug][${nsName}] disconnect socket=${socket.id} cid=${cid} reason=${reason} t=${new Date().toISOString()}`);
       immediate?.();
 
       const marked = markDisconnected(socket.id);
@@ -221,8 +222,12 @@ export function registerCommonHandlers(io, socket, manager, opts) {
       const held = holdSeat({
         ns: nsName, cid, roomCode: room.code, oldId: leaverId, kind,
         graceMs:  SOCKET_RECONNECT_GRACE_MS,
-        onExpire: () => leaveFn(leaverId),
+        onExpire: () => {
+          console.log(`[reconnect-debug][${nsName}] seat EXPIRED cid=${cid} oldId=${leaverId} t=${new Date().toISOString()}`);
+          leaveFn(leaverId);
+        },
       });
+      console.log(`[reconnect-debug][${nsName}] seat held=${held} cid=${cid} oldId=${leaverId} room=${room.code} t=${new Date().toISOString()}`);
       // cid 가 없는 클라이언트는 holdSeat 안에서 이미 이탈 처리됐다.
       if (!held) return;
 
@@ -245,18 +250,23 @@ export function registerCommonHandlers(io, socket, manager, opts) {
 
     // 재접속 — 붙잡아 둔 자리에 새 소켓을 다시 연결한다.
     socket.on('resume_room', ({ roomCode } = {}) => {
+      console.log(`[reconnect-debug][${nsName}] resume_room requested socket=${socket.id} cid=${cid} roomCode=${roomCode} t=${new Date().toISOString()}`);
       const seat = claimSeat(nsName, cid);
-      const fail = () => socket.emit('resume_failed');
+      const fail = (why) => {
+        console.log(`[reconnect-debug][${nsName}] resume_room FAILED socket=${socket.id} cid=${cid} why=${why} t=${new Date().toISOString()}`);
+        socket.emit('resume_failed');
+      };
 
-      if (!seat) return fail();
+      if (!seat) return fail('no-seat-held (server hasn\'t marked old socket disconnected yet, or grace already expired)');
       // 클라이언트가 기억하는 방과 붙잡아 둔 자리가 다르면 자리를 정리하고 로비로 돌린다.
-      if (roomCode && seat.roomCode !== roomCode) { seat.onExpire(); return fail(); }
+      if (roomCode && seat.roomCode !== roomCode) { seat.onExpire(); return fail('room-code-mismatch'); }
 
       const room = rooms.get(seat.roomCode);
       if (!room || !rebind(room, seat.oldId, socket.id, seat.kind)) {
         seat.onExpire();
-        return fail();
+        return fail('room-missing-or-rebind-failed');
       }
+      console.log(`[reconnect-debug][${nsName}] resume_room SUCCESS socket=${socket.id} cid=${cid} room=${room.code} t=${new Date().toISOString()}`);
 
       socket.join(room.code);
       socket.emit('chat_history', room.chatHistory);

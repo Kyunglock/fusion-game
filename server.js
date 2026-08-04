@@ -84,36 +84,39 @@ app.get('/wordchain', (_req, res) => {
 });
 
 // ── Socket.IO ─────────────────────────────────────────────────────────────────
+const logConnect = (label) => (socket) =>
+  console.log(`[reconnect-debug][${label}] connect socket=${socket.id} cid=${socket.handshake?.auth?.cid} recovered=${socket.recovered} t=${new Date().toISOString()}`);
+
 io.on('connection', (socket) => {
-  console.log(`[connect] ${socket.id}`);
+  logConnect('/')(socket);
   registerHandlers(io, socket);
 });
 
 const bombIo = io.of('/bomb');
 bombIo.use((socket, next) => sessionMiddleware(socket.request, socket.request.res || {}, next));
 bombIo.on('connection', (socket) => {
-  console.log(`[bomb connect] ${socket.id}`);
+  logConnect('/bomb')(socket);
   registerBombHandlers(bombIo, socket);
 });
 
 const tetrisIo = io.of('/tetris');
 tetrisIo.use((socket, next) => sessionMiddleware(socket.request, socket.request.res || {}, next));
 tetrisIo.on('connection', (socket) => {
-  console.log(`[tetris connect] ${socket.id}`);
+  logConnect('/tetris')(socket);
   registerTetrisHandlers(tetrisIo, socket);
 });
 
 const jamoIo = io.of('/jamo');
 jamoIo.use((socket, next) => sessionMiddleware(socket.request, socket.request.res || {}, next));
 jamoIo.on('connection', (socket) => {
-  console.log(`[jamo connect] ${socket.id}`);
+  logConnect('/jamo')(socket);
   registerJamoHandlers(jamoIo, socket);
 });
 
 const wordchainIo = io.of('/wordchain');
 wordchainIo.use((socket, next) => sessionMiddleware(socket.request, socket.request.res || {}, next));
 wordchainIo.on('connection', (socket) => {
-  console.log(`[wordchain connect] ${socket.id}`);
+  logConnect('/wordchain')(socket);
   registerWordchainHandlers(wordchainIo, socket);
 });
 
