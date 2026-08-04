@@ -29,6 +29,9 @@ block content
       label.toggle-row
         input#input-keyboard-toggle(type="checkbox" checked)
         span 참가자 키보드 색상 힌트 보이기
+    //- 참가자 → 관전자로 이동 (대기실, 방장이 아닌 참가자에게만 노출)
+    button#jamo-lobby-to-spectator.btn.btn-secondary(style="display:none") 관전으로 이동
+
     //- 관전자 → 참여자로 이동 (대기실, 관전자에게만 노출)
     button#jamo-spectator-join.btn.btn-primary(style="display:none") 참여자로 이동
 
@@ -43,11 +46,17 @@ block content
       input#input-answer(type="text" placeholder="제시어 입력 (예: 자연, 월드컵)" maxlength="20" autocomplete="off")
       button#btn-set-answer.btn.btn-primary 제시어 내기
 
+    //- 문제 취소 (방장, 제시어를 잘못 냈을 때. 승패 기록 없이 라운드 무효)
+    button#jamo-cancel-round.btn.btn-secondary(style="display:none") 문제 취소
+
     //- 대기실로 나가기 (방장, 게임 중 상시 노출)
     button#jamo-return-lobby.btn.btn-secondary(style="display:none") 대기실로 나가기
 
     //- 참가자 라운드 대기 안내
     #jamo-wait-notice(style="display:none")
+
+    //- 참가자 → 관전자로 이동 (라운드 사이 = intermission. 다음 판은 쉬고 구경만)
+    button#jamo-player-to-spectator.btn.btn-secondary(style="display:none") 관전으로 이동
 
     //- 관전자 → 참여자로 이동 (게임 안, 방장이 제시어 내기 전 = intermission)
     button#jamo-spectate-join.btn.btn-primary(style="display:none") 참여자로 이동

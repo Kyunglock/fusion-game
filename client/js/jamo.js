@@ -1,11 +1,12 @@
 import { createSocket, initReconnect, leaveRoom } from './shared/connection.js';
 import { showError }        from './utils.js';
 import { $, screens, showScreen, initScreenManager } from './shared/screenManager.js';
-import { initChat, setChatVisible, showJoinNotice } from './shared/chatManager.js';
+import { initChat, setChatVisible, showJoinNotice, appendSystemMessage } from './shared/chatManager.js';
 import { checkAuth }       from './shared/authCheck.js';
 import { renderRoomList, renderSpectatorList, renderWaiting as renderWaitingBase } from './shared/lobbyRenderer.js';
 import { nameHtml, nameText, showAloneOverlay } from './shared/uiHelpers.js';
 import { createMyRankPanel } from './shared/myRank.js';
+import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js';
 import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
 
 {
@@ -197,8 +198,10 @@ import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
   const inputAnswer    = $('input-answer');
   const btnSetAnswer   = $('btn-set-answer');
   const jamoWaitNotice = $('jamo-wait-notice');
+  const jamoPlayerToSpectator = $('jamo-player-to-spectator');
   const jamoSpectateJoin = $('jamo-spectate-join');
   const jamoReturnLobby = $('jamo-return-lobby');
+  const jamoCancelRound = $('jamo-cancel-round');
   const jamoBoards     = $('jamo-boards');
   const jamoMyBoard    = $('jamo-my-board');
   const jamoMyKeyboard = $('jamo-my-keyboard');
@@ -210,6 +213,7 @@ import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
     if (roomState && roomState.state !== 'lobby') renderBoards(roomState);
   });
   const jamoSpectatorJoin = $('jamo-spectator-join');
+  const jamoLobbyToSpectator = $('jamo-lobby-to-spectator');
 
   // 솔로 플레이 화면
   const soloScreen    = $('screen-solo');
@@ -225,6 +229,8 @@ import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
 
   initScreenManager(setChatVisible);
   initChat(socket, () => myId, playerAvatarEmojis);
+  initStatsDockButton();
+  socket.on('room_update', refreshStatsIfOpen);
 
   socket.on('connect', () => { myId = socket.id; });
 
@@ -272,9 +278,12 @@ import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
       btnStart.style.display = 'none';
       jamoHostSetup.style.display = 'none';
       jamoSpectatorJoin.style.display = '';
+      jamoLobbyToSpectator.style.display = 'none';
       waitingHint.textContent = '관전 중입니다. 참여하려면 참여자로 이동하세요.';
     } else {
       jamoSpectatorJoin.style.display = 'none';
+      // 참가자(방장 아님)는 게임 시작 전에도 미리 관전으로 빠질 수 있다
+      jamoLobbyToSpectator.style.display = amHost ? 'none' : '';
     }
   }
 
@@ -446,6 +455,13 @@ import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
 
     // 방장 '대기실로 나가기' — 게임 중(대기 상태 포함) 상시 노출
     jamoReturnLobby.style.display = (!isSpectator && iAmHost) ? '' : 'none';
+
+    // 방장 '문제 취소' — 제시어를 잘못 냈을 때, 라운드 진행 중에만 노출
+    jamoCancelRound.style.display = (!isSpectator && iAmHost && state.state === 'playing') ? '' : 'none';
+
+    // 참가자 '관전으로 이동' — 라운드 사이(intermission)에 다음 판은 쉬고 구경만
+    const iAmParticipant = participants.some(p => p.id === myId);
+    jamoPlayerToSpectator.style.display = (!isSpectator && iAmParticipant && isIntermission) ? '' : 'none';
 
     // 관전자 '참여자로 이동' — 방장이 제시어를 내기 전(intermission)에만 노출
     jamoSpectateJoin.style.display = (isSpectator && isIntermission) ? '' : 'none';
@@ -753,6 +769,13 @@ import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
       $('spectator-banner').style.display = 'none';
     }
 
+    // 참여자였다가 (내가 눌러서) 관전자로 전환되면 관전 모드로 진입
+    if (!isSpectator && !state.players?.some(p => p.id === myId) && state.spectators?.some(s => s.id === myId)) {
+      isSpectator = true;
+      screens.game.classList.add('is-spectating');
+      $('spectator-banner').style.display = '';
+    }
+
     if (isSpectator) {
       if (state.state === 'lobby') {
         // 게임이 끝나 대기실로 돌아옴 → 관전자도 대기실을 보고 참여할 수 있게
@@ -793,6 +816,7 @@ import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
   });
 
   socket.on('member_joined', ({ name, isSpectator: isSpec }) => showJoinNotice(name, isSpec));
+  socket.on('round_cancelled', () => appendSystemMessage('⚠️ 방장이 문제를 취소했습니다. 이번 라운드는 무효 처리됩니다.'));
 
   socket.on('error_msg', ({ message }) => showError(message));
 
@@ -832,8 +856,11 @@ import { WORD_LIST, SOLO_DIFFICULTY, SOLO_MAX_ATTEMPTS } from './jamoWords.js';
   inputAnswer.addEventListener('keydown', e => { if (e.key === 'Enter') setAnswer(); });
 
   jamoReturnLobby.addEventListener('click', () => socket.emit('return_to_lobby'));
+  jamoCancelRound.addEventListener('click', () => socket.emit('cancel_round'));
   jamoSpectatorJoin.addEventListener('click', () => socket.emit('spectator_to_player'));
+  jamoLobbyToSpectator.addEventListener('click', () => socket.emit('player_to_spectator'));
   jamoSpectateJoin.addEventListener('click', () => socket.emit('spectator_to_player'));
+  jamoPlayerToSpectator.addEventListener('click', () => socket.emit('player_to_spectator'));
 
   inputKeyboardToggle.addEventListener('change', () => {
     socket.emit('toggle_keyboard_visible', { visible: inputKeyboardToggle.checked });

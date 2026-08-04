@@ -3,6 +3,9 @@ import { rooms, getRoomOf, getRooms, safeState, removePlayer, removeSpectator, m
 import { JAMO_MAX_ATTEMPTS } from '../../config.js';
 import { registerCommonHandlers } from '../../shared/socketHandlers.js';
 import { recordPlayers } from '../../db/stats.js';
+// 자모만으로는 실제 단어인지 알 수 없어 끝말잇기 사전을 그대로 재사용한다 (자모 개수만 맞으면
+// 아무 자모나 늘어놓아도 판정이 되던 문제를 막기 위함). 사전이 없으면(hasWord 항상 true) 검증을 건너뛴다.
+import { hasWord } from '../wordchain/dictionary.js';
 
 // ── 뷰어별 개인화 상태 전송 ──────────────────────────────────────────────────
 // 방장/관전자는 모든 시도 내용을 볼 수 있고, 참가자는 자신의 시도만 전체 공개,
@@ -107,6 +110,26 @@ export function registerJamoHandlers(io, socket) {
     emitGameState(io, room);
   });
 
+  // ── 문제 취소 (방장, 제시어를 잘못 냈을 때) ─────────────────────────────────
+  // 진행 중인 라운드를 승패 기록 없이 무효로 되돌린다 (recordJamoRound 호출 안 함).
+  socket.on('cancel_round', () => {
+    const room   = getRoomOf(socket.id);
+    const player = room?.players.find(p => p.id === socket.id);
+    if (!room || !player?.isHost)  return;
+    if (room.state !== 'playing')  return;
+
+    room.state      = 'intermission';
+    room.answer     = '';
+    room.answerJamo = [];
+    room.winnerName = null;
+    room.players.forEach(p => { p.attempts = []; p.solved = false; });
+
+    broadcast(room);
+    broadcastRooms();
+    io.to(room.code).emit('round_cancelled');
+    emitGameState(io, room);
+  });
+
   // ── 참가자 키보드 표시 토글 (방장 전용) ─────────────────────────────────────
   socket.on('toggle_keyboard_visible', ({ visible } = {}) => {
     const room   = getRoomOf(socket.id);
@@ -160,6 +183,35 @@ export function registerJamoHandlers(io, socket) {
     if (room.state === 'intermission') emitGameState(io, room);
   });
 
+  // ── 참여자 → 관전자로 이동 ──────────────────────────────────────────────────
+  // 라운드 사이(intermission)에 정답을 맞힌 뒤 다음 판은 쉬고 구경만 하고 싶을 때.
+  // 대기실(lobby)에서도 가능하지만, 라운드 진행(playing) 중에는 불가.
+  socket.on('player_to_spectator', () => {
+    const room   = getRoomOf(socket.id);
+    const player = room?.players.find(p => p.id === socket.id);
+    if (!room || (room.state !== 'lobby' && room.state !== 'intermission')) return;
+    if (!player || player.isHost) return; // 방장은 참여자가 아니므로 대상 아님
+
+    room.players = room.players.filter(p => p.id !== socket.id);
+    room.spectators.push({
+      id: player.id, userId: player.userId ?? null, accountId: player.accountId ?? null,
+      name: player.name, avatar: player.avatar ?? null,
+    });
+
+    // 참가자가 부족해지면 대기실로 되돌린다 (게임 진행 중 자연 이탈과 동일한 처리).
+    if (room.players.filter(p => !p.isHost).length < 1) {
+      room.state      = 'lobby';
+      room.answer     = '';
+      room.answerJamo = [];
+      room.winnerName = null;
+      room.players.forEach(p => { p.ready = false; p.attempts = []; p.solved = false; });
+    }
+
+    broadcast(room);
+    broadcastRooms();
+    if (room.state === 'intermission') emitGameState(io, room);
+  });
+
   // ── 답 제출 (참가자 전용) ───────────────────────────────────────────────────
   socket.on('submit_guess', ({ guess } = {}) => {
     const room = getRoomOf(socket.id);
@@ -175,6 +227,11 @@ export function registerJamoHandlers(io, socket) {
     const guessJamo = decompose(cleanGuess);
     if (guessJamo.length !== room.answerJamo.length) {
       return err(`자모 개수가 맞지 않습니다. 이 문제는 ${room.answerJamo.length}칸입니다.`);
+    }
+    // 실제 단어인지 사전으로 확인한다 (정답 그 자체는 사전에 없어도 항상 허용).
+    // 검증 실패는 페널티가 아니므로 시도 횟수를 소모하지 않는다.
+    if (cleanGuess !== room.answer && !hasWord(cleanGuess)) {
+      return err('사전에 없는 단어입니다.');
     }
 
     const result = judge(room.answerJamo, guessJamo);
