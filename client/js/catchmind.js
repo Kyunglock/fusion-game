@@ -23,7 +23,7 @@ const PAPER = '#ffffff';
 const $ = id => document.getElementById(id);
 
 // ── 화면 전환 ─────────────────────────────────────────────────────────────────
-const SCREENS = ['home', 'draw', 'quiz', 'mine'];
+const SCREENS = ['home', 'draw', 'quiz', 'board', 'mine'];
 
 function showScreen(name) {
   for (const s of SCREENS) $(`screen-${s}`).classList.toggle('active', s === name);
@@ -546,6 +546,78 @@ $('quiz-empty-draw').addEventListener('click', () => openDraw());
 $('quiz-exit').addEventListener('click', () => goHome());
 
 // ══════════════════════════════════════════════════════════════════════════════
+// 그림 랭킹
+//
+// 그림과 통계(추천·오답 수)는 모두에게 보이지만 **제시어는 내가 맞힌 것만** 보인다.
+// 서버가 아직 못 푼 그림의 word 를 아예 내려주지 않으므로 여기서는 있는 그대로 그린다.
+// ══════════════════════════════════════════════════════════════════════════════
+let boardSort = 'likes';
+
+/** 정답 자리 — 맞힌 그림은 제시어를, 아직 못 푼 그림은 글자 수만 */
+function boardWordHtml(d) {
+  if (d.word) {
+    return `<span class="cm-card-word">${escHtml(d.word)}</span>`;
+  }
+  const blanks = '○'.repeat(d.length);
+  return `<span class="cm-card-word is-masked" title="맞히면 공개됩니다">${blanks}</span>`;
+}
+
+async function loadBoard() {
+  $('board-grid').innerHTML = '<p class="cm-loading">불러오는 중…</p>';
+
+  let data;
+  try {
+    data = await api(`/api/catchmind/board?sort=${boardSort}`);
+  } catch (e) {
+    showError(e.message);
+    return;
+  }
+
+  for (const b of $('board-tabs').children) {
+    b.classList.toggle('active', b.dataset.sort === boardSort);
+  }
+
+  $('board-empty').hidden = data.items.length > 0;
+  $('board-grid').innerHTML = data.items.map((d, i) => `
+    <div class="cm-card cm-board-card">
+      <span class="cm-rank${i < 3 ? ' top' : ''}">${i + 1}</span>
+      <canvas class="cm-thumb" data-board-thumb="${d.id}"></canvas>
+      <div class="cm-card-body">
+        ${boardWordHtml(d)}
+        <span class="cm-card-stat">${boardSort === 'likes' ? `👍 ${d.likes}` : `😵 ${d.misses}`}</span>
+      </div>
+      <div class="cm-board-meta">
+        <span class="cm-board-author">${escHtml(d.author.name)}</span>
+        <span>👍 ${d.likes} · 👎 ${d.dislikes} · 😵 ${d.misses} · ✅ ${d.solved}</span>
+      </div>
+      ${d.mine ? '<span class="cm-card-flag">내 그림</span>' : ''}
+      ${!d.mine && d.solvedByMe ? '<span class="cm-card-flag ok">맞힘</span>' : ''}
+    </div>
+  `).join('');
+
+  for (const d of data.items) {
+    const c = $('board-grid').querySelector(`[data-board-thumb="${d.id}"]`);
+    if (c) renderThumb(c, d.strokes);
+  }
+}
+
+async function openBoard() {
+  showScreen('board');
+  await loadBoard();
+}
+
+$('board-tabs').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-sort]');
+  if (!btn || btn.dataset.sort === boardSort) return;
+  boardSort = btn.dataset.sort;
+  loadBoard();
+});
+
+$('board-exit').addEventListener('click', () => goHome());
+$('board-quiz').addEventListener('click', () => openQuiz());
+$('board-empty-draw').addEventListener('click', () => openDraw());
+
+// ══════════════════════════════════════════════════════════════════════════════
 // 내 그림
 // ══════════════════════════════════════════════════════════════════════════════
 async function openMine() {
@@ -625,6 +697,7 @@ async function refreshHomeCounts() {
 
 $('btn-go-draw').addEventListener('click', () => openDraw());
 $('btn-go-quiz').addEventListener('click', () => openQuiz());
+$('btn-go-board').addEventListener('click', () => openBoard());
 $('btn-go-mine').addEventListener('click', () => openMine());
 
 // ── 진입: 세션 확인 ───────────────────────────────────────────────────────────

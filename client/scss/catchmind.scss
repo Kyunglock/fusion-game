@@ -25,6 +25,7 @@
 // themeManager.js 가 도크가 실제로 가리는 높이를 --pg-dock-space 로 알려주므로 그만큼 비운다.
 #screen-draw,
 #screen-quiz,
+#screen-board,
 #screen-mine {
   padding-bottom: max(var(--pg-dock-space, 96px), 96px);
 }
@@ -450,6 +451,87 @@
   .btn { margin-top: 14px; }
 }
 
+// ── 그림 랭킹 ─────────────────────────────────────────────────────────────────
+.cm-board-title {
+  flex: 1;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 900;
+  color: var(--green-light);
+}
+
+.cm-tabs {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  max-width: 720px;
+  margin-bottom: 12px;
+}
+
+.cm-tab {
+  flex: 1;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--sunken);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover { color: var(--text); }
+
+  &.active {
+    border-color: var(--green-light);
+    background: var(--chip);
+    color: var(--green-light);
+  }
+}
+
+// 랭킹 카드는 좌측 상단을 순위 번호가 쓰므로 배지를 오른쪽으로 보낸다.
+.cm-board-card .cm-card-flag {
+  left: auto;
+  right: 6px;
+}
+
+.cm-rank {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 1;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 900;
+
+  &.top { background: var(--gold); color: #1a1a1a; }
+}
+
+// 카드마다 줄바꿈 위치가 달라지면 높이가 들쭉날쭉해진다 → 항상 두 줄로 고정.
+.cm-board-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 10px 8px;
+  font-size: 0.64rem;
+  color: var(--muted);
+}
+
+.cm-board-author { font-weight: 700; }
+
+// 아직 못 푼 그림의 정답 자리 (○○○ — 글자 수만)
+.cm-card-word.is-masked {
+  color: var(--muted);
+  letter-spacing: 2px;
+}
+
 // ── 내 그림 ───────────────────────────────────────────────────────────────────
 .cm-summary {
   flex: 1;
@@ -510,6 +592,7 @@
   font-weight: 800;
 
   &.warn { background: var(--red); }
+  &.ok   { background: var(--green-mid); }
 }
 
 .cm-card-del {

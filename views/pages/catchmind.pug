@@ -28,6 +28,12 @@ block content
           span.cm-mode-title 그림 그리기
           span.cm-mode-desc 제시어를 받아 그리면 다른 사람의 문제가 됩니다
 
+      button#btn-go-board.btn.btn-secondary.cm-mode-btn
+        span.cm-mode-emoji 🏆
+        span.cm-mode-text
+          span.cm-mode-title 그림 랭킹
+          span.cm-mode-desc 추천이 많은 그림 · 사람들이 많이 틀린 그림
+
       button#btn-go-mine.btn.btn-secondary.cm-mode-btn
         span.cm-mode-emoji 🖼️
         span.cm-mode-text
@@ -99,6 +105,23 @@ block content
       p 아직 맞힐 그림이 없어요.
       p.cm-empty-sub 첫 그림을 그려서 다른 사람에게 문제를 내보세요!
       button#quiz-empty-draw.btn.btn-primary 그림 그리러 가기
+
+  //- ── 그림 랭킹 ─────────────────────────────────────────────────────────────
+  //- 그림과 통계는 다 보여주되 제시어는 내가 맞힌 것만 보인다.
+  #screen-board.screen
+    .cm-top
+      button#board-exit.btn.btn-secondary ← 나가기
+      h2.cm-board-title 🏆 그림 랭킹
+      button#board-quiz.btn.btn-primary 맞히러 가기
+
+    .cm-tabs#board-tabs
+      button.cm-tab.active(data-sort="likes") 👍 추천 많은 순
+      button.cm-tab(data-sort="misses") 😵 많이 틀린 순
+
+    #board-grid.cm-grid
+    #board-empty.cm-empty(hidden)
+      p 아직 올라온 그림이 없어요.
+      button#board-empty-draw.btn.btn-primary 첫 그림 그리기
 
   //- ── 내 그림 ───────────────────────────────────────────────────────────────
   #screen-mine.screen

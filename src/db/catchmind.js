@@ -96,7 +96,38 @@ const SQL = {
     WHERE d.hidden = 0 AND d.user_id != @userId
       AND NOT EXISTS (SELECT 1 FROM catchmind_plays p
                       WHERE p.drawing_id = d.id AND p.user_id = @userId AND p.finished = 1)`),
+
+  // 랭킹. 오답 수는 따로 세어두지 않고 풀이 기록에서 그때그때 합산한다
+  // (한 판에서 틀린 횟수 = 시도 횟수 - 맞힌 여부. 맞힌 판의 마지막 한 번은 정답이므로).
+  // 목록이 수십 줄이라 매번 세도 부담이 없고, 컬럼을 늘려 어긋날 여지를 만들지 않는다.
+  board: (order) => db.prepare(`
+    SELECT d.id, d.word, d.strokes, d.likes, d.dislikes,
+           d.seen_count, d.solved_count, d.created_at,
+           u.username AS author, u.avatar AS author_avatar,
+           d.user_id AS author_id,
+           COALESCE(SUM(p.attempts - p.solved), 0) AS misses,
+           MAX(CASE WHEN p.user_id = @userId AND p.solved = 1 THEN 1 ELSE 0 END) AS solved_by_me
+    FROM catchmind_drawings d
+    JOIN users u ON u.id = d.user_id
+    LEFT JOIN catchmind_plays p ON p.drawing_id = d.id
+    WHERE d.hidden = 0
+    GROUP BY d.id
+    ORDER BY ${order}
+    LIMIT @limit`),
 };
+
+/**
+ * 정렬 기준별 ORDER BY. 사용자 입력을 SQL 에 그대로 끼워 넣지 않으려고
+ * 허용된 것만 여기 미리 만들어 두고 키로만 고른다.
+ */
+const BOARD_SORTS = {
+  likes:  'd.likes DESC, misses DESC, d.id DESC',
+  misses: 'misses DESC, d.likes DESC, d.id DESC',
+};
+
+const BOARD_SQL = Object.fromEntries(
+  Object.entries(BOARD_SORTS).map(([key, order]) => [key, SQL.board(order)]),
+);
 
 // ── 그리기 ────────────────────────────────────────────────────────────────────
 
@@ -247,6 +278,25 @@ export const reportDrawing = db.transaction((drawingId, accountId) => {
   SQL.setReports.run({ id: drawingId, reports, hidden: hidden ? 1 : 0 });
   return { reports, needed: CATCHMIND_REPORTS_TO_HIDE, hidden };
 });
+
+// ── 랭킹 ──────────────────────────────────────────────────────────────────────
+
+export const BOARD_SORT_KEYS = Object.keys(BOARD_SORTS);
+
+/**
+ * 그림 랭킹. 추천이 많은 순 또는 사람들이 많이 틀린 순으로 준다.
+ *
+ * **정답은 여기서 걸러내지 않는다** — 라우터가 `solved_by_me` 를 보고 내가 맞힌
+ * 그림(과 내 그림)만 제시어를 실어 보낸다. 아직 못 푼 그림의 답이 목록으로
+ * 새어 나가면 맞히기 자체가 무의미해진다.
+ *
+ * @param {number} accountId
+ * @param {'likes'|'misses'} sort
+ */
+export function leaderboard(accountId, sort = 'likes', limit = 30) {
+  const stmt = BOARD_SQL[sort] ?? BOARD_SQL.likes;
+  return stmt.all({ userId: accountId, limit });
+}
 
 // ── 내 그림 ───────────────────────────────────────────────────────────────────
 
