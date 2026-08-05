@@ -351,35 +351,40 @@ let quiz = null;
 /** 이번 문제가 이미 끝났는지 (맞혔거나 시도를 다 썼거나 포기) */
 let quizDone = false;
 
+/**
+ * 글자 수 칸. 처음에는 빈 칸만 보여주고, 정해진 횟수만큼 틀리면 서버가 초성을
+ * 내려주므로 그때부터 칸 안에 초성이 들어찬다.
+ */
 function renderSlots() {
-  const chosung = quiz?.hint?.chosung ? [...quiz.hint.chosung] : null;
+  const chosung = quiz.chosung ? [...quiz.chosung] : null;
   $('quiz-slots').innerHTML = Array.from({ length: quiz.length }, (_, i) =>
     `<span class="cm-slot${chosung ? ' has-hint' : ''}">${chosung ? escHtml(chosung[i] ?? '') : ''}</span>`
   ).join('');
+}
 
-  const box = $('quiz-chosung');
-  if (chosung) {
-    box.hidden = false;
-    box.textContent = `초성 공개됨 · ${quiz.hint.chosung}`;
-  } else {
-    box.hidden = true;
-  }
+/** 추천 · 비추천 버튼 (내가 던진 표는 눌린 상태로 보인다) */
+function renderVotes() {
+  const { likes, dislikes, mine } = quiz.votes;
+  const like = $('quiz-like');
+  const dis  = $('quiz-dislike');
+
+  like.querySelector('.cm-vote-n').textContent = likes;
+  dis .querySelector('.cm-vote-n').textContent = dislikes;
+  like.classList.toggle('active', mine === 1);
+  dis .classList.toggle('active', mine === -1);
 }
 
 function renderQuizMeta() {
-  $('quiz-attempts').textContent  = `시도 ${quiz.attempts}/${quiz.maxAttempts}`;
+  const meta = [`시도 ${quiz.attempts}/${quiz.maxAttempts}`];
+  if (quiz.chosung) {
+    meta.push('초성 공개됨');
+  } else if (quiz.hintAfter > quiz.attempts) {
+    meta.push(`${quiz.hintAfter - quiz.attempts}번 더 틀리면 초성 공개`);
+  }
+  $('quiz-attempts').textContent  = meta.join(' · ');
   $('quiz-remaining').textContent = quiz.replay
     ? '복습 중 (전적에 반영되지 않아요)'
     : `안 푼 그림 ${quiz.remaining}장`;
-
-  const hintBtn = $('quiz-hint');
-  if (quiz.hint.revealed) {
-    hintBtn.disabled = true;
-    hintBtn.textContent = '초성 공개됨 ✅';
-  } else {
-    hintBtn.disabled = false;
-    hintBtn.textContent = `초성 보여주세요 (${quiz.hint.votes}/${quiz.hint.needed})`;
-  }
 }
 
 function setQuizBanner(text, kind) {
@@ -394,14 +399,12 @@ function setQuizFinished(answer, { won }) {
   quizDone = true;
   $('quiz-input').disabled  = true;
   $('quiz-submit').disabled = true;
-  $('quiz-hint').disabled   = true;
   $('quiz-giveup').hidden   = true;
   $('quiz-next').hidden     = false;
 
   $('quiz-slots').innerHTML = [...answer].map(ch =>
     `<span class="cm-slot revealed">${escHtml(ch)}</span>`
   ).join('');
-  $('quiz-chosung').hidden = true;
 
   if (!won) setQuizBanner(`정답은 '${answer}' 였습니다`, 'lose');
 }
@@ -442,6 +445,7 @@ async function loadQuiz() {
     `${av}<span class="cm-author-name">${escHtml(data.author.name)}</span>님의 그림`;
 
   renderSlots();
+  renderVotes();
   renderQuizMeta();
 
   quizCanvas.setStrokes(data.strokes);
@@ -476,7 +480,16 @@ $('quiz-submit').addEventListener('click', async () => {
     } else if (r.finished) {
       setQuizFinished(r.answer, { won: false });
     } else {
-      setQuizBanner(`땡! ${r.remainingAttempts}번 더 시도할 수 있어요`, 'miss');
+      // 이번 시도로 초성 공개 조건을 채웠으면 서버가 초성을 함께 보내준다.
+      const justRevealed = !quiz.chosung && r.chosung;
+      if (r.chosung) { quiz.chosung = r.chosung; renderSlots(); renderQuizMeta(); }
+
+      setQuizBanner(
+        justRevealed
+          ? `땡! 초성을 공개할게요 → ${r.chosung} (마지막 ${r.remainingAttempts}번)`
+          : `땡! ${r.remainingAttempts}번 더 시도할 수 있어요`,
+        justRevealed ? 'info' : 'miss',
+      );
     }
   } catch (e) {
     showError(e.message);
@@ -487,21 +500,17 @@ $('quiz-input').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') $('quiz-submit').click();
 });
 
-$('quiz-hint').addEventListener('click', async () => {
-  if (!quiz) return;
+$('quiz-votes').addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-value]');
+  if (!btn || !quiz) return;
+
+  // 이미 같은 표를 던졌다면 취소(0)로 보낸다.
+  const value = quiz.votes.mine === Number(btn.dataset.value) ? 0 : Number(btn.dataset.value);
   try {
-    const r = await api(`/api/catchmind/quiz/${quiz.id}/hint`, { method: 'POST' });
-    quiz.hint = { ...quiz.hint, ...r };
-    renderSlots();
-    renderQuizMeta();
-    setQuizBanner(
-      r.revealed
-        ? '3명이 동의해서 초성이 공개됐어요!'
-        : `동의했습니다 · ${r.needed - r.votes}명 더 동의하면 초성이 공개됩니다 (${r.votes}/${r.needed})`,
-      r.revealed ? 'win' : 'info',
-    );
-  } catch (e) {
-    showError(e.message);
+    quiz.votes = await api(`/api/catchmind/quiz/${quiz.id}/vote`, { method: 'POST', body: { value } });
+    renderVotes();
+  } catch (err) {
+    showError(err.message);
   }
 });
 
@@ -551,9 +560,9 @@ async function openMine() {
     return;
   }
 
-  const { drawn, seen, solved } = data.summary;
+  const { drawn, seen, solved, likes, dislikes } = data.summary;
   $('mine-summary').innerHTML =
-    `<b>${drawn}</b>장 · 남이 <b>${seen}</b>번 봄 · <b>${solved}</b>번 맞힘`;
+    `<b>${drawn}</b>장 · 👀 <b>${seen}</b> · ✅ <b>${solved}</b> · 👍 <b>${likes}</b> · 👎 <b>${dislikes}</b>`;
 
   $('mine-empty').hidden = data.drawings.length > 0;
   $('mine-grid').innerHTML = data.drawings.map(d => `
@@ -561,7 +570,7 @@ async function openMine() {
       <canvas class="cm-thumb" data-thumb="${d.id}"></canvas>
       <div class="cm-card-body">
         <span class="cm-card-word">${escHtml(d.word)}</span>
-        <span class="cm-card-stat">👀 ${d.seen} · ✅ ${d.solved}</span>
+        <span class="cm-card-stat">👀 ${d.seen} · ✅ ${d.solved} · 👍 ${d.likes} · 👎 ${d.dislikes}</span>
       </div>
       ${d.hidden ? '<span class="cm-card-flag">내려감</span>' : ''}
       ${!d.hidden && d.reports > 0 ? `<span class="cm-card-flag warn">신고 ${d.reports}/${data.reportsToHide}</span>` : ''}
@@ -610,7 +619,7 @@ async function refreshHomeCounts() {
       : '남은 새 그림이 없어요 — 그림을 그려 문제를 만들어보세요';
     $('cm-mine-desc').textContent = s.drawn === 0
       ? '내가 그린 그림이 얼마나 맞혀졌는지 보기'
-      : `${s.drawn}장 올림 · ${s.solved}번 맞혀졌어요`;
+      : `${s.drawn}장 올림 · ${s.solved}번 맞혀짐 · 추천 ${s.likes}`;
   } catch { /* 홈 안내문일 뿐이라 실패해도 그냥 둔다 */ }
 }
 

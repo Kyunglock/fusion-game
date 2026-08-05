@@ -72,9 +72,14 @@ block content
       canvas#quiz-canvas
       button#quiz-replay.cm-replay-btn(title="다시 재생") ↻ 다시 보기
 
+    //- 추천 · 비추천 (한 사람 한 표, 같은 걸 다시 누르면 취소)
+    .cm-votes#quiz-votes
+      button#quiz-like.cm-vote(data-value="1") 👍 <span class="cm-vote-n">0</span>
+      button#quiz-dislike.cm-vote(data-value="-1") 👎 <span class="cm-vote-n">0</span>
+
     #quiz-answer-box.cm-answer-box
+      //- 글자 수 칸에 초성이 처음부터 들어가 있다 (동의 없이 항상 공개)
       #quiz-slots.cm-slots
-      #quiz-chosung.cm-chosung(hidden)
 
     #quiz-banner.cm-banner(hidden)
 
@@ -87,7 +92,6 @@ block content
       span#quiz-remaining.cm-remaining
 
     .cm-actions.cm-actions-wrap
-      button#quiz-hint.btn.btn-secondary 초성 보여주세요 (0/3)
       button#quiz-giveup.btn.btn-secondary 포기하고 정답 보기
       button#quiz-next.btn.btn-primary(hidden) 다음 그림 →
 
