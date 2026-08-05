@@ -16,6 +16,8 @@
 | `/wordchain` | 끝말잇기 | `wordchain_rooms_update` |
 | `/liar` | 라이어 게임 | `liar_rooms_update` |
 
+**캐치마인드는 소켓을 쓰지 않는다.** 방·턴이 없는 비동기 게임이라 평범한 HTTP(`/api/catchmind/*`)만으로 돈다 → 아래 '캐치마인드' 참고
+
 ## 계정 · 전적 · 등급 (DB)
 
 ### 계정 = 닉네임 (비밀번호 없음)
@@ -27,6 +29,7 @@
 ### 전적
 - 게임 한 판이 끝날 때 `recordPlayers(game, players, outcomeOf, scoreOf)`(`src/db/stats.js`)로 기록한다. 소켓 플레이어 객체에 실린 `accountId`가 기준이며, 기록 실패는 로그만 남기고 게임 진행을 막지 않는다
 - 기록 시점: 악어=물린 사람 패/나머지 승, 폭탄=터뜨린 사람 패/나머지 승, 테트리스=마지막 생존자 승(이탈로 끝난 경우 포함), 끝말잇기=최후 1인 승, 자모=첫 정답자 승(방장은 참여하지 않으므로 제외, 전원 소진이면 무승부)
+- 캐치마인드도 소켓이 아니라 HTTP로 기록한다. 게임 키 `catchmind`, **한 그림을 처음 끝낼 때 한 번만** — 맞히면 승, 시도를 다 쓰거나 포기하면 패 → 아래 '캐치마인드' 참고
 - 자모 워들 솔플은 소켓이 아니라 HTTP(`POST /api/solo/jamo`)로 기록한다. 게임 키가 `jamoSolo`(자모 워들 솔로)로 멀티(`jamo`)와 분리돼 쌓인다 → 아래 '자모 워들 — 솔로 플레이' 참고
 - `game_stats`(게임별 누적) + `game_results`(판별 기록, 유저당 최근 100건만 보관) 두 테이블에 함께 쌓인다
 
@@ -48,11 +51,13 @@ src/
     ranking.js           ← 백분위 기반 등급 티어 계산(getRanking/getUserRank)
     playerCards.js       ← 방 참가자 목록에 실어 보내는 전적 카드(getPlayerCard, 3초 캐시)
     soloStats.js         ← 자모 솔플 전적(난이도별 하루 첫 판만 기록, jamo_solo_daily)
+    catchmind.js         ← 캐치마인드 그림 저장소(그림 CRUD, 출제, 정답 시도, 초성 동의, 신고)
     sessionStore.js      ← express-session SQLite 저장소
   routes/
     auth.js              ← /api/auth, /api/auth/logout, /api/me, /api/me/username,
                            /api/me/avatar, /api/me/stats, /api/ranking
     solo.js              ← /api/solo/jamo (GET 오늘 상태 / POST 솔플 한 판 결과)
+    catchmind.js         ← /api/catchmind/* (제시어 배정·그림 저장·출제·정답·초성·신고·내 그림)
   shared/
     roomManager.js       ← 범용 방 관리 팩토리 (createRoomManager)
     socketHandlers.js    ← 공통 소켓 핸들러 등록 (registerCommonHandlers)
@@ -64,9 +69,12 @@ src/
     chainLogic.js        ← (wordchain 전용) 한글 음절 분해/두음법칙/단어 검증 순수 로직 (allowedStarts, validateWord)
     dictionary.js        ← (wordchain 전용) words.txt.gz(표준국어대사전 기반 36만 단어)를 기동 시 Set으로 로드 (hasWord)
     (liar 전용은 별도 순수 로직 파일 없이 socket.js 안에 역할 배정·투표 집계 로직이 있다)
+  game/catchmind/        ← 소켓/방이 없는 게임이라 rooms.js·socket.js 가 없다
+    words.js             ← 제시어 사전(카테고리별 그릴 수 있는 명사 ~350개) + 배정 로직(pickWord)
+    drawingLogic.js      ← 초성 추출·정답 판정·획 데이터 검증 순수 로직 (chosungOf, isCorrect, sanitizeStrokes)
 
 views/
-  layouts/base.pug      ← 공통 HTML head, script, 채팅 포함
+  layouts/base.pug      ← 공통 HTML head, script, 채팅 포함(`hasChat: false` 면 채팅 제외)
   mixins/
     lobby.pug           ← +lobby() 로비 화면
     waiting.pug         ← +waitingRoom() 대기실 (게임별 host 전용 UI는 block 슬롯으로 주입 가능)
@@ -79,6 +87,7 @@ views/
     jamo.pug             ← +waitingRoom() 블록으로 방장 제시어 입력 UI 주입
     wordchain.pug
     liar.pug             ← 방장 진짜/가짜 제시어 입력, 힌트·투표·라이어 최후 추측 UI
+    catchmind.pug        ← 홈/그리기/맞히기/내 그림 4개 화면 (로비·대기실 믹스인 안 씀, 채팅 없음)
 
 client/
   js/
@@ -99,10 +108,11 @@ client/
     jamo.js              ← 자모 보드/키보드 렌더링, 답 제출
     wordchain.js         ← 끝말잇기 고유 로직 (단어 체인 렌더링, 턴 타이머, 단어 제출)
     liar.js              ← 라이어 게임 고유 로직 (역할·제시어 개인화 렌더링, 힌트·투표 UI)
+    catchmind.js         ← 캔버스 그리기 엔진(획 기록·되돌리기·재생) + 그리기/맞히기/내 그림 화면
     utils.js            ← escHtml, showError
   partials/
     crocodile-svg.html  ← 악어 SVG (서버에서 읽어 Pug 변수로 주입)
-  scss/{crocodile,bomb,tetris,jamo,wordchain,liar}.scss  ← @use 'components' 공통 임포트
+  scss/{crocodile,bomb,tetris,jamo,wordchain,liar,catchmind}.scss  ← @use 'components' 공통 임포트
   scss/_components.scss              ← 공통 UI 컴포넌트
   scss/_variables.scss
   scss/_base.scss
@@ -142,6 +152,7 @@ client/
 - `GET /jamo` → Pug 렌더링 (`views/pages/jamo.pug`)
 - `GET /wordchain` → Pug 렌더링 (`views/pages/wordchain.pug`)
 - `GET /liar` → Pug 렌더링 (`views/pages/liar.pug`)
+- `GET /catchmind` → Pug 렌더링 (`views/pages/catchmind.pug`, `hasChat: false`)
 - 기존 정적 HTML 파일은 제거 가능 (Pug로 대체됨). 단, 홈(로비 선택) 페이지인 `client/index.html`은 정적 파일로 유지
 
 ## 관전 시스템
@@ -259,6 +270,46 @@ client/
 - 서버 상수 `JAMO_SOLO_MAX_ATTEMPTS`·`JAMO_SOLO_DIFFICULTIES`(`src/config.js`)는 클라이언트 `SOLO_MAX_ATTEMPTS`·`SOLO_DIFFICULTY`(`client/js/jamoWords.js`)와 같은 값으로 유지해야 한다
 - 시도는 최대 6회(`SOLO_MAX_ATTEMPTS`). 채점/분해 로직(`decompose`/`judge`/`keyboardFromAttempts`)은 서버 `jamoLogic.js`와 동일 규칙을 `client/js/jamo.js`에 그대로 둔다(멀티는 서버가 채점하지만 솔플은 로컬이므로). 멀티용 렌더 함수(`renderAttemptRow`/`renderEmptyRow`/`renderKeyboard`/`updateComposingCells`)와 입력 조합 로직을 그대로 재사용
 - 화면: `#screen-solo`(뷰는 `views/pages/jamo.pug`). 로비 진입 버튼은 `+lobby` 블록의 `.solo-diff-btn`(오늘 클리어한 난이도는 `.cleared` + '오늘 클리어 ✅' 표시). `/jamo` 페이지 자체는 닉네임(세션)이 있어야 진입 가능(홈에서 로그인)
+
+## 캐치마인드 — 게임 규칙 (방 없는 비동기 게임)
+
+다른 게임과 달리 **방도 소켓도 없다.** 혼자 들어와 제시어를 받아 그림을 그려 올려두면, 다른 사람이 아무 때나 들어와 그 그림을 맞힌다. 그래서 서버는 평범한 HTTP 라우터(`src/routes/catchmind.js`) 하나뿐이고, `registerCommonHandlers`·`createRoomManager` 를 쓰지 않는다.
+
+### 제시어
+- 사전은 `src/game/catchmind/words.js` 에 직접 큐레이션해 넣었다(카테고리 9종, 약 350개). 기준은 **손으로 30초 안에 그릴 수 있는 것** — 추상어는 넣지 않는다
+- 남의 제시어 목록(나무위키의 캐치마인드 문제 목록 등)을 쓰지 않은 이유: CC BY-NC-SA(비영리·동일조건) 라이선스라 나중에 걸림돌이 되고, 원본이 특정 게임사의 DB다. 사전이 작아도 되는 이유는 **콘텐츠가 제시어가 아니라 유저가 그린 그림으로 늘어나기 때문** (같은 '고양이'도 그린 사람이 다르면 다른 문제)
+- 배정은 `GET /api/catchmind/word`. 후보 8개를 뽑아 **그림이 가장 적게 쌓인 것**을 준다 → 인기 단어에 그림이 몰리지 않는다. `?refresh=1` 이면 방금 준 제시어는 피한다
+- **배정한 제시어는 세션(`req.session.catchmindWord`)에 넣고, 저장할 때 그 값을 쓴다.** 클라이언트가 보낸 제시어를 믿으면 아무 단어나 정답으로 만들 수 있다. 저장 후에는 세션 값을 비워 한 제시어로 두 번 올리지 못하게 한다
+
+### 그림 저장 형식 (PNG 아님)
+- 그림은 이미지가 아니라 **획 좌표**로 저장한다: `[{ c: 색인덱스, s: 굵기인덱스, e: 0|1(지우개), p: [x,y,x,y,…] }]`
+- 이유 셋 — 용량이 이미지의 몇 분의 일이라 SQLite 에 수천 장이 쌓여도 괜찮고, **그린 순서대로 재생**할 수 있고(캐치마인드 재미의 절반), 화면 크기와 무관하게 다시 그릴 수 있다
+- 좌표계는 항상 `1000×750`(4:3) 논리 좌표. `sanitizeStrokes`(`drawingLogic.js`)가 모양·범위·개수를 검증하고 어긋나면 통째로 거절한다(획 300개 / 점 12,000개 / JSON 200KB 상한 — `src/config.js`)
+- 색 팔레트(`PALETTE`)와 굵기(`SIZES`)는 서버 `drawingLogic.js` 와 클라이언트 `client/js/catchmind.js` 가 **순서까지 같아야 한다**(인덱스로 저장하므로)
+- 지우개는 별도 합성 모드가 아니라 **종이색(흰색)으로 긋는 획**이다. 종이는 테마와 무관하게 항상 흰색 — 그린 사람과 맞히는 사람이 같은 그림을 봐야 한다
+
+### 맞히기
+- `GET /api/catchmind/quiz` 가 **숨김 아님 + 내 그림 아님 + 내가 아직 끝내지 않은** 그림을 랜덤으로 한 장 준다
+  - 제외 기준이 '풀이 기록 없음'이 아니라 `catchmind_plays.finished = 1` 인 것이 중요하다. 열어만 보고 나간 그림까지 빼버리면 다시는 안 나온다
+  - 새 그림이 다 떨어지면 아무 그림이나 **복습**(`replay: true`)으로 주되 전적에는 반영하지 않는다
+- 정답에 대한 힌트는 **글자 수만** 준다(`length` → 빈 칸 n개). 정답 문자열은 라운드가 끝나기 전엔 어떤 경로로도 클라이언트에 보내지 않는다
+- 시도는 `CATCHMIND_MAX_ATTEMPTS`(5회). 다 쓰면 패, `POST …/giveup`(포기)도 패. 정답 비교는 `isCorrect` — 공백·문장부호를 걷어낸 완전 일치
+- 전적 키는 `catchmind`. **그 그림을 처음 끝낼 때 한 번만** 기록한다(`catchmind_plays.finished`) → 복습·재도전으로 승수가 부풀지 않는다. 점수는 초성 없이 맞히면 3점, 초성이 공개된 상태면 1점
+
+### 초성 힌트 — 3인 동의제
+- 초성은 개인이 열 수 없다. `POST …/hint` 로 **서로 다른 사람 `CATCHMIND_HINT_VOTES`(3)명**이 동의하면 그 그림의 초성이 **영구 공개**된다(`catchmind_drawings.hint_revealed`)
+- 1·2번째로 누른 사람은 `n/3` 안내만 보고, 3번째로 누른 사람부터 초성을 본다. 어려운 그림일수록 표가 빨리 모여 자연스럽게 풀린다
+- 서버는 `hint_revealed` 가 켜진 그림에만 초성을 실어 보낸다 — 안 그러면 개발자 도구로 다 보인다
+
+### 신고 · 내 그림
+- `POST …/report` 신고가 `CATCHMIND_REPORTS_TO_HIDE`(3)회 쌓이면 `hidden = 1` 로 자동 전환되어 출제에서 빠진다(한 사람 1표, `catchmind_reports`)
+- 내 그림은 `GET /api/catchmind/mine` 에서 조회수·정답 수와 함께 보고, `DELETE /api/catchmind/drawings/:id` 로 내린다. **삭제가 아니라 `hidden` 플래그**다 — 이미 그 그림을 푼 사람의 전적과 어긋나면 안 되기 때문
+- 홈 화면 안내문은 `GET /api/catchmind/summary`(조회 전용)를 쓴다. 홈에서 `/quiz` 를 부르면 그림이 열람 처리되어 버린다
+
+### 화면 (`views/pages/catchmind.pug` + `client/js/catchmind.js`)
+- 로비·대기실 믹스인을 쓰지 않고 `#screen-home` / `#screen-draw` / `#screen-quiz` / `#screen-mine` 4개 화면을 자체 전환한다. 방이 없으니 채팅도 없다(`hasChat: false` → `base.pug` 가 채팅 믹스인을 빼고 렌더)
+- 캔버스 엔진 `createCanvas(el, { interactive })` 하나로 그리기·맞히기 재생·목록 썸네일을 모두 그린다. 획 배열을 들고 있으므로 되돌리기가 공짜이고, `ResizeObserver` 로 크기가 바뀌면 다시 그린다
+- 이 페이지는 요소를 `hidden` 속성으로 감춘다. `.btn` 처럼 `display` 를 지정한 클래스가 브라우저 기본 `[hidden]` 규칙을 이기므로 `catchmind.scss` 맨 위에 `[hidden] { display: none !important; }` 를 못 박아 뒀다
 
 ## 연결 유지 · 재접속 (모바일 절전 / 앱 전환)
 

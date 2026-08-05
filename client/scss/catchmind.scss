@@ -1,0 +1,513 @@
+@use 'variables' as *;
+@use 'base';
+@use 'components';
+
+// 이 페이지는 요소를 보였다 감췄다 할 때 `hidden` 속성을 쓴다. 그런데 .btn 처럼
+// display 를 지정한 클래스가 브라우저 기본 [hidden] 규칙을 이겨버리므로 못을 박아둔다.
+[hidden] { display: none !important; }
+
+// ── 화면 ──────────────────────────────────────────────────────────────────────
+.screen {
+  display: none;
+  min-height: 100vh;
+  padding: 20px;
+
+  &.active {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+}
+
+#screen-home.active { justify-content: center; }
+
+// 우측 하단 공용 도크(테마·접속자 위젯)는 position:fixed 라 화면 아래쪽 버튼을 덮는다.
+// themeManager.js 가 도크가 실제로 가리는 높이를 --pg-dock-space 로 알려주므로 그만큼 비운다.
+#screen-draw,
+#screen-quiz,
+#screen-mine {
+  padding-bottom: max(var(--pg-dock-space, 96px), 96px);
+}
+
+// ── 홈 ────────────────────────────────────────────────────────────────────────
+.cm-logo {
+  font-size: clamp(3rem, 12vw, 4.5rem);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.title-catchmind {
+  font-size: clamp(2rem, 6vw, 3rem);
+  font-weight: 900;
+  color: var(--green-light);
+  text-align: center;
+  letter-spacing: -1px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.cm-subtitle {
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: center;
+  margin: 6px 0 20px;
+}
+
+.cm-home-card { width: 100%; max-width: 420px; }
+
+.cm-user-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cm-user-avatar {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--chip);
+  font-size: 1.1rem;
+
+  img { width: 100%; height: 100%; object-fit: cover; }
+}
+
+.cm-user-nick { font-weight: 800; }
+
+.cm-mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+
+.cm-mode-emoji { font-size: 1.6rem; flex: 0 0 auto; }
+
+.cm-mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cm-mode-title { font-weight: 800; font-size: 0.98rem; }
+
+.cm-mode-desc {
+  font-size: 0.72rem;
+  opacity: 0.75;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.cm-home-link {
+  display: block;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-decoration: none;
+  margin-top: 6px;
+
+  &:hover { color: var(--text); }
+}
+
+// ── 상단 바 (그리기 · 맞히기 · 내 그림 공통) ──────────────────────────────────
+.cm-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  max-width: 720px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+
+  .btn { width: auto; padding: 8px 12px; font-size: 0.8rem; margin: 0; }
+}
+
+.cm-word-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.cm-word-label {
+  font-size: 0.66rem;
+  color: var(--muted);
+  letter-spacing: 2px;
+}
+
+.cm-word {
+  font-size: clamp(1.4rem, 5vw, 2rem);
+  font-weight: 900;
+  color: var(--green-light);
+  line-height: 1.1;
+}
+
+.cm-word-cat { font-size: 0.7rem; color: var(--muted); }
+
+// ── 캔버스 ────────────────────────────────────────────────────────────────────
+.cm-canvas-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 720px;
+  aspect-ratio: 4 / 3;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff; // 종이는 테마와 무관하게 항상 흰색
+  box-shadow: 0 4px 16px var(--shadow);
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.cm-canvas-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  color: #c9ced4;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.cm-replay-btn {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 6px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #333;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover { background: #fff; }
+}
+
+// ── 그리기 도구 ───────────────────────────────────────────────────────────────
+.cm-tools {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: 720px;
+  margin-top: 12px;
+  padding: 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.cm-palette { display: flex; gap: 6px; }
+
+.cm-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  // 검정 물감은 다크 테마 배경에 묻히므로 옅은 테두리를 항상 둘러 둔다.
+  border: 2px solid var(--border);
+  background: var(--swatch);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.12s;
+
+  &.active {
+    border-color: var(--text);
+    transform: scale(1.15);
+  }
+}
+
+.cm-sizes { display: flex; gap: 6px; }
+
+.cm-size {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--sunken);
+  cursor: pointer;
+
+  span {
+    display: block;
+    border-radius: 50%;
+    background: var(--text);
+  }
+
+  &.active { border-color: var(--green-light); background: var(--chip); }
+}
+
+.cm-tool {
+  width: 36px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--sunken);
+  color: var(--text);
+  font-size: 0.95rem;
+  cursor: pointer;
+
+  &.active { border-color: var(--green-light); background: var(--chip); }
+  &:hover { border-color: var(--green-light); }
+}
+
+.cm-actions {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  max-width: 720px;
+  margin-top: 12px;
+
+  // .btn 은 width:100% 라 그대로 두면 버튼마다 한 줄씩 차지한다. 한 줄에 나눠 앉힌다.
+  .btn { margin: 0; flex: 1 1 0; min-width: 140px; }
+}
+
+.cm-actions-wrap { flex-wrap: wrap; }
+
+.cm-note {
+  color: var(--muted);
+  font-size: 0.76rem;
+  text-align: center;
+  margin-top: 10px;
+  max-width: 720px;
+}
+
+// ── 맞히기 ────────────────────────────────────────────────────────────────────
+.cm-author {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  min-width: 0;
+
+  img {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+}
+
+.cm-author-name { font-weight: 800; color: var(--text); }
+
+.cm-answer-box {
+  width: 100%;
+  max-width: 720px;
+  margin-top: 14px;
+  text-align: center;
+}
+
+.cm-slots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cm-slot {
+  width: 46px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--border);
+  border-bottom-width: 4px;
+  border-radius: 8px;
+  background: var(--sunken);
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: var(--muted);
+
+  &.has-hint { border-color: var(--yellow); color: var(--yellow); }
+
+  &.revealed {
+    border-color: var(--green-light);
+    background: var(--chip);
+    color: var(--green-light);
+  }
+}
+
+.cm-chosung {
+  margin-top: 8px;
+  font-size: 0.76rem;
+  color: var(--yellow);
+  letter-spacing: 1px;
+}
+
+.cm-banner {
+  width: 100%;
+  max-width: 720px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  text-align: center;
+  font-weight: 800;
+  font-size: 0.9rem;
+  background: var(--chip);
+  border: 1px solid var(--border);
+
+  &.win  { color: var(--green-light); border-color: var(--green-light); }
+  &.lose { color: var(--red); border-color: var(--red); }
+  &.miss { color: var(--yellow); border-color: var(--yellow); }
+  &.info { color: var(--text); }
+}
+
+.cm-guess-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  max-width: 720px;
+  margin-top: 14px;
+
+  input {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+  }
+
+  .btn { width: auto; padding: 0 20px; margin: 0; flex: 0 0 auto; }
+}
+
+.cm-quiz-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  max-width: 720px;
+  margin-top: 8px;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+.cm-empty {
+  text-align: center;
+  color: var(--muted);
+  margin-top: 30px;
+
+  p { margin-bottom: 6px; }
+  .cm-empty-sub { font-size: 0.8rem; }
+  .btn { margin-top: 14px; }
+}
+
+// ── 내 그림 ───────────────────────────────────────────────────────────────────
+.cm-summary {
+  flex: 1;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--muted);
+
+  b { color: var(--green-light); }
+}
+
+.cm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  width: 100%;
+  max-width: 720px;
+}
+
+.cm-loading { color: var(--muted); font-size: 0.85rem; text-align: center; }
+
+.cm-card {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--card);
+
+  &.is-hidden { opacity: 0.45; }
+}
+
+.cm-thumb {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: #fff;
+}
+
+.cm-card-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 8px 10px;
+}
+
+.cm-card-word { font-weight: 800; font-size: 0.85rem; }
+.cm-card-stat { font-size: 0.7rem; color: var(--muted); }
+
+.cm-card-flag {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--gray);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 800;
+
+  &.warn { background: var(--red); }
+}
+
+.cm-card-del {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 0.75rem;
+  cursor: pointer;
+
+  &:hover { background: var(--red); }
+}
+
+// ── 모바일 ────────────────────────────────────────────────────────────────────
+@media (max-width: 500px) {
+  .screen { padding: 12px; }
+
+  .cm-top .btn { padding: 7px 10px; font-size: 0.74rem; }
+
+  .cm-slot {
+    width: 38px;
+    height: 46px;
+    font-size: 1.2rem;
+  }
+
+  .cm-tools { gap: 8px; padding: 8px; }
+  .cm-swatch { width: 26px; height: 26px; }
+
+  .cm-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+
+  .cm-actions .btn { min-width: 0; }
+}

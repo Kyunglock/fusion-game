@@ -9,6 +9,7 @@ export const GAMES = {
   wordchain: '끝말잇기',
   liar:      '라이어 게임',
   jamoSolo:  '자모 워들 솔로',
+  catchmind: '캐치마인드',
 };
 
 const SQL = {

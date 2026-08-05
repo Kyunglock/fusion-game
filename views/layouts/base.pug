@@ -21,7 +21,9 @@ html(lang="ko")
 
     block content
 
-    include ../mixins/chat
+    //- 채팅은 방이 있는 게임에만 붙인다 (캐치마인드처럼 방 없는 게임은 hasChat: false)
+    if hasChat !== false
+      include ../mixins/chat
 
     block scripts
       script(type="module" src=`/js/${jsFile}.js`)

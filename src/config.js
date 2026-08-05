@@ -42,6 +42,19 @@ export const WORDCHAIN_TURN_TIMEOUT = 15; // 단어 제출 제한시간 (초)
 export const WORDCHAIN_RETURN_DELAY = 6;  // 라운드 종료 후 대기실 자동 복귀 (초)
 export const WORDCHAIN_MAX_WORD_LEN = 15; // 단어 최대 글자 수
 
+// ── 캐치마인드 (그림 갤러리) ──────────────────────────────────────────────────
+// 방을 만들지 않고 혼자 들어와서 그리거나, 남이 그려둔 그림을 맞히는 비동기 게임.
+// 그린 그림은 DB에 쌓이고, 맞히기는 그 더미에서 아직 안 본 그림을 한 장씩 꺼내 준다.
+export const CATCHMIND_MAX_ATTEMPTS      = 5; // 한 그림당 정답 시도 횟수 (소진하면 패)
+export const CATCHMIND_HINT_VOTES        = 3; // 초성 힌트가 공개되는 데 필요한 동의 인원
+export const CATCHMIND_REPORTS_TO_HIDE   = 3; // 이만큼 신고가 쌓이면 출제에서 자동 제외
+export const CATCHMIND_SCORE_PLAIN       = 3; // 초성 없이 맞혔을 때 점수
+export const CATCHMIND_SCORE_WITH_HINT   = 1; // 초성이 공개된 상태로 맞혔을 때 점수
+// 그림 용량 상한. 좌표는 정수로 정규화해 넣으므로 이 정도면 넉넉하다.
+export const CATCHMIND_MAX_STROKES       = 300;    // 획 개수
+export const CATCHMIND_MAX_POINTS        = 12_000; // 전체 점 개수
+export const CATCHMIND_MAX_JSON_BYTES    = 200_000;
+
 export const LIAR_MAX_PLAYERS  = 9; // 방장 + 참가자 최대 8명
 export const LIAR_MIN_PLAYERS  = 4; // 방장 + 참가자 최소 3명 (라이어 1 + 시민 2 이상)
 export const LIAR_HINT_TIMEOUT = 15; // 힌트 제출 제한시간 (초), 못 내면 힌트 없이 다음 차례로
