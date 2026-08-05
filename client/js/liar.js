@@ -54,9 +54,25 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
   const voteAccuseBtn  = $('liar-vote-accuse');
   const voteMoreBtn    = $('liar-vote-more');
   const voteProgressEl = $('liar-vote-progress');
+  const voteStatusContinueEl = $('liar-vote-status-continue');
   const voteLiarEl     = $('liar-vote-liar');
   const voteTargetList = $('liar-vote-target-list');
   const voteProgress2El = $('liar-vote-progress2');
+  const voteStatusLiarEl = $('liar-vote-status-liar');
+  const defenseEl        = $('liar-defense');
+  const defenseNameEl    = $('liar-defense-name');
+  const defenseTimerWrap = $('liar-defense-timer-wrap');
+  const defenseTimerBar  = $('liar-defense-timer-bar');
+  const defenseTimerNum  = $('liar-defense-timer-num');
+  const defenseLogEl     = $('liar-defense-log');
+  const defenseToast     = $('liar-defense-toast');
+  const defenseForm      = $('liar-defense-form');
+  const defenseInput     = $('liar-defense-input');
+  const confirmVoteEl     = $('liar-confirm-vote');
+  const confirmProceedBtn = $('liar-confirm-proceed');
+  const confirmWithdrawBtn = $('liar-confirm-withdraw');
+  const voteProgress3El    = $('liar-vote-progress3');
+  const voteStatusConfirmEl = $('liar-vote-status-confirm');
   const guessForm      = $('liar-guess-form');
   const guessInput     = $('liar-guess-input');
   const btnLiarGuess   = $('btn-liar-guess');
@@ -85,6 +101,7 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
       screens.game.classList.remove('is-spectating');
       roomState = null;
       stopTimer();
+      stopDefenseTimer();
       showScreen('lobby');
     },
   });
@@ -114,6 +131,37 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
     };
     tick();
     timerInterval = setInterval(tick, 100);
+  }
+
+  // ── 최후 반론 타이머 (10초 고정) ─────────────────────────────────────────────
+  const DEFENSE_TIME = 10;
+  let defenseInterval = null;
+
+  function stopDefenseTimer() {
+    clearInterval(defenseInterval);
+    defenseInterval = null;
+  }
+
+  function startDefenseTimer(deadline) {
+    clearInterval(defenseInterval);
+    const tick = () => {
+      const rem = Math.max(0, deadline - Date.now());
+      defenseTimerNum.textContent = Math.ceil(rem / 1000);
+      defenseTimerBar.style.width = `${Math.min(100, (rem / (DEFENSE_TIME * 1000)) * 100)}%`;
+      if (rem <= 0) clearInterval(defenseInterval);
+    };
+    tick();
+    defenseInterval = setInterval(tick, 100);
+  }
+
+  // ── 투표 참여 현황(누가 투표했는지) ──────────────────────────────────────────
+  function renderVoterStatus(container, participants, votedIds) {
+    const voted = new Set(votedIds ?? []);
+    container.innerHTML = participants.map(p => `
+      <li class="${voted.has(p.id) ? 'voted' : ''}${p.disconnected ? ' is-offline' : ''}">
+        <span class="liar-voter-dot"></span>
+        <span>${nameHtml(p.name)}</span>
+      </li>`).join('');
   }
 
   // ── Render waiting ───────────────────────────────────────────────────────
@@ -163,7 +211,8 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
     // ── 방장 '대기실로 나가기' ─────────────────────────────────────────────
     returnLobby.style.display = (iAmHost && !isSpectator) ? '' : 'none';
 
-    const inRound = phase === 'hint' || phase === 'voteContinue' || phase === 'voteLiar' || phase === 'liarGuess';
+    const inRound = phase === 'hint' || phase === 'voteContinue' || phase === 'voteLiar' ||
+                    phase === 'defense' || phase === 'confirmAccuse' || phase === 'liarGuess';
 
     // ── 내 제시어 (참가자 전용) ────────────────────────────────────────────
     if (inRound && !isSpectator && !iAmHost && liarState.me) {
@@ -200,6 +249,12 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
     } else if (phase === 'voteLiar') {
       turnBanner.textContent = '라이어라고 생각하는 사람에게 투표하세요!';
       turnBanner.className = '';
+    } else if (phase === 'defense') {
+      turnBanner.textContent = '지목된 사람의 최후 반론 시간입니다…';
+      turnBanner.className = '';
+    } else if (phase === 'confirmAccuse') {
+      turnBanner.textContent = '반론을 들었습니다. 그대로 진행할지 투표하세요!';
+      turnBanner.className = '';
     } else if (phase === 'liarGuess') {
       turnBanner.textContent = '라이어의 정체가 밝혀졌습니다!';
       turnBanner.className = '';
@@ -229,6 +284,7 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
     voteContinueEl.style.display = showVoteContinue ? '' : 'none';
     if (phase === 'voteContinue') {
       voteProgressEl.textContent = `${state.votesIn ?? 0} / ${state.votesNeeded ?? 0}명 투표 완료`;
+      renderVoterStatus(voteStatusContinueEl, participants, state.votedIds);
     }
 
     // ── 투표 2: 라이어 지목 ──────────────────────────────────────────────
@@ -242,6 +298,33 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
         btn.addEventListener('click', () => socket.emit('cast_accuse_vote', { targetId: btn.dataset.id }));
       });
       voteProgress2El.textContent = `${state.votesIn ?? 0} / ${state.votesNeeded ?? 0}명 투표 완료`;
+      renderVoterStatus(voteStatusLiarEl, participants, state.votedIds);
+    }
+
+    // ── 최후 반론 (10초 카운트다운 + 지목당한 사람 전용 입력 토스트) ────────
+    console.log('[debug] phase=', phase, 'accusedId=', state.accusedId, 'myId=', myId, 'isSpectator=', isSpectator);
+    defenseEl.style.display = phase === 'defense' ? '' : 'none';
+    if (phase === 'defense') {
+      const accused = state.players.find(p => p.id === state.accusedId);
+      defenseNameEl.textContent = accused ? nameText(accused.name) : '';
+      if (state.defenseDeadline) startDefenseTimer(state.defenseDeadline);
+    } else {
+      stopDefenseTimer();
+    }
+
+    const lines = (phase === 'defense' || phase === 'confirmAccuse') ? (state.defenseLines ?? []) : [];
+    defenseLogEl.innerHTML = lines.map(l => `<li>${escHtml(l.text)}</li>`).join('');
+
+    const iAmAccused = phase === 'defense' && !isSpectator && state.accusedId === myId;
+    defenseToast.style.display = iAmAccused ? '' : 'none';
+    if (iAmAccused && document.activeElement !== defenseInput) defenseInput.focus();
+
+    // ── 투표 3: 반론 이후 그대로 진행 vs 철회 ────────────────────────────────
+    const showConfirmVote = phase === 'confirmAccuse' && !isSpectator && iAmParticipant;
+    confirmVoteEl.style.display = showConfirmVote ? '' : 'none';
+    if (phase === 'confirmAccuse') {
+      voteProgress3El.textContent = `${state.votesIn ?? 0} / ${state.votesNeeded ?? 0}명 투표 완료`;
+      renderVoterStatus(voteStatusConfirmEl, participants, state.votedIds);
     }
 
     // ── 라이어의 마지막 기회 ────────────────────────────────────────────────
@@ -299,6 +382,12 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
     if (result === 'tie') appendSystemMessage('🤔 투표가 동률이라 다시 투표합니다.');
     else if (result === 'accuse') appendSystemMessage('👉 과반이 라이어 지목에 찬성했습니다.');
     else if (result === 'continue') appendSystemMessage('🔁 한 바퀴 더 돕니다.');
+    else if (result === 'proceed') appendSystemMessage('👉 지목을 그대로 진행합니다.');
+    else if (result === 'withdraw') appendSystemMessage('🔁 지목을 철회하고 한 바퀴 더 돕니다.');
+  });
+
+  socket.on('liar_accused', ({ accusedName }) => {
+    appendSystemMessage(`⚠️ ${nameText(accusedName)}님이 라이어로 지목됐습니다! 최후 반론 시간(10초)을 드립니다.`);
   });
 
   socket.on('liar_accuse_result', ({ correct, accusedName }) => {
@@ -325,7 +414,7 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
   });
 
   socket.on('alone_in_room', ({ message }) => {
-    showAloneOverlay(message, () => stopTimer());
+    showAloneOverlay(message, () => { stopTimer(); stopDefenseTimer(); });
   });
 
   // ── UI event listeners ────────────────────────────────────────────────────
@@ -370,8 +459,20 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
     hintInput.value = '';
   });
 
+  defenseForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = defenseInput.value.trim();
+    if (!text) return;
+    socket.emit('submit_defense_line', { text });
+    defenseInput.value = '';
+    defenseInput.focus();
+  });
+
   voteAccuseBtn.addEventListener('click', () => socket.emit('cast_continue_vote', { choice: 'accuse' }));
   voteMoreBtn.addEventListener('click',   () => socket.emit('cast_continue_vote', { choice: 'continue' }));
+
+  confirmProceedBtn.addEventListener('click',  () => socket.emit('cast_confirm_vote', { choice: 'proceed' }));
+  confirmWithdrawBtn.addEventListener('click', () => socket.emit('cast_confirm_vote', { choice: 'withdraw' }));
 
   btnLiarGuess.addEventListener('click', () => {
     const guess = guessInput.value.trim();

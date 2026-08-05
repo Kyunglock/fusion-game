@@ -241,17 +241,19 @@ client/
 
 ## 라이어 게임 — 게임 규칙
 - 최소 4명(방장 + 참가자 3명 이상), 최대 9명. **방장은 자모 워들처럼 진행만 담당하고 게임(힌트·투표)에 참여하지 않는다**
-- 게임 상태(`room.state`)로 라운드의 세부 단계까지 표현한다: `lobby` → `wordSetup`(방장이 진짜/라이어 제시어 입력) → `hint`(참가자가 순서대로 힌트 제출) → `voteContinue`(한 바퀴 더 vs 라이어 지목 투표) → [`voteLiar`(지목 투표) → [`liarGuess`(라이어가 진짜 제시어 맞히기)]] → 다시 `wordSetup`(결과 공개, 다음 라운드 대기)
+- 게임 상태(`room.state`)로 라운드의 세부 단계까지 표현한다: `lobby` → `wordSetup`(방장이 진짜/라이어 제시어 입력) → `hint`(참가자가 순서대로 힌트 제출) → `voteContinue`(한 바퀴 더 vs 라이어 지목 투표) → [`voteLiar`(지목 투표) → `defense`(지목된 사람의 최후 반론 10초) → `confirmAccuse`(그대로 진행 vs 철회 투표) → [`liarGuess`(라이어가 진짜 제시어 맞히기)]] → 다시 `wordSetup`(결과 공개, 다음 라운드 대기)
 - `set_words { realWord, liarWord }`: 방장이 진짜 제시어와 라이어용 가짜 제시어를 **둘 다 직접 텍스트로** 입력한다(자동 생성 아님 — 가짜 제시어가 진짜와 전혀 다른 것이 되도록 방장이 책임진다). 참가자 중 한 명을 무작위로 라이어로 뽑아 가짜 제시어를, 나머지는 진짜 제시어를 배정한다
 - 참가자의 역할(`role`)·제시어(`word`)는 뷰어별로 감춰야 하므로 `safeState`에는 넣지 않고 `socket.js`의 `emitLiarState`가 개인화된 `liar_state` 이벤트로 따로 보낸다. **참가자는 자신의 제시어만** 보고, **방장·관전자는 참가자 전원의 역할·제시어를 모두** 본다
-- 힌트: 라운드 시작 시 참가자 순서를 무작위로 섞어(`turnOrder`) 시계방향으로 한 명씩 힌트를 제출한다. 제한시간(`LIAR_HINT_TIMEOUT`, 15초) 안에 못 내면 힌트 없이 다음 차례로 넘어간다(`round-cancelled`가 아니라 `skipped` 힌트로 기록). 전원이 한 바퀴 돌면 자동으로 투표 단계로 전환
+- 힌트: 라운드 시작 시 참가자 순서를 무작위로 섞어(`turnOrder`) 시계방향으로 한 명씩 힌트를 제출한다. 제한시간(`hintTimeout`, 기본 15초 — 방장이 대기실·게임 화면에서 15~60초로 실시간 조절 가능, `set_hint_timeout`) 안에 못 내면 힌트 없이 다음 차례로 넘어간다(`skipped` 힌트로 기록). 전원이 한 바퀴 돌면 자동으로 투표 단계로 전환
 - 투표 1(`cast_continue_vote`): '라이어 지목' vs '한 바퀴 더' 중 선택. 과반이 지목이면 `voteLiar`로, 과반이 한 바퀴 더면 같은 순서로 `hint`가 다시 시작된다. 동률이면 투표를 초기화하고 재투표
 - 투표 2(`cast_accuse_vote`, `voteLiar` 단계): 참가자를 클릭해 라이어로 지목. 최다 득표자가 유일하면 확정, 동률이면 재투표
-  - 확정된 지목 대상이 **실제 라이어가 아니면** 그 즉시 **라이어 승리**로 라운드 종료
-  - 확정된 지목 대상이 **실제 라이어면** `liarGuess`로 전환 — 라이어에게 마지막 기회로 진짜 제시어를 맞힐 입력창을 준다(`submit_liar_guess`). 맞히면 라이어 승리, 틀리면 시민 승리
+  - 지목이 확정되면 바로 결론 내지 않고 **`defense` 단계(10초)** 로 넘어가 지목된 사람에게 최후 반론 시간을 준다. 지목된 사람에게만 뜨는 토스트 입력창(`submit_defense_line`)에 한 줄씩 적으면 `room.defenseLines`에 쌓여 모두에게 실시간으로 공개된다(일기처럼 여러 줄 남길 수 있음, 최근 20줄만 보관)
+  - 10초 후 **`confirmAccuse` 투표(`cast_confirm_vote`)** 로 '그대로 진행' vs '철회' 중 선택. 과반이 철회면 지목을 무르고 `hint`로 돌아가 같은 순서로 계속 진행. 과반이 진행이면 `resolveAccusation`으로 실제 결론을 낸다: 지목 대상이 **라이어가 아니면** 그 즉시 **라이어 승리**로 라운드 종료, **라이어가 맞으면** `liarGuess`로 전환해 라이어에게 마지막 기회로 진짜 제시어를 맞힐 입력창을 준다(`submit_liar_guess`). 맞히면 라이어 승리, 틀리면 시민 승리. 동률이면 재투표
+  - 위 세 투표(`voteContinue`/`voteLiar`/`confirmAccuse`) 모두 `votedIds`(누가 투표했는지)를 `safeState`로 공개해 클라이언트가 참가자별 투표 완료 표시(점 켜짐)를 그린다. 무엇을 투표했는지는 집계 전까지 비공개
+  - 투표 분모(`votesNeeded`)는 재접속 유예 중(`disconnected`)인 참가자를 제외한다 — 안 그러면 끊긴 사람 몫만큼 투표가 영원히 안 채워진 것처럼 보인다. 누군가 끊기는 순간(`disconnect`의 `immediate` 콜백)에도 바로 재집계해서, 그 사람이 마지막 한 표였다면 90초 유예를 기다리지 않고 바로 진행된다
 - 라운드 종료(`endRound`)는 결과를 `room.lastResult`(승리 진영/라이어 이름/두 제시어)에 저장하고 바로 `wordSetup`으로 돌아간다(자모 워들처럼 자동 복귀 타이머 없음, 방장이 다음 제시어를 내면 새 라운드 시작). 전적은 `recordPlayers('liar', ...)`로 남기며, 승리 진영에 따라 라이어/시민 각각 win·lose 기록
-- 라이어가 라운드 도중 나가면 정체가 성립하지 않으므로 승패 기록 없이 즉시 `wordSetup`으로 되돌리고 `round_cancelled` 이벤트로 안내한다(자모 워들의 `cancel_round`와 같은 원칙)
-- 재접속 대응: `remapPlayerId`가 `liarId`/`currentTurn`/`accusedId`/`turnOrder`/`hints[].playerId`/투표 맵의 키·값을 모두 갱신한다
+- 라이어가 라운드 도중 나가면 정체가 성립하지 않으므로 승패 기록 없이 즉시 `wordSetup`으로 되돌리고 `round_cancelled` 이벤트로 안내한다(자모 워들의 `cancel_round`와 같은 원칙). 인원이 `LIAR_MIN_PLAYERS` 아래로 떨어지면(`createRoomManager`의 공통 로직) 역시 승패 기록 없이 대기실로 돌아간다
+- 재접속 대응: `remapPlayerId`가 `liarId`/`currentTurn`/`accusedId`/`turnOrder`/`hints[].playerId`/투표(`continueVotes`·`accuseVotes`·`confirmVotes`) 맵의 키·값을 모두 갱신한다
 
 ## 자모 워들 — 솔로 플레이(솔플)
 - 로비에서 방을 만들지 않고 난이도(하/중/상)만 골라 바로 시작하는 모드. **채점은 전부 이 브라우저 안에서** 돈다(소켓 없음). 판이 끝났을 때만 전적 기록용으로 서버에 결과를 한 번 보낸다

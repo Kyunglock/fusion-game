@@ -70,12 +70,41 @@ block content
         button#liar-vote-accuse.btn.btn-danger 라이어 지목하기
         button#liar-vote-more.btn.btn-secondary 한 바퀴 더
       #liar-vote-progress
+      ul#liar-vote-status-continue.liar-voter-list
 
     //- 투표 2: 라이어로 지목할 사람 선택
     #liar-vote-liar(style="display:none")
       p.liar-vote-title 라이어라고 생각하는 사람을 선택하세요
       ul#liar-vote-target-list.liar-vote-target-list
       #liar-vote-progress2
+      ul#liar-vote-status-liar.liar-voter-list
+
+    //- 지목당한 사람의 최후 반론 (10초)
+    #liar-defense(style="display:none")
+      p.liar-vote-title
+        strong#liar-defense-name
+        |  님이 라이어로 지목됐습니다! 최후 반론 시간을 드립니다
+      #liar-defense-timer-wrap
+        #liar-defense-timer-track
+          #liar-defense-timer-bar
+        #liar-defense-timer-num -
+      ul#liar-defense-log.liar-defense-log
+
+    //- 지목당한 사람 전용 반론 입력 토스트 (일기 쓰듯 한 줄씩)
+    #liar-defense-toast(style="display:none")
+      .liar-defense-toast-title 🤫 억울하다면 지금 변론하세요 (혼자만 쓸 수 있어요)
+      form#liar-defense-form(autocomplete="off")
+        input#liar-defense-input(type="text" placeholder="예: 저는 절대 라이어가 아닙니다..." maxlength="80" autocomplete="off" enterkeyhint="send")
+        button.btn.btn-primary(type="submit") 적기
+
+    //- 투표 3: 반론 이후 — 그대로 진행 vs 철회
+    #liar-confirm-vote(style="display:none")
+      p.liar-vote-title 그대로 지목을 진행할까요, 철회할까요?
+      .liar-vote-buttons
+        button#liar-confirm-proceed.btn.btn-danger 그대로 진행
+        button#liar-confirm-withdraw.btn.btn-secondary 철회
+      #liar-vote-progress3
+      ul#liar-vote-status-confirm.liar-voter-list
 
     //- 라이어의 마지막 기회 (본인에게만 입력창, 나머지는 대기 메시지)
     #liar-guess-form(style="display:none")

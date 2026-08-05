@@ -352,7 +352,9 @@
 
 // ── 투표 UI ────────────────────────────────────────────────────────────────────
 #liar-vote-continue,
-#liar-vote-liar {
+#liar-vote-liar,
+#liar-confirm-vote,
+#liar-defense {
   width: 100%;
   max-width: 500px;
   display: flex;
@@ -377,7 +379,8 @@
 }
 
 #liar-vote-progress,
-#liar-vote-progress2 {
+#liar-vote-progress2,
+#liar-vote-progress3 {
   text-align: center;
   font-size: 0.78rem;
   color: var(--muted);
@@ -393,6 +396,140 @@
   li { width: 100%; }
 
   .liar-target-btn { margin: 0; }
+}
+
+// ── 투표 참여자 현황 (누가 투표했는지) ─────────────────────────────────────────
+.liar-voter-list {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  width: 100%;
+  padding: 8px 0 0;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 5px 12px 5px 8px;
+    font-size: 0.78rem;
+    color: var(--muted);
+    transition: border-color 0.2s, color 0.2s;
+  }
+
+  .liar-voter-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+
+  li.voted {
+    border-color: var(--green-light);
+    color: var(--text);
+
+    .liar-voter-dot {
+      background: var(--green-light);
+      box-shadow: 0 0 6px var(--green-light);
+    }
+  }
+
+  li.is-offline { opacity: 0.5; }
+}
+
+// ── 최후 반론 타이머 ───────────────────────────────────────────────────────────
+#liar-defense-name { color: var(--red); }
+
+#liar-defense-timer-wrap {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#liar-defense-timer-track {
+  flex: 1;
+  height: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+#liar-defense-timer-bar {
+  height: 100%;
+  width: 100%;
+  border-radius: 20px;
+  background: linear-gradient(90deg, var(--red-dark), var(--red));
+  transition: width 0.1s linear;
+}
+
+#liar-defense-timer-num {
+  font-size: 1.2rem;
+  font-weight: 900;
+  color: var(--red);
+  min-width: 32px;
+  text-align: center;
+}
+
+// ── 반론 기록 (모두에게 공개) ──────────────────────────────────────────────────
+.liar-defense-log {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  max-height: 20vh;
+  overflow-y: auto;
+  padding: 0;
+
+  &:empty { display: none; }
+
+  li {
+    background: var(--bubble);
+    border-radius: 12px;
+    padding: 8px 14px;
+    font-size: 0.85rem;
+    color: var(--text);
+    animation: fade-in 0.25s ease;
+  }
+}
+
+// ── 반론 입력 토스트 (지목당한 사람 전용, 일기 쓰듯 혼자 적는 느낌) ────────────
+#liar-defense-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 700;
+  width: min(360px, calc(100vw - 32px));
+  background: var(--card);
+  border: 1.5px solid var(--red);
+  border-radius: 18px;
+  padding: 14px 16px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+  animation: pop-in 0.3s cubic-bezier(0.17, 0.84, 0.44, 1);
+}
+
+.liar-defense-toast-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--red);
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+#liar-defense-form {
+  display: flex;
+  gap: 8px;
+
+  input { flex: 1; margin-bottom: 0; }
+  button { width: auto; padding: 10px 16px; flex-shrink: 0; margin: 0; }
 }
 
 // ── 라이어의 마지막 기회 ────────────────────────────────────────────────────────
@@ -689,4 +826,6 @@
 #screen-game.is-spectating #liar-host-setup,
 #screen-game.is-spectating #liar-vote-continue,
 #screen-game.is-spectating #liar-vote-liar,
+#screen-game.is-spectating #liar-confirm-vote,
+#screen-game.is-spectating #liar-defense-toast,
 #screen-game.is-spectating #liar-guess-form { display: none !important; }
