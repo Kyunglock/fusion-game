@@ -106,7 +106,9 @@ const SQL = {
            u.username AS author, u.avatar AS author_avatar,
            d.user_id AS author_id,
            COALESCE(SUM(p.attempts - p.solved), 0) AS misses,
-           MAX(CASE WHEN p.user_id = @userId AND p.solved = 1 THEN 1 ELSE 0 END) AS solved_by_me
+           MAX(CASE WHEN p.user_id = @userId AND p.solved   = 1 THEN 1 ELSE 0 END) AS solved_by_me,
+           -- 맞혔든 틀렸든 '끝낸' 그림은 그때 정답을 이미 봤으므로 목록에서도 보여준다.
+           MAX(CASE WHEN p.user_id = @userId AND p.finished = 1 THEN 1 ELSE 0 END) AS finished_by_me
     FROM catchmind_drawings d
     JOIN users u ON u.id = d.user_id
     LEFT JOIN catchmind_plays p ON p.drawing_id = d.id
@@ -287,9 +289,9 @@ export const BOARD_SORT_KEYS = Object.keys(BOARD_SORTS);
 /**
  * 그림 랭킹. 추천 많은 순 / 비추천 많은 순 / 사람들이 많이 틀린 순으로 준다.
  *
- * **정답은 여기서 걸러내지 않는다** — 라우터가 `solved_by_me` 를 보고 내가 맞힌
- * 그림(과 내 그림)만 제시어를 실어 보낸다. 아직 못 푼 그림의 답이 목록으로
- * 새어 나가면 맞히기 자체가 무의미해진다.
+ * **정답은 여기서 걸러내지 않는다** — 라우터가 `finished_by_me` 를 보고 내가 이미
+ * 끝낸 그림(과 내 그림)만 제시어를 실어 보낸다. 아직 손대지 않은 그림의 답이
+ * 목록으로 새어 나가면 맞히기 자체가 무의미해진다.
  *
  * @param {number} accountId
  * @param {'likes'|'dislikes'|'misses'} sort

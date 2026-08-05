@@ -212,9 +212,10 @@ router.post('/quiz/:id/report', (req, res) => {
 /**
  * GET /api/catchmind/board?sort=likes|misses — 그림 랭킹
  *
- * 그림·통계는 모두에게 보여주되 **제시어는 내가 맞힌 그림(과 내가 그린 그림)만**
- * 실어 보낸다. 아직 못 푼 그림은 글자 수만 알려주고 `word: null` 로 내려간다 —
- * 목록에서 답이 새면 맞히기가 무의미해진다.
+ * 그림·통계는 모두에게 보여주되 **제시어는 내가 이미 끝낸 그림(과 내가 그린
+ * 그림)만** 실어 보낸다. 맞혔든 틀렸든 끝냈다면 그 자리에서 정답을 봤으니 가릴
+ * 이유가 없다. 아직 손대지 않은 그림은 글자 수만 알려주고 `word: null` 로
+ * 내려간다 — 목록에서 답이 새면 맞히기가 무의미해진다.
  */
 router.get('/board', (req, res) => {
   const accountId = req.session.accountId;
@@ -222,14 +223,15 @@ router.get('/board', (req, res) => {
 
   const items = store.leaderboard(accountId, sort).map((d) => {
     const mine    = d.author_id === accountId;
-    const canSee  = mine || d.solved_by_me === 1;
+    const canSee  = mine || d.finished_by_me === 1;
     return {
       id:       d.id,
       strokes:  parseStrokes(d.strokes),
       length:   [...d.word].length,
       word:     canSee ? d.word : null,
       mine,
-      solvedByMe: d.solved_by_me === 1,
+      solvedByMe:   d.solved_by_me === 1,
+      finishedByMe: d.finished_by_me === 1,
       likes:    d.likes,
       dislikes: d.dislikes,
       misses:   d.misses,

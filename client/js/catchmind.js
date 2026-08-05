@@ -560,7 +560,7 @@ const BOARD_STAT = {
   misses:   d => `😵 ${d.misses}`,
 };
 
-/** 정답 자리 — 맞힌 그림은 제시어를, 아직 못 푼 그림은 글자 수만 */
+/** 정답 자리 — 내가 끝낸 그림(맞힘·틀림 모두)은 제시어를, 아직 안 푼 그림은 글자 수만 */
 function boardWordHtml(d) {
   if (d.word) {
     return `<span class="cm-card-word">${escHtml(d.word)}</span>`;
@@ -599,6 +599,7 @@ async function loadBoard() {
       </div>
       ${d.mine ? '<span class="cm-card-flag">내 그림</span>' : ''}
       ${!d.mine && d.solvedByMe ? '<span class="cm-card-flag ok">맞힘</span>' : ''}
+      ${!d.mine && d.finishedByMe && !d.solvedByMe ? '<span class="cm-card-flag miss">틀림</span>' : ''}
     </div>
   `).join('');
 
