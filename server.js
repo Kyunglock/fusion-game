@@ -11,6 +11,7 @@ import { PORT, SOCKET_PING_INTERVAL, SOCKET_PING_TIMEOUT, SOCKET_RECONNECT_GRACE
 import { SqliteSessionStore } from './src/db/sessionStore.js';
 import authRouter          from './src/routes/auth.js';
 import soloRouter          from './src/routes/solo.js';
+import catchmindRouter     from './src/routes/catchmind.js';
 import { registerHandlers } from './src/game/crocodile/socket.js';
 import { registerBombHandlers }   from './src/game/bomb/socket.js';
 import { registerTetrisHandlers } from './src/game/tetris/socket.js';
@@ -58,6 +59,7 @@ io.use((socket, next) => sessionMiddleware(socket.request, socket.request.res ||
 
 app.use('/api', authRouter);
 app.use('/api/solo', soloRouter);
+app.use('/api/catchmind', catchmindRouter);
 app.use(express.static(join(__dirname, 'client')));
 
 // ── SVG 사전 로드 ──────────────────────────────────────────────────────────────
@@ -86,6 +88,11 @@ app.get('/wordchain', (_req, res) => {
 
 app.get('/liar', (_req, res) => {
   res.render('pages/liar', { title: '라이어 게임', cssFile: 'liar', jsFile: 'liar', hasFlash: false });
+});
+
+// 캐치마인드는 방·소켓이 없는 비동기 게임이라 채팅도 붙이지 않는다 (hasChat: false).
+app.get('/catchmind', (_req, res) => {
+  res.render('pages/catchmind', { title: '캐치마인드', cssFile: 'catchmind', jsFile: 'catchmind', hasFlash: false, hasChat: false });
 });
 
 // ── Socket.IO ─────────────────────────────────────────────────────────────────

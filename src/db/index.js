@@ -75,6 +75,55 @@ const MIGRATIONS = [
     PRIMARY KEY (user_id, play_date, difficulty)
   );
   `,
+  `
+  -- 캐치마인드: 유저가 그려서 쌓아둔 그림들. 방 없이 아무 때나 들어와 그리고,
+  -- 맞히기는 이 표에서 아직 안 본 그림을 한 장씩 꺼내 준다.
+  CREATE TABLE catchmind_drawings (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    word          TEXT    NOT NULL,  -- 정답 제시어
+    strokes       TEXT    NOT NULL,  -- 획 좌표 JSON (PNG 가 아니라 벡터라 재생이 된다)
+    hint_votes    INTEGER NOT NULL DEFAULT 0, -- '초성 보여주세요' 동의 인원
+    hint_revealed INTEGER NOT NULL DEFAULT 0, -- 동의가 차서 초성이 공개된 그림
+    reports       INTEGER NOT NULL DEFAULT 0,
+    hidden        INTEGER NOT NULL DEFAULT 0, -- 신고 누적 또는 본인 삭제 → 출제 제외
+    seen_count    INTEGER NOT NULL DEFAULT 0,
+    solved_count  INTEGER NOT NULL DEFAULT 0,
+    created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+  );
+  -- 출제용 조회(숨김 아닌 것 중 랜덤)와 '내 그림' 목록에 각각 쓰인다.
+  CREATE INDEX idx_catchmind_open ON catchmind_drawings(hidden, id);
+  CREATE INDEX idx_catchmind_user ON catchmind_drawings(user_id, id DESC);
+  CREATE INDEX idx_catchmind_word ON catchmind_drawings(word, hidden);
+
+  -- 한 사람이 한 그림을 푼 기록. 전적은 이 표에 줄이 처음 생길 때만 남기므로
+  -- 같은 그림을 다시 풀어도 전적이 부풀지 않는다.
+  CREATE TABLE catchmind_plays (
+    drawing_id INTEGER NOT NULL REFERENCES catchmind_drawings(id) ON DELETE CASCADE,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    attempts   INTEGER NOT NULL DEFAULT 0,
+    solved     INTEGER NOT NULL DEFAULT 0,
+    finished   INTEGER NOT NULL DEFAULT 0, -- 맞혔거나 시도를 다 썼거나 포기함 (전적 기록 완료)
+    created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (drawing_id, user_id)
+  );
+
+  -- 초성 힌트 동의 (한 사람이 한 그림에 한 번). 정해진 인원이 모이면 영구 공개.
+  CREATE TABLE catchmind_hint_votes (
+    drawing_id INTEGER NOT NULL REFERENCES catchmind_drawings(id) ON DELETE CASCADE,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (drawing_id, user_id)
+  );
+
+  -- 신고 (한 사람이 한 그림에 한 번). 쌓이면 자동으로 출제에서 빠진다.
+  CREATE TABLE catchmind_reports (
+    drawing_id INTEGER NOT NULL REFERENCES catchmind_drawings(id) ON DELETE CASCADE,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (drawing_id, user_id)
+  );
+  `,
 ];
 
 function migrate() {

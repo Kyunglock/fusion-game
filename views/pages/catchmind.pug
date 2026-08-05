@@ -1,0 +1,109 @@
+extends ../layouts/base
+
+block overlays
+  #error-toast
+
+block content
+  //- ── 홈 ────────────────────────────────────────────────────────────────────
+  #screen-home.screen.active
+    .cm-logo 🎨
+    h1.title-catchmind 캐치마인드
+    p.cm-subtitle 제시어를 보고 그리거나, 남이 그린 그림을 맞혀보세요
+
+    .card.cm-home-card
+      #cm-user-bar.cm-user-bar
+        .cm-user-avatar#cm-avatar 😊
+        span.cm-user-nick#cm-nick -
+        span.tier-badge#cm-tier(hidden)
+
+      button#btn-go-quiz.btn.btn-primary.cm-mode-btn
+        span.cm-mode-emoji 🔍
+        span.cm-mode-text
+          span.cm-mode-title 그림 맞히기
+          span.cm-mode-desc#cm-quiz-desc 남이 그린 그림의 제시어를 맞혀보세요
+
+      button#btn-go-draw.btn.btn-secondary.cm-mode-btn
+        span.cm-mode-emoji ✏️
+        span.cm-mode-text
+          span.cm-mode-title 그림 그리기
+          span.cm-mode-desc 제시어를 받아 그리면 다른 사람의 문제가 됩니다
+
+      button#btn-go-mine.btn.btn-secondary.cm-mode-btn
+        span.cm-mode-emoji 🖼️
+        span.cm-mode-text
+          span.cm-mode-title 내 그림
+          span.cm-mode-desc#cm-mine-desc 내가 그린 그림이 얼마나 맞혀졌는지 보기
+
+      a.cm-home-link(href="/") ← 게임 목록으로
+
+  //- ── 그리기 ────────────────────────────────────────────────────────────────
+  #screen-draw.screen
+    .cm-top
+      button#draw-exit.btn.btn-secondary ← 나가기
+      .cm-word-box
+        span.cm-word-label 제시어
+        span.cm-word#draw-word …
+        span.cm-word-cat#draw-category
+      button#draw-reroll.btn.btn-secondary 다른 제시어
+
+    .cm-canvas-wrap
+      canvas#draw-canvas
+      #draw-hint.cm-canvas-hint 여기에 그려주세요
+
+    #draw-tools.cm-tools
+      .cm-palette#draw-palette
+      .cm-sizes#draw-sizes
+      button#tool-eraser.cm-tool(title="지우개") 🧽
+      button#tool-undo.cm-tool(title="되돌리기") ↩︎
+      button#tool-clear.cm-tool(title="전체 지우기") 🗑️
+
+    .cm-actions
+      button#draw-save.btn.btn-primary(disabled) 이 그림 올리기
+    p.cm-note#draw-note 올린 그림은 다른 사람에게 문제로 나갑니다
+
+  //- ── 맞히기 ────────────────────────────────────────────────────────────────
+  #screen-quiz.screen
+    .cm-top
+      button#quiz-exit.btn.btn-secondary ← 나가기
+      #quiz-author.cm-author
+      button#quiz-report.btn.btn-secondary(title="부적절한 그림 신고") 🚩 신고
+
+    .cm-canvas-wrap
+      canvas#quiz-canvas
+      button#quiz-replay.cm-replay-btn(title="다시 재생") ↻ 다시 보기
+
+    #quiz-answer-box.cm-answer-box
+      #quiz-slots.cm-slots
+      #quiz-chosung.cm-chosung(hidden)
+
+    #quiz-banner.cm-banner(hidden)
+
+    .cm-guess-row
+      input#quiz-input(type="text" placeholder="정답 입력" maxlength="30" autocomplete="off" enterkeyhint="send")
+      button#quiz-submit.btn.btn-primary 제출
+
+    .cm-quiz-meta
+      span#quiz-attempts.cm-attempts
+      span#quiz-remaining.cm-remaining
+
+    .cm-actions.cm-actions-wrap
+      button#quiz-hint.btn.btn-secondary 초성 보여주세요 (0/3)
+      button#quiz-giveup.btn.btn-secondary 포기하고 정답 보기
+      button#quiz-next.btn.btn-primary(hidden) 다음 그림 →
+
+    #quiz-empty.cm-empty(hidden)
+      p 아직 맞힐 그림이 없어요.
+      p.cm-empty-sub 첫 그림을 그려서 다른 사람에게 문제를 내보세요!
+      button#quiz-empty-draw.btn.btn-primary 그림 그리러 가기
+
+  //- ── 내 그림 ───────────────────────────────────────────────────────────────
+  #screen-mine.screen
+    .cm-top
+      button#mine-exit.btn.btn-secondary ← 나가기
+      #mine-summary.cm-summary
+      button#mine-draw.btn.btn-primary 새로 그리기
+
+    #mine-grid.cm-grid
+    #mine-empty.cm-empty(hidden)
+      p 아직 그린 그림이 없어요.
+      button#mine-empty-draw.btn.btn-primary 첫 그림 그리기
