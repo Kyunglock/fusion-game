@@ -207,6 +207,42 @@ router.post('/quiz/:id/report', (req, res) => {
   res.json(store.reportDrawing(ctx.drawing.id, req.session.accountId));
 });
 
+// ── 랭킹 ──────────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/catchmind/board?sort=likes|misses — 그림 랭킹
+ *
+ * 그림·통계는 모두에게 보여주되 **제시어는 내가 맞힌 그림(과 내가 그린 그림)만**
+ * 실어 보낸다. 아직 못 푼 그림은 글자 수만 알려주고 `word: null` 로 내려간다 —
+ * 목록에서 답이 새면 맞히기가 무의미해진다.
+ */
+router.get('/board', (req, res) => {
+  const accountId = req.session.accountId;
+  const sort      = store.BOARD_SORT_KEYS.includes(req.query.sort) ? req.query.sort : 'likes';
+
+  const items = store.leaderboard(accountId, sort).map((d) => {
+    const mine    = d.author_id === accountId;
+    const canSee  = mine || d.solved_by_me === 1;
+    return {
+      id:       d.id,
+      strokes:  parseStrokes(d.strokes),
+      length:   [...d.word].length,
+      word:     canSee ? d.word : null,
+      mine,
+      solvedByMe: d.solved_by_me === 1,
+      likes:    d.likes,
+      dislikes: d.dislikes,
+      misses:   d.misses,
+      seen:     d.seen_count,
+      solved:   d.solved_count,
+      author:   { name: d.author, avatar: d.author_avatar ?? null },
+      createdAt: d.created_at,
+    };
+  });
+
+  res.json({ sort, items });
+});
+
 // ── 내 그림 ───────────────────────────────────────────────────────────────────
 
 /** GET /api/catchmind/mine — 내가 그린 그림 + 얼마나 맞혀졌는지 */

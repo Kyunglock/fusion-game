@@ -57,7 +57,7 @@ src/
     auth.js              ← /api/auth, /api/auth/logout, /api/me, /api/me/username,
                            /api/me/avatar, /api/me/stats, /api/ranking
     solo.js              ← /api/solo/jamo (GET 오늘 상태 / POST 솔플 한 판 결과)
-    catchmind.js         ← /api/catchmind/* (제시어 배정·그림 저장·출제·정답·추천·신고·내 그림)
+    catchmind.js         ← /api/catchmind/* (제시어 배정·그림 저장·출제·정답·추천·신고·랭킹·내 그림)
   shared/
     roomManager.js       ← 범용 방 관리 팩토리 (createRoomManager)
     socketHandlers.js    ← 공통 소켓 핸들러 등록 (registerCommonHandlers)
@@ -87,7 +87,7 @@ views/
     jamo.pug             ← +waitingRoom() 블록으로 방장 제시어 입력 UI 주입
     wordchain.pug
     liar.pug             ← 방장 진짜/가짜 제시어 입력, 힌트·투표·라이어 최후 추측 UI
-    catchmind.pug        ← 홈/그리기/맞히기/내 그림 4개 화면 (로비·대기실 믹스인 안 씀, 채팅 없음)
+    catchmind.pug        ← 홈/그리기/맞히기/랭킹/내 그림 5개 화면 (로비·대기실 믹스인 안 씀, 채팅 없음)
 
 client/
   js/
@@ -306,6 +306,12 @@ client/
 - `POST …/vote { value: 1 | -1 | 0 }`. 한 사람이 한 그림에 한 표(`catchmind_votes`), 같은 값을 다시 보내면 취소되고 반대쪽을 보내면 바뀐다
 - 합계는 목록에서 매번 세지 않도록 `catchmind_drawings.likes` / `dislikes` 에 함께 적어둔다
 - 신고와 달리 **출제 여부에는 영향을 주지 않는다** — '잘 그렸다/못 그렸다'는 평가일 뿐이다. 그림을 내리는 것은 신고 쪽 몫
+
+### 그림 랭킹 (`GET /api/catchmind/board?sort=likes|misses`)
+- 두 가지 순서로 준다 — `likes`(추천 많은 순) / `misses`(사람들이 많이 틀린 순). `sort` 는 미리 만들어둔 `ORDER BY` 를 키로만 고르게 해서 입력이 SQL 에 끼어들 여지를 없앴다
+- **오답 수는 따로 세어두지 않는다.** `catchmind_plays` 에서 `SUM(attempts - solved)` 로 그때그때 합산한다(맞힌 판의 마지막 한 번은 정답이므로 빼준다). 목록이 수십 줄이라 부담이 없고, 컬럼을 늘려 실제 기록과 어긋날 여지를 만들지 않는 쪽을 택했다
+- **정답은 내가 맞힌 그림(과 내가 그린 그림)만 실어 보낸다.** 나머지는 `word: null` 로 내려가고 화면에는 글자 수(`○○○`)만 뜬다 — 목록에서 답이 새면 맞히기가 무의미해진다
+- 그림·추천 수·오답 수·정답 수는 모두에게 보인다. 가리는 것은 제시어 하나뿐이다
 
 ### 신고 · 내 그림
 - `POST …/report` 신고가 `CATCHMIND_REPORTS_TO_HIDE`(3)회 쌓이면 `hidden = 1` 로 자동 전환되어 출제에서 빠진다(한 사람 1표, `catchmind_reports`)
