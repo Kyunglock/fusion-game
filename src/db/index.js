@@ -124,6 +124,26 @@ const MIGRATIONS = [
     PRIMARY KEY (drawing_id, user_id)
   );
   `,
+  `
+  -- 캐치마인드 추천 · 비추천 (한 사람이 한 그림에 한 표, 바꾸거나 취소할 수 있다).
+  -- 신고와 달리 '잘 그렸다/못 그렸다'는 평가라서 출제 여부에는 영향을 주지 않는다.
+  CREATE TABLE catchmind_votes (
+    drawing_id INTEGER NOT NULL REFERENCES catchmind_drawings(id) ON DELETE CASCADE,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    value      INTEGER NOT NULL CHECK (value IN (-1, 1)),
+    created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (drawing_id, user_id)
+  );
+
+  -- 목록·출제에서 매번 세지 않도록 그림 행에 합계를 함께 들고 있는다.
+  ALTER TABLE catchmind_drawings ADD COLUMN likes    INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE catchmind_drawings ADD COLUMN dislikes INTEGER NOT NULL DEFAULT 0;
+
+  -- 초성 힌트의 3인 동의제를 걷어냈다(초성은 모든 그림에 처음부터 공개).
+  -- catchmind_drawings.hint_votes / hint_revealed 와 catchmind_hint_votes 는 더 이상
+  -- 읽지도 쓰지도 않는다. 이미 배포된 마이그레이션은 고치지 않는 것이 원칙이라
+  -- 지우지 않고 남겨둔다.
+  `,
 ];
 
 function migrate() {

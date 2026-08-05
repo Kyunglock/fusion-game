@@ -2,10 +2,8 @@ import { db } from './index.js';
 import { recordRound } from './stats.js';
 import {
   CATCHMIND_MAX_ATTEMPTS,
-  CATCHMIND_HINT_VOTES,
   CATCHMIND_REPORTS_TO_HIDE,
-  CATCHMIND_SCORE_PLAIN,
-  CATCHMIND_SCORE_WITH_HINT,
+  CATCHMIND_SCORE_SOLVE,
 } from '../config.js';
 
 /**
@@ -62,11 +60,17 @@ const SQL = {
   finishPlay: db.prepare(`UPDATE catchmind_plays SET solved = @solved, finished = 1
                           WHERE drawing_id = @drawingId AND user_id = @userId`),
 
-  addHintVote: db.prepare(`INSERT INTO catchmind_hint_votes (drawing_id, user_id)
-                           VALUES (?, ?) ON CONFLICT DO NOTHING`),
-  countHintVotes: db.prepare('SELECT COUNT(*) AS n FROM catchmind_hint_votes WHERE drawing_id = ?'),
-  setHint: db.prepare(`UPDATE catchmind_drawings SET hint_votes = @votes, hint_revealed = @revealed
-                       WHERE id = @id`),
+  myVote: db.prepare('SELECT value FROM catchmind_votes WHERE drawing_id = ? AND user_id = ?'),
+  castVote: db.prepare(`INSERT INTO catchmind_votes (drawing_id, user_id, value)
+                        VALUES (@drawingId, @userId, @value)
+                        ON CONFLICT(drawing_id, user_id) DO UPDATE SET value = @value`),
+  clearVote: db.prepare('DELETE FROM catchmind_votes WHERE drawing_id = ? AND user_id = ?'),
+  tallyVotes: db.prepare(`
+    SELECT COALESCE(SUM(value =  1), 0) AS likes,
+           COALESCE(SUM(value = -1), 0) AS dislikes
+    FROM catchmind_votes WHERE drawing_id = ?`),
+  setVotes: db.prepare(`UPDATE catchmind_drawings SET likes = @likes, dislikes = @dislikes
+                        WHERE id = @id`),
 
   addReport: db.prepare(`INSERT INTO catchmind_reports (drawing_id, user_id)
                          VALUES (?, ?) ON CONFLICT DO NOTHING`),
@@ -75,7 +79,7 @@ const SQL = {
                           WHERE id = @id`),
 
   mine: db.prepare(`SELECT id, word, strokes, seen_count, solved_count, reports, hidden,
-                           hint_revealed, created_at
+                           likes, dislikes, created_at
                     FROM catchmind_drawings
                     WHERE user_id = ? ORDER BY id DESC LIMIT ?`),
   hideMine: db.prepare('UPDATE catchmind_drawings SET hidden = 1 WHERE id = ? AND user_id = ?'),
@@ -83,7 +87,9 @@ const SQL = {
   summary: db.prepare(`
     SELECT COUNT(*) AS drawn,
            COALESCE(SUM(seen_count), 0)   AS seen,
-           COALESCE(SUM(solved_count), 0) AS solved
+           COALESCE(SUM(solved_count), 0) AS solved,
+           COALESCE(SUM(likes), 0)        AS likes,
+           COALESCE(SUM(dislikes), 0)     AS dislikes
     FROM catchmind_drawings WHERE user_id = ? AND hidden = 0`),
   remaining: db.prepare(`
     SELECT COUNT(*) AS n FROM catchmind_drawings d
@@ -148,9 +154,9 @@ export function openQuiz(drawingId, accountId, { replay }) {
   return SQL.playOf.get(drawingId, accountId) ?? null;
 }
 
-/** 맞혔을 때 점수 (초성이 공개된 그림은 덜 준다) */
-export function guessScore(hintRevealed) {
-  return hintRevealed ? CATCHMIND_SCORE_WITH_HINT : CATCHMIND_SCORE_PLAIN;
+/** 맞혔을 때 점수. 초성은 모두에게 처음부터 보이므로 조건 없이 한 값이다. */
+export function guessScore() {
+  return CATCHMIND_SCORE_SOLVE;
 }
 
 /**
@@ -176,7 +182,7 @@ export const submitGuess = db.transaction((drawing, accountId, correct, { replay
   if (finished && !alreadyFinished) {
     SQL.finishPlay.run({ drawingId: drawing.id, userId: accountId, solved: correct ? 1 : 0 });
     if (correct) SQL.bumpSolved.run(drawing.id);
-    score    = correct ? guessScore(drawing.hint_revealed) : 0;
+    score    = correct ? guessScore() : 0;
     recorded = true;
     recordRound(CATCHMIND_GAME, [{
       accountId,
@@ -208,14 +214,28 @@ export const giveUp = db.transaction((drawing, accountId, { replay }) => {
   return { recorded: true };
 });
 
-// ── 초성 힌트 (서로 다른 N명이 동의하면 그 그림은 영구 공개) ──────────────────
+// ── 추천 · 비추천 ─────────────────────────────────────────────────────────────
 
-export const voteHint = db.transaction((drawingId, accountId) => {
-  SQL.addHintVote.run(drawingId, accountId);
-  const votes    = SQL.countHintVotes.get(drawingId)?.n ?? 0;
-  const revealed = votes >= CATCHMIND_HINT_VOTES;
-  SQL.setHint.run({ id: drawingId, votes, revealed: revealed ? 1 : 0 });
-  return { votes, needed: CATCHMIND_HINT_VOTES, revealed };
+/** 내가 이 그림에 던진 표 (1 추천 / -1 비추천 / 0 없음) */
+export function myVote(drawingId, accountId) {
+  return SQL.myVote.get(drawingId, accountId)?.value ?? 0;
+}
+
+/**
+ * 한 사람이 한 그림에 한 표. 같은 걸 다시 누르면 취소되고, 반대쪽을 누르면 바뀐다.
+ * 합계는 그림 행에 함께 적어둔다(목록에서 매번 세지 않도록).
+ * @param {number} value 1 추천 / -1 비추천 / 0 취소
+ */
+export const castVote = db.transaction((drawingId, accountId, value) => {
+  const before = myVote(drawingId, accountId);
+  const next   = before === value ? 0 : value; // 같은 버튼을 또 누르면 취소
+
+  if (next === 0) SQL.clearVote.run(drawingId, accountId);
+  else            SQL.castVote.run({ drawingId, userId: accountId, value: next });
+
+  const tally = SQL.tallyVotes.get(drawingId) ?? { likes: 0, dislikes: 0 };
+  SQL.setVotes.run({ id: drawingId, ...tally });
+  return { ...tally, mine: next };
 });
 
 // ── 신고 (쌓이면 자동으로 출제에서 제외) ──────────────────────────────────────

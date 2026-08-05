@@ -46,10 +46,11 @@ export const WORDCHAIN_MAX_WORD_LEN = 15; // 단어 최대 글자 수
 // 방을 만들지 않고 혼자 들어와서 그리거나, 남이 그려둔 그림을 맞히는 비동기 게임.
 // 그린 그림은 DB에 쌓이고, 맞히기는 그 더미에서 아직 안 본 그림을 한 장씩 꺼내 준다.
 export const CATCHMIND_MAX_ATTEMPTS      = 5; // 한 그림당 정답 시도 횟수 (소진하면 패)
-export const CATCHMIND_HINT_VOTES        = 3; // 초성 힌트가 공개되는 데 필요한 동의 인원
 export const CATCHMIND_REPORTS_TO_HIDE   = 3; // 이만큼 신고가 쌓이면 출제에서 자동 제외
-export const CATCHMIND_SCORE_PLAIN       = 3; // 초성 없이 맞혔을 때 점수
-export const CATCHMIND_SCORE_WITH_HINT   = 1; // 초성이 공개된 상태로 맞혔을 때 점수
+// 이 횟수만큼 틀리면 그 사람에게 초성이 보인다 (마지막 한 번을 남겨두고 주는 구제책).
+export const CATCHMIND_HINT_AFTER_ATTEMPTS = 4;
+// 초성 공개 여부는 시도 횟수로만 갈리므로 맞혔을 때 점수는 하나뿐이다.
+export const CATCHMIND_SCORE_SOLVE       = 3;
 // 그림 용량 상한. 좌표는 정수로 정규화해 넣으므로 이 정도면 넉넉하다.
 export const CATCHMIND_MAX_STROKES       = 300;    // 획 개수
 export const CATCHMIND_MAX_POINTS        = 12_000; // 전체 점 개수

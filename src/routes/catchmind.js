@@ -2,7 +2,7 @@ import { Router } from 'express';
 
 import {
   CATCHMIND_MAX_ATTEMPTS,
-  CATCHMIND_HINT_VOTES,
+  CATCHMIND_HINT_AFTER_ATTEMPTS,
   CATCHMIND_REPORTS_TO_HIDE,
 } from '../config.js';
 import { chosungOf, isCorrect, sanitizeStrokes, parseStrokes } from '../game/catchmind/drawingLogic.js';
@@ -25,19 +25,22 @@ function requireLogin(req, res, next) {
 router.use(requireLogin);
 
 /** 그림 하나를 클라이언트가 쓸 모양으로 (정답은 절대 넣지 않는다) */
-function quizPayload(drawing, play, { replay, remaining }) {
+function quizPayload(drawing, play, { replay, remaining, myVote }) {
   const attempts = play?.attempts ?? 0;
   return {
     id:       drawing.id,
     strokes:  parseStrokes(drawing.strokes),
     length:   [...drawing.word].length,
     category: categoryOf(drawing.word),
-    hint: {
-      votes:    drawing.hint_votes,
-      needed:   CATCHMIND_HINT_VOTES,
-      revealed: !!drawing.hint_revealed,
-      // 공개된 그림에만 초성을 실어 보낸다. 안 그러면 개발자 도구로 다 보인다.
-      chosung:  drawing.hint_revealed ? chosungOf(drawing.word) : null,
+    // 초성은 처음엔 감춰두고, 그 사람이 CATCHMIND_HINT_AFTER_ATTEMPTS 번 틀리면
+    // 그때부터 보여준다(마지막 한 번을 남겨두고 주는 구제책). 조건을 못 채웠으면
+    // 아예 실어 보내지 않는다 — 보내놓고 화면에서만 가리면 개발자 도구로 다 보인다.
+    chosung:   attempts >= CATCHMIND_HINT_AFTER_ATTEMPTS ? chosungOf(drawing.word) : null,
+    hintAfter: CATCHMIND_HINT_AFTER_ATTEMPTS,
+    votes: {
+      likes:    drawing.likes,
+      dislikes: drawing.dislikes,
+      mine:     myVote,
     },
     author:      { name: drawing.author, avatar: drawing.author_avatar ?? null },
     createdAt:   drawing.created_at,
@@ -116,7 +119,11 @@ router.get('/quiz', (req, res) => {
 
   const { drawing, replay } = picked;
   const play = store.openQuiz(drawing.id, accountId, { replay });
-  res.json(quizPayload(drawing, play, { replay, remaining: store.remainingCount(accountId) }));
+  res.json(quizPayload(drawing, play, {
+    replay,
+    remaining: store.remainingCount(accountId),
+    myVote:    store.myVote(drawing.id, accountId),
+  }));
 });
 
 /** 그림 + 그 사람의 풀이 상태를 함께 집는다 (없거나 숨겨졌으면 404) */
@@ -156,6 +163,10 @@ router.post('/quiz/:id/guess', (req, res) => {
     ...result,
     // 끝난 뒤에만 정답을 알려준다.
     answer: result.finished ? drawing.word : null,
+    // 이번 시도로 초성 공개 조건을 채웠으면 바로 함께 내려준다(다시 부를 필요 없이).
+    chosung: !result.finished && result.attempts >= CATCHMIND_HINT_AFTER_ATTEMPTS
+      ? chosungOf(drawing.word)
+      : null,
   });
 });
 
@@ -172,17 +183,20 @@ router.post('/quiz/:id/giveup', (req, res) => {
 });
 
 /**
- * POST /api/catchmind/quiz/:id/hint — 초성 힌트에 동의
- * 서로 다른 사람 CATCHMIND_HINT_VOTES 명이 동의하면 그 그림의 초성이 영구 공개된다.
- * 혼자서는 못 열고, 어려운 그림일수록 표가 빨리 모여 자연스럽게 풀린다.
+ * POST /api/catchmind/quiz/:id/vote — 추천 · 비추천
+ * body { value: 1 | -1 | 0 }. 같은 값을 다시 보내면 취소된다(토글).
+ * 그림의 좋고 나쁨을 표시할 뿐이라 신고와 달리 출제 여부에는 영향을 주지 않는다.
  */
-router.post('/quiz/:id/hint', (req, res) => {
+router.post('/quiz/:id/vote', (req, res) => {
   const ctx = loadQuiz(req, res);
   if (!ctx) return;
 
-  const { drawing } = ctx;
-  const vote = store.voteHint(drawing.id, req.session.accountId);
-  res.json({ ...vote, chosung: vote.revealed ? chosungOf(drawing.word) : null });
+  const raw = Number(req.body?.value);
+  if (![1, -1, 0].includes(raw)) {
+    return res.status(400).json({ error: '알 수 없는 평가입니다.' });
+  }
+
+  res.json(store.castVote(ctx.drawing.id, req.session.accountId, raw));
 });
 
 /** POST /api/catchmind/quiz/:id/report — 신고 (쌓이면 출제에서 자동 제외) */
@@ -206,7 +220,8 @@ router.get('/mine', (req, res) => {
     solved:   d.solved_count,
     reports:  d.reports,
     hidden:   !!d.hidden,
-    hintRevealed: !!d.hint_revealed,
+    likes:    d.likes,
+    dislikes: d.dislikes,
     createdAt: d.created_at,
   }));
 

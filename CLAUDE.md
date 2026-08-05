@@ -51,13 +51,13 @@ src/
     ranking.js           ← 백분위 기반 등급 티어 계산(getRanking/getUserRank)
     playerCards.js       ← 방 참가자 목록에 실어 보내는 전적 카드(getPlayerCard, 3초 캐시)
     soloStats.js         ← 자모 솔플 전적(난이도별 하루 첫 판만 기록, jamo_solo_daily)
-    catchmind.js         ← 캐치마인드 그림 저장소(그림 CRUD, 출제, 정답 시도, 초성 동의, 신고)
+    catchmind.js         ← 캐치마인드 그림 저장소(그림 CRUD, 출제, 정답 시도, 추천·비추천, 신고)
     sessionStore.js      ← express-session SQLite 저장소
   routes/
     auth.js              ← /api/auth, /api/auth/logout, /api/me, /api/me/username,
                            /api/me/avatar, /api/me/stats, /api/ranking
     solo.js              ← /api/solo/jamo (GET 오늘 상태 / POST 솔플 한 판 결과)
-    catchmind.js         ← /api/catchmind/* (제시어 배정·그림 저장·출제·정답·초성·신고·내 그림)
+    catchmind.js         ← /api/catchmind/* (제시어 배정·그림 저장·출제·정답·추천·신고·내 그림)
   shared/
     roomManager.js       ← 범용 방 관리 팩토리 (createRoomManager)
     socketHandlers.js    ← 공통 소켓 핸들러 등록 (registerCommonHandlers)
@@ -292,14 +292,20 @@ client/
 - `GET /api/catchmind/quiz` 가 **숨김 아님 + 내 그림 아님 + 내가 아직 끝내지 않은** 그림을 랜덤으로 한 장 준다
   - 제외 기준이 '풀이 기록 없음'이 아니라 `catchmind_plays.finished = 1` 인 것이 중요하다. 열어만 보고 나간 그림까지 빼버리면 다시는 안 나온다
   - 새 그림이 다 떨어지면 아무 그림이나 **복습**(`replay: true`)으로 주되 전적에는 반영하지 않는다
-- 정답에 대한 힌트는 **글자 수만** 준다(`length` → 빈 칸 n개). 정답 문자열은 라운드가 끝나기 전엔 어떤 경로로도 클라이언트에 보내지 않는다
+- 처음 주는 힌트는 **글자 수뿐**이다(`length` → 빈 칸 n개). 정답 문자열은 라운드가 끝나기 전엔 어떤 경로로도 클라이언트에 보내지 않는다
 - 시도는 `CATCHMIND_MAX_ATTEMPTS`(5회). 다 쓰면 패, `POST …/giveup`(포기)도 패. 정답 비교는 `isCorrect` — 공백·문장부호를 걷어낸 완전 일치
-- 전적 키는 `catchmind`. **그 그림을 처음 끝낼 때 한 번만** 기록한다(`catchmind_plays.finished`) → 복습·재도전으로 승수가 부풀지 않는다. 점수는 초성 없이 맞히면 3점, 초성이 공개된 상태면 1점
+- 전적 키는 `catchmind`. **그 그림을 처음 끝낼 때 한 번만** 기록한다(`catchmind_plays.finished`) → 복습·재도전으로 승수가 부풀지 않는다. 맞히면 `CATCHMIND_SCORE_SOLVE`(3점)
 
-### 초성 힌트 — 3인 동의제
-- 초성은 개인이 열 수 없다. `POST …/hint` 로 **서로 다른 사람 `CATCHMIND_HINT_VOTES`(3)명**이 동의하면 그 그림의 초성이 **영구 공개**된다(`catchmind_drawings.hint_revealed`)
-- 1·2번째로 누른 사람은 `n/3` 안내만 보고, 3번째로 누른 사람부터 초성을 본다. 어려운 그림일수록 표가 빨리 모여 자연스럽게 풀린다
-- 서버는 `hint_revealed` 가 켜진 그림에만 초성을 실어 보낸다 — 안 그러면 개발자 도구로 다 보인다
+### 초성 힌트 — 4번 틀리면 공개
+- **`CATCHMIND_HINT_AFTER_ATTEMPTS`(4)번 틀리면** 그 사람에게 초성이 보인다. 마지막 한 번을 남겨두고 주는 구제책이라 동의·투표 같은 절차가 없다
+- 조건은 **사람마다 따로** 센다(`catchmind_plays.attempts`). 남이 4번 틀렸다고 내 화면에 초성이 뜨지는 않는다
+- 조건을 못 채웠으면 초성을 **아예 응답에 싣지 않는다**(`chosung: null`) — 보내놓고 화면에서만 가리면 개발자 도구로 다 보인다
+- 4번째 오답의 `guess` 응답에 `chosung` 을 함께 실어 보내므로 클라이언트가 다시 조회할 필요가 없다
+
+### 추천 · 비추천
+- `POST …/vote { value: 1 | -1 | 0 }`. 한 사람이 한 그림에 한 표(`catchmind_votes`), 같은 값을 다시 보내면 취소되고 반대쪽을 보내면 바뀐다
+- 합계는 목록에서 매번 세지 않도록 `catchmind_drawings.likes` / `dislikes` 에 함께 적어둔다
+- 신고와 달리 **출제 여부에는 영향을 주지 않는다** — '잘 그렸다/못 그렸다'는 평가일 뿐이다. 그림을 내리는 것은 신고 쪽 몫
 
 ### 신고 · 내 그림
 - `POST …/report` 신고가 `CATCHMIND_REPORTS_TO_HIDE`(3)회 쌓이면 `hidden = 1` 로 자동 전환되어 출제에서 빠진다(한 사람 1표, `catchmind_reports`)
@@ -309,6 +315,7 @@ client/
 ### 화면 (`views/pages/catchmind.pug` + `client/js/catchmind.js`)
 - 로비·대기실 믹스인을 쓰지 않고 `#screen-home` / `#screen-draw` / `#screen-quiz` / `#screen-mine` 4개 화면을 자체 전환한다. 방이 없으니 채팅도 없다(`hasChat: false` → `base.pug` 가 채팅 믹스인을 빼고 렌더)
 - 캔버스 엔진 `createCanvas(el, { interactive })` 하나로 그리기·맞히기 재생·목록 썸네일을 모두 그린다. 획 배열을 들고 있으므로 되돌리기가 공짜이고, `ResizeObserver` 로 크기가 바뀌면 다시 그린다
+- 마이그레이션 3의 `hint_votes` · `hint_revealed` 컬럼과 `catchmind_hint_votes` 표는 초성 3인 동의제를 걷어내면서 쓰지 않게 됐다. **이미 배포된 마이그레이션은 고치지 않는 것이 원칙**이라 지우지 않고 남겨두었다(읽지도 쓰지도 않음)
 - 이 페이지는 요소를 `hidden` 속성으로 감춘다. `.btn` 처럼 `display` 를 지정한 클래스가 브라우저 기본 `[hidden]` 규칙을 이기므로 `catchmind.scss` 맨 위에 `[hidden] { display: none !important; }` 를 못 박아 뒀다
 
 ## 연결 유지 · 재접속 (모바일 절전 / 앱 전환)

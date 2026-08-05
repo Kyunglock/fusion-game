@@ -343,6 +343,7 @@
   font-weight: 900;
   color: var(--muted);
 
+  // 정해진 횟수만큼 틀려서 초성이 들어찬 칸
   &.has-hint { border-color: var(--yellow); color: var(--yellow); }
 
   &.revealed {
@@ -352,12 +353,47 @@
   }
 }
 
-.cm-chosung {
-  margin-top: 8px;
-  font-size: 0.76rem;
-  color: var(--yellow);
-  letter-spacing: 1px;
+// ── 추천 · 비추천 ─────────────────────────────────────────────────────────────
+.cm-votes {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 720px;
+  margin-top: 10px;
 }
+
+.cm-vote {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--sunken);
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+
+  &:hover { border-color: var(--green-light); color: var(--text); }
+
+  &.active {
+    border-color: var(--green-light);
+    background: var(--chip);
+    color: var(--green-light);
+  }
+
+  // 비추천은 눌렀을 때 빨강으로 (추천과 한눈에 구분되게)
+  &#quiz-dislike.active {
+    border-color: var(--red);
+    background: transparent;
+    color: var(--red);
+  }
+}
+
+.cm-vote-n { font-variant-numeric: tabular-nums; }
 
 .cm-banner {
   width: 100%;
