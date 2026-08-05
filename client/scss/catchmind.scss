@@ -466,10 +466,12 @@
   width: 100%;
   max-width: 720px;
   margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 
 .cm-tab {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 120px;
   padding: 9px 10px;
   border: 1px solid var(--border);
   border-radius: 10px;
