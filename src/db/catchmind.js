@@ -121,8 +121,9 @@ const SQL = {
  * 허용된 것만 여기 미리 만들어 두고 키로만 고른다.
  */
 const BOARD_SORTS = {
-  likes:  'd.likes DESC, misses DESC, d.id DESC',
-  misses: 'misses DESC, d.likes DESC, d.id DESC',
+  likes:    'd.likes DESC, misses DESC, d.id DESC',
+  dislikes: 'd.dislikes DESC, misses DESC, d.id DESC',
+  misses:   'misses DESC, d.likes DESC, d.id DESC',
 };
 
 const BOARD_SQL = Object.fromEntries(
@@ -284,14 +285,14 @@ export const reportDrawing = db.transaction((drawingId, accountId) => {
 export const BOARD_SORT_KEYS = Object.keys(BOARD_SORTS);
 
 /**
- * 그림 랭킹. 추천이 많은 순 또는 사람들이 많이 틀린 순으로 준다.
+ * 그림 랭킹. 추천 많은 순 / 비추천 많은 순 / 사람들이 많이 틀린 순으로 준다.
  *
  * **정답은 여기서 걸러내지 않는다** — 라우터가 `solved_by_me` 를 보고 내가 맞힌
  * 그림(과 내 그림)만 제시어를 실어 보낸다. 아직 못 푼 그림의 답이 목록으로
  * 새어 나가면 맞히기 자체가 무의미해진다.
  *
  * @param {number} accountId
- * @param {'likes'|'misses'} sort
+ * @param {'likes'|'dislikes'|'misses'} sort
  */
 export function leaderboard(accountId, sort = 'likes', limit = 30) {
   const stmt = BOARD_SQL[sort] ?? BOARD_SQL.likes;

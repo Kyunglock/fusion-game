@@ -553,6 +553,13 @@ $('quiz-exit').addEventListener('click', () => goHome());
 // ══════════════════════════════════════════════════════════════════════════════
 let boardSort = 'likes';
 
+/** 카드 오른쪽에 크게 띄울 숫자 — 지금 정렬 기준이 되는 값 */
+const BOARD_STAT = {
+  likes:    d => `👍 ${d.likes}`,
+  dislikes: d => `👎 ${d.dislikes}`,
+  misses:   d => `😵 ${d.misses}`,
+};
+
 /** 정답 자리 — 맞힌 그림은 제시어를, 아직 못 푼 그림은 글자 수만 */
 function boardWordHtml(d) {
   if (d.word) {
@@ -584,7 +591,7 @@ async function loadBoard() {
       <canvas class="cm-thumb" data-board-thumb="${d.id}"></canvas>
       <div class="cm-card-body">
         ${boardWordHtml(d)}
-        <span class="cm-card-stat">${boardSort === 'likes' ? `👍 ${d.likes}` : `😵 ${d.misses}`}</span>
+        <span class="cm-card-stat">${(BOARD_STAT[boardSort] ?? BOARD_STAT.likes)(d)}</span>
       </div>
       <div class="cm-board-meta">
         <span class="cm-board-author">${escHtml(d.author.name)}</span>
