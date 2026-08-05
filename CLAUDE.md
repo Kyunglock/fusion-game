@@ -14,6 +14,7 @@
 | `/tetris` | 테트리스 | `tetris_rooms_update` |
 | `/jamo` | 자모 워들 | `jamo_rooms_update` |
 | `/wordchain` | 끝말잇기 | `wordchain_rooms_update` |
+| `/liar` | 라이어 게임 | `liar_rooms_update` |
 
 ## 계정 · 전적 · 등급 (DB)
 
@@ -56,12 +57,13 @@ src/
     roomManager.js       ← 범용 방 관리 팩토리 (createRoomManager)
     socketHandlers.js    ← 공통 소켓 핸들러 등록 (registerCommonHandlers)
     reconnect.js         ← 재접속 유예 자리 관리 (holdSeat/claimSeat/expireSeat)
-  game/{crocodile,bomb,tetris,jamo,wordchain}/
+  game/{crocodile,bomb,tetris,jamo,wordchain,liar}/
     rooms.js             ← createRoomManager() 호출 + 게임별 설정/함수
     socket.js            ← registerCommonHandlers() + 게임 고유 핸들러만
     jamoLogic.js         ← (jamo 전용) 한글 자모 분해/판정 순수 로직 (decompose, judge, keyboardFromAttempts)
     chainLogic.js        ← (wordchain 전용) 한글 음절 분해/두음법칙/단어 검증 순수 로직 (allowedStarts, validateWord)
     dictionary.js        ← (wordchain 전용) words.txt.gz(표준국어대사전 기반 36만 단어)를 기동 시 Set으로 로드 (hasWord)
+    (liar 전용은 별도 순수 로직 파일 없이 socket.js 안에 역할 배정·투표 집계 로직이 있다)
 
 views/
   layouts/base.pug      ← 공통 HTML head, script, 채팅 포함
@@ -76,6 +78,7 @@ views/
     tetris.pug
     jamo.pug             ← +waitingRoom() 블록으로 방장 제시어 입력 UI 주입
     wordchain.pug
+    liar.pug             ← 방장 진짜/가짜 제시어 입력, 힌트·투표·라이어 최후 추측 UI
 
 client/
   js/
@@ -95,10 +98,11 @@ client/
     tetris.js           ← 테트리스 엔진 + 게임 고유 UI
     jamo.js              ← 자모 보드/키보드 렌더링, 답 제출
     wordchain.js         ← 끝말잇기 고유 로직 (단어 체인 렌더링, 턴 타이머, 단어 제출)
+    liar.js              ← 라이어 게임 고유 로직 (역할·제시어 개인화 렌더링, 힌트·투표 UI)
     utils.js            ← escHtml, showError
   partials/
     crocodile-svg.html  ← 악어 SVG (서버에서 읽어 Pug 변수로 주입)
-  scss/{crocodile,bomb,tetris,jamo,wordchain}.scss  ← @use 'components' 공통 임포트
+  scss/{crocodile,bomb,tetris,jamo,wordchain,liar}.scss  ← @use 'components' 공통 임포트
   scss/_components.scss              ← 공통 UI 컴포넌트
   scss/_variables.scss
   scss/_base.scss
@@ -137,6 +141,7 @@ client/
 - `GET /tetris` → Pug 렌더링 (`views/pages/tetris.pug`)
 - `GET /jamo` → Pug 렌더링 (`views/pages/jamo.pug`)
 - `GET /wordchain` → Pug 렌더링 (`views/pages/wordchain.pug`)
+- `GET /liar` → Pug 렌더링 (`views/pages/liar.pug`)
 - 기존 정적 HTML 파일은 제거 가능 (Pug로 대체됨). 단, 홈(로비 선택) 페이지인 `client/index.html`은 정적 파일로 유지
 
 ## 관전 시스템
@@ -155,6 +160,7 @@ client/
   - 테트리스: `['🟦','🟧','🟥','🟩']`
   - 자모 워들: `['🔤','🔡','🔠','📝']`
   - 끝말잇기: `['🔗','🗣️','💬','📣']`
+  - 라이어 게임: `['🕵️','🎭','🃏','🎩']`
 
 ## 테마 (위장 테마)
 - "회사에서 몰래 하는" 컨셉 — 대놓고 게임처럼 안 보이도록 여러 위장 테마를 제공한다.
@@ -221,6 +227,20 @@ client/
 - 자기 차례인 사람이 이탈하면 `onPlayerLeave`가 다음 생존자에게 턴을 넘기고 socket.js가 타이머를 재시작. 생존자가 1명이 되면 즉시 라운드 종료
 - `safeState`에 `chain`(단어 목록)/`currentTurn`/`turnDeadline`/`allowedStarts`(두음법칙 포함 시작 가능 글자)/`winner` 포함. 클라이언트 타이머는 `turnDeadline` 기준으로 표시만 담당(판정은 서버)
 - 클라이언트 `TURN_TIME`(wordchain.js)은 서버 `WORDCHAIN_TURN_TIMEOUT`과 같은 값으로 유지해야 타이머 바가 정확하다
+
+## 라이어 게임 — 게임 규칙
+- 최소 4명(방장 + 참가자 3명 이상), 최대 9명. **방장은 자모 워들처럼 진행만 담당하고 게임(힌트·투표)에 참여하지 않는다**
+- 게임 상태(`room.state`)로 라운드의 세부 단계까지 표현한다: `lobby` → `wordSetup`(방장이 진짜/라이어 제시어 입력) → `hint`(참가자가 순서대로 힌트 제출) → `voteContinue`(한 바퀴 더 vs 라이어 지목 투표) → [`voteLiar`(지목 투표) → [`liarGuess`(라이어가 진짜 제시어 맞히기)]] → 다시 `wordSetup`(결과 공개, 다음 라운드 대기)
+- `set_words { realWord, liarWord }`: 방장이 진짜 제시어와 라이어용 가짜 제시어를 **둘 다 직접 텍스트로** 입력한다(자동 생성 아님 — 가짜 제시어가 진짜와 전혀 다른 것이 되도록 방장이 책임진다). 참가자 중 한 명을 무작위로 라이어로 뽑아 가짜 제시어를, 나머지는 진짜 제시어를 배정한다
+- 참가자의 역할(`role`)·제시어(`word`)는 뷰어별로 감춰야 하므로 `safeState`에는 넣지 않고 `socket.js`의 `emitLiarState`가 개인화된 `liar_state` 이벤트로 따로 보낸다. **참가자는 자신의 제시어만** 보고, **방장·관전자는 참가자 전원의 역할·제시어를 모두** 본다
+- 힌트: 라운드 시작 시 참가자 순서를 무작위로 섞어(`turnOrder`) 시계방향으로 한 명씩 힌트를 제출한다. 제한시간(`LIAR_HINT_TIMEOUT`, 15초) 안에 못 내면 힌트 없이 다음 차례로 넘어간다(`round-cancelled`가 아니라 `skipped` 힌트로 기록). 전원이 한 바퀴 돌면 자동으로 투표 단계로 전환
+- 투표 1(`cast_continue_vote`): '라이어 지목' vs '한 바퀴 더' 중 선택. 과반이 지목이면 `voteLiar`로, 과반이 한 바퀴 더면 같은 순서로 `hint`가 다시 시작된다. 동률이면 투표를 초기화하고 재투표
+- 투표 2(`cast_accuse_vote`, `voteLiar` 단계): 참가자를 클릭해 라이어로 지목. 최다 득표자가 유일하면 확정, 동률이면 재투표
+  - 확정된 지목 대상이 **실제 라이어가 아니면** 그 즉시 **라이어 승리**로 라운드 종료
+  - 확정된 지목 대상이 **실제 라이어면** `liarGuess`로 전환 — 라이어에게 마지막 기회로 진짜 제시어를 맞힐 입력창을 준다(`submit_liar_guess`). 맞히면 라이어 승리, 틀리면 시민 승리
+- 라운드 종료(`endRound`)는 결과를 `room.lastResult`(승리 진영/라이어 이름/두 제시어)에 저장하고 바로 `wordSetup`으로 돌아간다(자모 워들처럼 자동 복귀 타이머 없음, 방장이 다음 제시어를 내면 새 라운드 시작). 전적은 `recordPlayers('liar', ...)`로 남기며, 승리 진영에 따라 라이어/시민 각각 win·lose 기록
+- 라이어가 라운드 도중 나가면 정체가 성립하지 않으므로 승패 기록 없이 즉시 `wordSetup`으로 되돌리고 `round_cancelled` 이벤트로 안내한다(자모 워들의 `cancel_round`와 같은 원칙)
+- 재접속 대응: `remapPlayerId`가 `liarId`/`currentTurn`/`accusedId`/`turnOrder`/`hints[].playerId`/투표 맵의 키·값을 모두 갱신한다
 
 ## 자모 워들 — 솔로 플레이(솔플)
 - 로비에서 방을 만들지 않고 난이도(하/중/상)만 골라 바로 시작하는 모드. **채점은 전부 이 브라우저 안에서** 돈다(소켓 없음). 판이 끝났을 때만 전적 기록용으로 서버에 결과를 한 번 보낸다

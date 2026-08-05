@@ -9,6 +9,7 @@ const roomCountBomb      = document.getElementById('room-count-bomb');
 const roomCountTetris    = document.getElementById('room-count-tetris');
 const roomCountJamo      = document.getElementById('room-count-jamo');
 const roomCountWordchain = document.getElementById('room-count-wordchain');
+const roomCountLiar      = document.getElementById('room-count-liar');
 
 function updateRoomCount(el, rooms) {
   if (!el) return;
@@ -20,16 +21,19 @@ const sockBomb      = io('/bomb');
 const sockTetris    = io('/tetris');
 const sockJamo      = io('/jamo');
 const sockWordchain = io('/wordchain');
+const sockLiar      = io('/liar');
 
 sockBomb     .on('connect', () => sockBomb     .emit('get_rooms'));
 sockTetris   .on('connect', () => sockTetris   .emit('get_rooms'));
 sockJamo     .on('connect', () => sockJamo     .emit('get_rooms'));
 sockWordchain.on('connect', () => sockWordchain.emit('get_rooms'));
+sockLiar     .on('connect', () => sockLiar     .emit('get_rooms'));
 
 sockBomb     .on('bomb_rooms_update',      rooms => updateRoomCount(roomCountBomb,      rooms));
 sockTetris   .on('tetris_rooms_update',    rooms => updateRoomCount(roomCountTetris,    rooms));
 sockJamo     .on('jamo_rooms_update',      rooms => updateRoomCount(roomCountJamo,      rooms));
 sockWordchain.on('wordchain_rooms_update', rooms => updateRoomCount(roomCountWordchain, rooms));
+sockLiar     .on('liar_rooms_update',      rooms => updateRoomCount(roomCountLiar,      rooms));
 
 const pageAuth    = document.getElementById('page-auth');
 const pageSelect  = document.getElementById('page-select');

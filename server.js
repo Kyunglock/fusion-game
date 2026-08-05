@@ -16,6 +16,7 @@ import { registerBombHandlers }   from './src/game/bomb/socket.js';
 import { registerTetrisHandlers } from './src/game/tetris/socket.js';
 import { registerJamoHandlers }   from './src/game/jamo/socket.js';
 import { registerWordchainHandlers } from './src/game/wordchain/socket.js';
+import { registerLiarHandlers }      from './src/game/liar/socket.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -83,6 +84,10 @@ app.get('/wordchain', (_req, res) => {
   res.render('pages/wordchain', { title: '끝말잇기', cssFile: 'wordchain', jsFile: 'wordchain', hasFlash: true });
 });
 
+app.get('/liar', (_req, res) => {
+  res.render('pages/liar', { title: '라이어 게임', cssFile: 'liar', jsFile: 'liar', hasFlash: false });
+});
+
 // ── Socket.IO ─────────────────────────────────────────────────────────────────
 const logConnect = (label) => (socket) =>
   console.log(`[reconnect-debug][${label}] connect socket=${socket.id} cid=${socket.handshake?.auth?.cid} recovered=${socket.recovered} t=${new Date().toISOString()}`);
@@ -118,6 +123,13 @@ wordchainIo.use((socket, next) => sessionMiddleware(socket.request, socket.reque
 wordchainIo.on('connection', (socket) => {
   logConnect('/wordchain')(socket);
   registerWordchainHandlers(wordchainIo, socket);
+});
+
+const liarIo = io.of('/liar');
+liarIo.use((socket, next) => sessionMiddleware(socket.request, socket.request.res || {}, next));
+liarIo.on('connection', (socket) => {
+  logConnect('/liar')(socket);
+  registerLiarHandlers(liarIo, socket);
 });
 
 server.listen(PORT, () => console.log(`파티 게임즈 → http://localhost:${PORT}`));

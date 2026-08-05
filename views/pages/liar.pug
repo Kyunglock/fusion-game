@@ -1,0 +1,85 @@
+extends ../layouts/base
+include ../mixins/lobby
+include ../mixins/waiting
+include ../mixins/overlays
+
+block overlays
+  #error-toast
+  #join-toast
+
+block content
+  +lobby({ logoEmoji: '🕵️', title: '라이어 게임', titleClass: 'title-liar', subtitle: '나 혼자만 다른 제시어를 받았다면... 들키지 마라! 🤫' })
+
+  +waitingRoom({ subtext: '방장은 게임에 입장한 뒤 진짜·라이어 제시어를 내고, 참가자들은 힌트로 라이어를 찾습니다' })
+    //- 힌트 제한시간 조절 (방장 전용, 언제든 변경 가능)
+    #liar-hint-timeout-wrap(style="display:none")
+      label.spectator-toggle-label
+        span 힌트 제한시간
+        select#liar-hint-timeout-select.liar-timeout-select
+          each sec in [15, 20, 25, 30, 35, 40, 45, 50, 55, 60]
+            option(value=sec)= `${sec}초`
+
+  #screen-game.screen
+    +spectatorGame
+
+    //- 지난 라운드 결과 (다음 제시어 대기 중에만 노출)
+    #liar-result-banner(style="display:none")
+
+    //- 방장: 진짜·라이어 제시어 입력 (wordSetup 단계에서만)
+    #liar-host-setup(style="display:none")
+      label.spectator-toggle-label
+        span 힌트 제한시간
+        select#liar-hint-timeout-select-2.liar-timeout-select
+          each sec in [15, 20, 25, 30, 35, 40, 45, 50, 55, 60]
+            option(value=sec)= `${sec}초`
+      input#input-real-word(type="text" placeholder="진짜 제시어 (예: 사과)" maxlength="20" autocomplete="off")
+      input#input-liar-word(type="text" placeholder="라이어 제시어 (예: 우주선 — 전혀 다른 것)" maxlength="20" autocomplete="off")
+      button#btn-set-words.btn.btn-primary 라운드 시작
+
+    //- 참가자: 방장이 제시어를 준비 중일 때 대기 안내
+    #liar-wait-notice(style="display:none") 방장이 제시어를 준비하고 있습니다…
+
+    //- 방장 '대기실로 나가기' (게임 중 상시 노출)
+    button#liar-return-lobby.btn.btn-secondary(style="display:none") 대기실로 나가기
+
+    //- 내 제시어 (참가자 전용, 라운드 진행 중)
+    #liar-my-word(style="display:none")
+
+    //- 방장·관전자 전용: 참가자 전원의 역할·제시어 공개
+    #liar-reveal-panel(style="display:none")
+
+    //- 힌트 순서·타이머
+    #liar-turn-banner
+    #liar-timer-wrap(style="display:none")
+      #liar-timer-track
+        #liar-timer-bar
+      #liar-timer-num -
+
+    //- 힌트 기록 (공개 정보)
+    #liar-hint-log
+
+    //- 내 차례일 때만 노출되는 힌트 입력
+    form#liar-hint-form(autocomplete="off" style="display:none")
+      input#liar-hint-input(type="text" placeholder="힌트를 입력하세요 (한 마디로!)" maxlength="40" autocomplete="off" enterkeyhint="send")
+      button.btn.btn-primary(type="submit") 제출
+
+    //- 투표 1: 라이어 지목 vs 한 바퀴 더
+    #liar-vote-continue(style="display:none")
+      p.liar-vote-title 라이어를 지목할까요, 한 바퀴 더 돌까요?
+      .liar-vote-buttons
+        button#liar-vote-accuse.btn.btn-danger 라이어 지목하기
+        button#liar-vote-more.btn.btn-secondary 한 바퀴 더
+      #liar-vote-progress
+
+    //- 투표 2: 라이어로 지목할 사람 선택
+    #liar-vote-liar(style="display:none")
+      p.liar-vote-title 라이어라고 생각하는 사람을 선택하세요
+      ul#liar-vote-target-list.liar-vote-target-list
+      #liar-vote-progress2
+
+    //- 라이어의 마지막 기회 (본인에게만 입력창, 나머지는 대기 메시지)
+    #liar-guess-form(style="display:none")
+      p.liar-vote-title 정체가 들켰습니다! 진짜 제시어를 맞혀보세요
+      input#liar-guess-input(type="text" placeholder="진짜 제시어 입력" maxlength="20" autocomplete="off")
+      button#btn-liar-guess.btn.btn-primary 제출
+    #liar-guess-wait(style="display:none") 라이어가 진짜 제시어를 맞히는 중입니다…

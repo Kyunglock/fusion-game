@@ -7,6 +7,7 @@ export const GAMES = {
   tetris:    '테트리스 배틀',
   jamo:      '자모 워들',
   wordchain: '끝말잇기',
+  liar:      '라이어 게임',
   jamoSolo:  '자모 워들 솔로',
 };
 

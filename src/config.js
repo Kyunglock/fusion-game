@@ -41,3 +41,8 @@ export const WORDCHAIN_MIN_PLAYERS  = 2;
 export const WORDCHAIN_TURN_TIMEOUT = 15; // 단어 제출 제한시간 (초)
 export const WORDCHAIN_RETURN_DELAY = 6;  // 라운드 종료 후 대기실 자동 복귀 (초)
 export const WORDCHAIN_MAX_WORD_LEN = 15; // 단어 최대 글자 수
+
+export const LIAR_MAX_PLAYERS  = 9; // 방장 + 참가자 최대 8명
+export const LIAR_MIN_PLAYERS  = 4; // 방장 + 참가자 최소 3명 (라이어 1 + 시민 2 이상)
+export const LIAR_HINT_TIMEOUT = 15; // 힌트 제출 제한시간 (초), 못 내면 힌트 없이 다음 차례로
+// 라운드 종료 후 방장이 게임 안에서 직접 다음 제시어를 내므로 자동 복귀 타이머는 없다.
