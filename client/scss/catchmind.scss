@@ -595,6 +595,7 @@
 
   &.warn { background: var(--red); }
   &.ok   { background: var(--green-mid); }
+  &.miss { background: var(--red-dark); }
 }
 
 .cm-card-del {
