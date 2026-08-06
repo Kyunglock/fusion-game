@@ -573,7 +573,9 @@ li.is-offline {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.7);
-  z-index: 500;
+  // 우측 하단 공용 도크(#pg-dock, z-index 999)보다 위에 떠야 한다 —
+  // 모달을 여는 버튼이 그 도크에 있는데 도크가 모달 위를 덮으면 내용이 가린다.
+  z-index: 1000;
   align-items: center;
   justify-content: center;
   padding: 20px;
@@ -588,6 +590,11 @@ li.is-offline {
   padding: 32px 28px;
   width: 100%;
   max-width: 360px;
+  // 내용이 화면보다 길면(전적 모달의 등급표 등) 카드가 위아래로 잘려
+  // 제목과 닫기 버튼에 손이 닿지 않는다 → 화면 높이에 맞추고 안에서 스크롤한다.
+  max-height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   animation: pop-in 0.25s cubic-bezier(0.17, 0.84, 0.44, 1);
 
   @keyframes pop-in {
@@ -607,6 +614,33 @@ li.is-offline {
 }
 
 // ── 전적 모달 ─────────────────────────────────────────────────────────────────
+// 내용이 길어(게임별 전적 + 최근 전적 + 등급표 20줄) 카드째 스크롤하면
+// 닫기 버튼이 맨 아래로 밀린다 → 본문만 스크롤시켜 제목·닫기 버튼을 고정한다.
+#stats-modal .modal-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#stats-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+#btn-close-stats {
+  flex: none;
+  margin-top: 16px;
+}
+
+// 표가 화면보다 넓으면(닉네임·등급이 긴 등급표) 옆으로 밀어 볼 수 있게 한다.
+// 표 자체를 스크롤 컨테이너로 만들면 열 정렬이 깨지므로 감싸는 상자에 건다.
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .rank-card {
   text-align: center;
   padding: 16px 12px;
@@ -732,4 +766,41 @@ li.is-offline {
   font-size: 0.72rem;
   color: var(--muted);
   margin-bottom: 10px;
+}
+
+// ── 모달 모바일 보정 ──────────────────────────────────────────────────────────
+// 좁은 화면에서는 카드 여백부터 줄여야 표에 쓸 폭이 남는다.
+@media (max-width: 500px) {
+  .modal-overlay {
+    padding:
+      calc(12px + env(safe-area-inset-top, 0px))
+      calc(10px + env(safe-area-inset-right, 0px))
+      calc(12px + env(safe-area-inset-bottom, 0px))
+      calc(10px + env(safe-area-inset-left, 0px));
+  }
+
+  .modal-card {
+    padding: 22px 16px;
+    border-radius: 16px;
+  }
+
+  .modal-title { margin-bottom: 14px; }
+
+  .stats-table {
+    font-size: 0.74rem;
+
+    th, td { padding: 5px 3px; }
+    th { font-size: 0.68rem; }
+
+    // 등급표는 5열이라 닉네임이 길면 마지막 '전적' 열이 화면 밖으로 밀린다.
+    // 닉네임만 줄바꿈을 허용하면 정보를 자르지 않고도 폭이 맞는다.
+    &.ranking-table td:nth-child(2) {
+      white-space: normal;
+      word-break: break-all;
+      min-width: 4em;
+    }
+  }
+
+  // 카드 본문이 이미 스크롤되므로 안쪽에 또 스크롤 영역을 두지 않는다.
+  .recent-list { max-height: none; }
 }

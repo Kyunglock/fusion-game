@@ -39,18 +39,21 @@ function renderStatsTable({ stats, totals }) {
       <td>${s.winRate}%</td>
     </tr>`).join('');
 
+  // 좁은 화면에서 표가 잘리지 않도록 가로 스크롤 상자로 감싼다.
   return `
-    <table class="stats-table">
-      <thead><tr><th>게임</th><th>판</th><th>승</th><th>패</th><th>승률</th></tr></thead>
-      <tbody>${rows}</tbody>
-      <tfoot>
-        <tr>
-          <td>합계</td><td>${totals.plays}</td>
-          <td class="win">${totals.wins}</td><td class="lose">${totals.losses}</td>
-          <td>${totals.winRate}%</td>
-        </tr>
-      </tfoot>
-    </table>`;
+    <div class="table-scroll">
+      <table class="stats-table">
+        <thead><tr><th>게임</th><th>판</th><th>승</th><th>패</th><th>승률</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot>
+          <tr>
+            <td>합계</td><td>${totals.plays}</td>
+            <td class="win">${totals.wins}</td><td class="lose">${totals.losses}</td>
+            <td>${totals.winRate}%</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>`;
 }
 
 // DB 는 UTC('YYYY-MM-DD HH:MM:SS')로 저장하므로 브라우저 시간대로 바꿔 보여준다.
@@ -85,10 +88,12 @@ function renderRanking(ranking, myId) {
 
   return `
     <p class="stats-subtitle">이 서버 등급표</p>
-    <table class="stats-table ranking-table">
-      <thead><tr><th>#</th><th>닉네임</th><th>등급</th><th>점수</th><th>전적</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
+    <div class="table-scroll">
+      <table class="stats-table ranking-table">
+        <thead><tr><th>#</th><th>닉네임</th><th>등급</th><th>점수</th><th>전적</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
 }
 
 // ── 모달 DOM (페이지에 이미 있으면 재사용, 없으면 새로 만든다) ────────────────
