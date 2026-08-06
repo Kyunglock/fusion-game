@@ -62,10 +62,6 @@ const serverPwName    = document.getElementById('server-pw-name');
 const inputServerPw   = document.getElementById('input-server-pw');
 const btnServerEnter  = document.getElementById('btn-server-enter');
 const btnServerBack   = document.getElementById('btn-server-back');
-const authServerChip  = document.getElementById('auth-server-chip');
-const selectServerChip = document.getElementById('select-server-chip');
-const btnChangeServer     = document.getElementById('btn-change-server');
-const btnChangeServerAuth = document.getElementById('btn-change-server-auth');
 
 const profileModal     = document.getElementById('profile-modal');
 const avatarPreview    = document.getElementById('avatar-preview');
@@ -258,14 +254,8 @@ function backToServerList() {
   serverGrid.hidden   = false;
 }
 
-function setServerChips(name) {
-  authServerChip.textContent   = name ?? '-';
-  selectServerChip.textContent = name ?? '-';
-}
-
 /** 서버가 정해진 뒤 — 닉네임이 있으면 게임 목록, 없으면 닉네임 입력 화면 */
-async function afterServerEntered(serverName, preloadedMe) {
-  setServerChips(serverName);
+async function afterServerEntered(preloadedMe) {
   startRoomCounts();
   const user = preloadedMe !== undefined
     ? preloadedMe
@@ -280,25 +270,17 @@ async function enterServer() {
   if (!password) { showError('비밀번호를 입력해주세요.'); inputServerPw.focus(); return; }
 
   try {
-    const data = await api('/api/servers/enter', { method: 'POST', body: { serverId: pickedId, password } });
-    await afterServerEntered(data.serverName);
+    await api('/api/servers/enter', { method: 'POST', body: { serverId: pickedId, password } });
+    await afterServerEntered();
   } catch (e) {
     showError(e.message);
     inputServerPw.select();
   }
 }
 
-async function changeServer() {
-  await fetch('/api/servers/leave', { method: 'POST' }).catch(() => {});
-  // 소켓이 들고 있는 세션 스냅샷까지 갈아끼우려면 페이지를 다시 여는 편이 확실하다.
-  window.location.reload();
-}
-
 btnServerEnter.addEventListener('click', enterServer);
 btnServerBack .addEventListener('click', backToServerList);
 inputServerPw .addEventListener('keydown', e => { if (e.key === 'Enter') enterServer(); });
-btnChangeServer    .addEventListener('click', changeServer);
-btnChangeServerAuth.addEventListener('click', changeServer);
 
 // ── 로드 시: 서버 · 세션 확인 ─────────────────────────────────────────────────
 const [servers, me] = await Promise.all([
@@ -309,7 +291,7 @@ const [servers, me] = await Promise.all([
 serverList = servers.servers ?? [];
 renderServerCards();
 
-if (servers.current) await afterServerEntered(servers.currentName, me);
+if (servers.current) await afterServerEntered(me);
 else                 showPage(pageServer);
 
 // ── 시작하기 (닉네임 = 계정, 비밀번호 없음) ──────────────────────────────────
