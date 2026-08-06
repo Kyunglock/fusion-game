@@ -1,4 +1,4 @@
-import { rooms, getRoomOf, getRooms, safeState, removePlayer, removeSpectator, manager, activeParticipants } from './rooms.js';
+import { rooms, getRoomOf, safeState, removePlayer, removeSpectator, manager, activeParticipants } from './rooms.js';
 import { LIAR_HINT_TIMEOUT } from '../../config.js';
 import { registerCommonHandlers } from '../../shared/socketHandlers.js';
 import { recordPlayers } from '../../db/stats.js';

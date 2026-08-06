@@ -1,9 +1,11 @@
-import { showError }     from './utils.js';
+import { showError, escHtml } from './utils.js';
 import { io } from '/socket.io/socket.io.esm.min.js';
 import { tierLabel } from './shared/myRank.js';
 import { openStatsModal } from './shared/statsModal.js';
 
 // ── 방 개수 실시간 표시 ────────────────────────────────────────────────────────
+// 방 목록은 서버(채널)별로 갈리므로, 서버가 정해진 뒤에야 소켓을 연다.
+// (서버를 고르기 전에 붙으면 어차피 빈 목록만 온다)
 const roomCountCroc      = document.getElementById('room-count-croc');
 const roomCountBomb      = document.getElementById('room-count-bomb');
 const roomCountTetris    = document.getElementById('room-count-tetris');
@@ -17,24 +19,32 @@ function updateRoomCount(el, rooms) {
   el.textContent = count > 0 ? `방 ${count}개 대기중` : '';
 }
 
-const sockBomb      = io('/bomb');
-const sockTetris    = io('/tetris');
-const sockJamo      = io('/jamo');
-const sockWordchain = io('/wordchain');
-const sockLiar      = io('/liar');
+let socket        = null; // 기본 네임스페이스(악어) — 프로필 갱신 알림에도 쓴다
+let roomSocketsUp = false;
 
-sockBomb     .on('connect', () => sockBomb     .emit('get_rooms'));
-sockTetris   .on('connect', () => sockTetris   .emit('get_rooms'));
-sockJamo     .on('connect', () => sockJamo     .emit('get_rooms'));
-sockWordchain.on('connect', () => sockWordchain.emit('get_rooms'));
-sockLiar     .on('connect', () => sockLiar     .emit('get_rooms'));
+function startRoomCounts() {
+  if (roomSocketsUp) return;
+  roomSocketsUp = true;
 
-sockBomb     .on('bomb_rooms_update',      rooms => updateRoomCount(roomCountBomb,      rooms));
-sockTetris   .on('tetris_rooms_update',    rooms => updateRoomCount(roomCountTetris,    rooms));
-sockJamo     .on('jamo_rooms_update',      rooms => updateRoomCount(roomCountJamo,      rooms));
-sockWordchain.on('wordchain_rooms_update', rooms => updateRoomCount(roomCountWordchain, rooms));
-sockLiar     .on('liar_rooms_update',      rooms => updateRoomCount(roomCountLiar,      rooms));
+  socket = io();
+  socket.on('connect', () => socket.emit('get_rooms'));
+  socket.on('rooms_update', rooms => updateRoomCount(roomCountCroc, rooms));
 
+  const counters = [
+    ['/bomb',      'bomb_rooms_update',      roomCountBomb],
+    ['/tetris',    'tetris_rooms_update',    roomCountTetris],
+    ['/jamo',      'jamo_rooms_update',      roomCountJamo],
+    ['/wordchain', 'wordchain_rooms_update', roomCountWordchain],
+    ['/liar',      'liar_rooms_update',      roomCountLiar],
+  ];
+  for (const [ns, event, el] of counters) {
+    const sock = io(ns);
+    sock.on('connect', () => sock.emit('get_rooms'));
+    sock.on(event, rooms => updateRoomCount(el, rooms));
+  }
+}
+
+const pageServer  = document.getElementById('page-server');
 const pageAuth    = document.getElementById('page-auth');
 const pageSelect  = document.getElementById('page-select');
 const displayNick = document.getElementById('display-nick');
@@ -46,6 +56,17 @@ const btnLogout     = document.getElementById('btn-logout');
 const btnStats      = document.getElementById('btn-stats');
 const inputUsername = document.getElementById('input-username');
 
+const serverGrid      = document.getElementById('server-grid');
+const serverPwCard    = document.getElementById('server-pw-card');
+const serverPwName    = document.getElementById('server-pw-name');
+const inputServerPw   = document.getElementById('input-server-pw');
+const btnServerEnter  = document.getElementById('btn-server-enter');
+const btnServerBack   = document.getElementById('btn-server-back');
+const authServerChip  = document.getElementById('auth-server-chip');
+const selectServerChip = document.getElementById('select-server-chip');
+const btnChangeServer     = document.getElementById('btn-change-server');
+const btnChangeServerAuth = document.getElementById('btn-change-server-auth');
+
 const profileModal     = document.getElementById('profile-modal');
 const avatarPreview    = document.getElementById('avatar-preview');
 const avatarFileInput  = document.getElementById('avatar-file-input');
@@ -53,10 +74,6 @@ const inputNewUsername = document.getElementById('input-new-username');
 const btnEditProfile   = document.getElementById('btn-edit-profile');
 const btnSaveProfile   = document.getElementById('btn-save-profile');
 const btnCancelProfile = document.getElementById('btn-cancel-profile');
-
-const socket = io();
-socket.on('connect', () => socket.emit('get_rooms'));
-socket.on('rooms_update', rooms => updateRoomCount(roomCountCroc, rooms));
 
 let pendingAvatar   = null;
 let currentUsername = '';
@@ -68,6 +85,10 @@ function setAvatar(el, avatar) {
   } else {
     el.textContent = '😊';
   }
+}
+
+function showPage(target) {
+  for (const p of [pageServer, pageAuth, pageSelect]) p.classList.toggle('active', p === target);
 }
 
 function showSelectPage(me) {
@@ -83,8 +104,7 @@ function showSelectPage(me) {
     tierBadge.hidden = true;
   }
 
-  pageAuth.classList.remove('active');
-  pageSelect.classList.add('active');
+  showPage(pageSelect);
 }
 
 // ── 이미지 → canvas → base64 (128×128 리사이즈) ───────────────────────────────
@@ -185,7 +205,7 @@ btnSaveProfile.addEventListener('click', async () => {
     return;
   }
 
-  socket.emit('refresh_profile');
+  socket?.emit('refresh_profile');
   closeProfileModal();
 });
 
@@ -200,9 +220,97 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeProfileModal();
 });
 
-// ── 로드 시: 세션 확인 ────────────────────────────────────────────────────────
-const me = await fetch('/api/me').then(r => r.ok ? r.json() : null).catch(() => null);
-if (me?.username) showSelectPage(me);
+// ── 서버(채널) 선택 ───────────────────────────────────────────────────────────
+// 물리적으로 나뉜 서버가 아니라 같은 앱 안에서 방 목록·접속자만 갈라둔 관문이다.
+// 비밀번호를 맞혀야 세션에 서버가 박히고 그때부터 게임 페이지가 열린다.
+let serverList = [];
+let pickedId   = null;
+
+function renderServerCards() {
+  serverGrid.innerHTML = serverList.map(s => `
+    <button class="server-card" data-id="${escHtml(s.id)}">
+      <span class="server-icon">${escHtml(s.icon)}</span>
+      <span class="server-name">${escHtml(s.name)}</span>
+      <span class="server-desc">${escHtml(s.desc)}</span>
+      <span class="server-lock">🔒 비밀번호 필요</span>
+    </button>
+  `).join('');
+
+  serverGrid.querySelectorAll('.server-card').forEach(btn => {
+    btn.addEventListener('click', () => pickServer(btn.dataset.id));
+  });
+}
+
+function pickServer(id) {
+  const server = serverList.find(s => s.id === id);
+  if (!server) return;
+  pickedId = id;
+  serverPwName.textContent = `${server.icon} ${server.name}`;
+  serverPwCard.hidden      = false;
+  serverGrid.hidden        = true;
+  inputServerPw.value      = '';
+  inputServerPw.focus();
+}
+
+function backToServerList() {
+  pickedId          = null;
+  serverPwCard.hidden = true;
+  serverGrid.hidden   = false;
+}
+
+function setServerChips(name) {
+  authServerChip.textContent   = name ?? '-';
+  selectServerChip.textContent = name ?? '-';
+}
+
+/** 서버가 정해진 뒤 — 닉네임이 있으면 게임 목록, 없으면 닉네임 입력 화면 */
+async function afterServerEntered(serverName, preloadedMe) {
+  setServerChips(serverName);
+  startRoomCounts();
+  const user = preloadedMe !== undefined
+    ? preloadedMe
+    : await fetch('/api/me').then(r => (r.ok ? r.json() : null)).catch(() => null);
+  if (user?.username) showSelectPage(user);
+  else                showPage(pageAuth);
+}
+
+async function enterServer() {
+  if (!pickedId) return;
+  const password = inputServerPw.value;
+  if (!password) { showError('비밀번호를 입력해주세요.'); inputServerPw.focus(); return; }
+
+  try {
+    const data = await api('/api/servers/enter', { method: 'POST', body: { serverId: pickedId, password } });
+    await afterServerEntered(data.serverName);
+  } catch (e) {
+    showError(e.message);
+    inputServerPw.select();
+  }
+}
+
+async function changeServer() {
+  await fetch('/api/servers/leave', { method: 'POST' }).catch(() => {});
+  // 소켓이 들고 있는 세션 스냅샷까지 갈아끼우려면 페이지를 다시 여는 편이 확실하다.
+  window.location.reload();
+}
+
+btnServerEnter.addEventListener('click', enterServer);
+btnServerBack .addEventListener('click', backToServerList);
+inputServerPw .addEventListener('keydown', e => { if (e.key === 'Enter') enterServer(); });
+btnChangeServer    .addEventListener('click', changeServer);
+btnChangeServerAuth.addEventListener('click', changeServer);
+
+// ── 로드 시: 서버 · 세션 확인 ─────────────────────────────────────────────────
+const [servers, me] = await Promise.all([
+  api('/api/servers').catch(() => ({ servers: [], current: null })),
+  fetch('/api/me').then(r => (r.ok ? r.json() : null)).catch(() => null),
+]);
+
+serverList = servers.servers ?? [];
+renderServerCards();
+
+if (servers.current) await afterServerEntered(servers.currentName, me);
+else                 showPage(pageServer);
 
 // ── 시작하기 (닉네임 = 계정, 비밀번호 없음) ──────────────────────────────────
 btnStart.addEventListener('click', async () => {

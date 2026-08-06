@@ -18,6 +18,13 @@ export function checkAuth(inputName) {
 
       $('session-nick-name').textContent = data.username;
 
+      // 지금 들어와 있는 서버(퓨전/친구방). 방 목록이 이 값으로 갈리므로 대기실에도 띄운다.
+      const serverEl = $('session-server');
+      if (serverEl && data.serverName) {
+        serverEl.textContent = data.serverName;
+        serverEl.hidden      = false;
+      }
+
       if (data.avatar) {
         avatarEl.innerHTML = `<img src="${data.avatar}" alt="avatar" style="width:100%;height:100%;object-fit:cover;" />`;
       }

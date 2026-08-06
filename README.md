@@ -12,6 +12,12 @@
 | 🔤 자모 워들 | 방장이 낸 제시어를 자모 단위로 맞히기 | `/jamo` |
 | 🔗 끝말잇기 | 제한시간 안에 끝말을 잇지 못하면 탈락 | `/wordchain` |
 
+## 서버(채널)
+
+앞단에서 **퓨전 서버**와 **친구방** 둘 중 하나를 골라 비밀번호를 입력해야 게임에 들어갈 수 있습니다.
+프로세스를 나눈 것이 아니라 같은 앱 안에서 **방 목록과 접속자만 서로 보이지 않게** 갈라둔 것입니다.
+닉네임·전적·등급은 두 서버가 함께 씁니다.
+
 ## 기술 스택
 
 - **백엔드**: Node.js + Express + Socket.IO
@@ -41,6 +47,8 @@ cp .env.sample .env
 | `SESSION_SECRET` | ✅ | 세션 서명용 비밀 키. 아래 명령으로 랜덤 값을 생성해 채워주세요. |
 | `PORT` | ❌ | 서버 포트. 비워두면 `4000`번을 사용합니다. |
 | `DB_PATH` | ❌ | SQLite 파일 경로. 비워두면 `data/app.db`가 자동 생성됩니다. |
+| `SERVER_PASSWORD_FUSION` | ❌ | '퓨전 서버' 입장 비밀번호. 비워두면 개발용 기본값(`fusion`)으로 동작합니다. |
+| `SERVER_PASSWORD_FRIENDS` | ❌ | '친구방' 입장 비밀번호. 비워두면 개발용 기본값(`friends`)으로 동작합니다. |
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"

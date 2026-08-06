@@ -25,6 +25,9 @@ sudo mkdir -p /srv/fusion-game && cd /srv/fusion-game
 cat > .env <<'EOF'
 SESSION_SECRET=<node -e "console.log(require('crypto').randomBytes(32).toString('hex'))" 로 생성>
 PORT=4000
+# 서버(채널) 입장 비밀번호 — 퓨전 서버 / 친구방. 안 넣으면 개발용 기본값으로 뜬다.
+SERVER_PASSWORD_FUSION=<퓨전 사람들에게 알려줄 비밀번호>
+SERVER_PASSWORD_FRIENDS=<친구들에게 알려줄 비밀번호>
 EOF
 chmod 600 .env
 
