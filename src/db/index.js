@@ -144,6 +144,17 @@ const MIGRATIONS = [
   -- 읽지도 쓰지도 않는다. 이미 배포된 마이그레이션은 고치지 않는 것이 원칙이라
   -- 지우지 않고 남겨둔다.
   `,
+  `
+  -- 캐치마인드 그림 풀을 서버(채널)별로 가른다. 퓨전 서버에서 그린 그림은 퓨전
+  -- 사람들끼리, 친구방 그림은 친구들끼리만 출제·랭킹에 나온다.
+  -- 그림에만 붙이면 되는 이유 — 풀이·추천·신고는 모두 drawing_id 를 타고 달리므로
+  -- 그림이 갈리면 따라서 갈린다.
+  --
+  -- 분리 이전에 그려둔 그림은 갈 곳을 정해줘야 해서 'fusion' 으로 몰아준다
+  -- (친구방은 이때 새로 생긴 서버라 아직 그린 그림이 없다).
+  ALTER TABLE catchmind_drawings ADD COLUMN server_id TEXT NOT NULL DEFAULT 'fusion';
+  CREATE INDEX idx_catchmind_server ON catchmind_drawings(server_id, hidden, id);
+  `,
 ];
 
 function migrate() {

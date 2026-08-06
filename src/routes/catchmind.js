@@ -65,7 +65,7 @@ router.get('/word', (req, res) => {
   // 새로고침한 경우 방금 나온 제시어는 피해준다.
   if (req.query.refresh && req.session.catchmindWord) exclude.add(req.session.catchmindWord);
 
-  const word = pickWord(store.drawingCounts(), exclude);
+  const word = pickWord(store.drawingCounts(req.session.serverId), exclude);
   req.session.catchmindWord = word;
 
   res.json({ word, category: categoryOf(word) });
@@ -83,6 +83,8 @@ router.post('/drawings', (req, res) => {
 
   const id = store.saveDrawing({
     accountId:   req.session.accountId,
+    // 그린 서버(채널)를 함께 박는다 — 이 그림은 그 서버에서만 출제된다.
+    serverId:    req.session.serverId,
     word,
     strokesJson: clean.json,
   });
@@ -99,10 +101,10 @@ router.post('/drawings', (req, res) => {
  * 홈에서 /quiz 를 부르면 그림이 '열람됨'으로 찍혀 버리므로 조회 전용으로 따로 둔다.
  */
 router.get('/summary', (req, res) => {
-  const accountId = req.session.accountId;
+  const { accountId, serverId } = req.session;
   res.json({
-    remaining: store.remainingCount(accountId),
-    ...store.mySummary(accountId),
+    remaining: store.remainingCount(accountId, serverId),
+    ...store.mySummary(accountId, serverId),
   });
 });
 
@@ -110,8 +112,8 @@ router.get('/summary', (req, res) => {
 
 /** GET /api/catchmind/quiz — 맞힐 그림 한 장 */
 router.get('/quiz', (req, res) => {
-  const accountId = req.session.accountId;
-  const picked    = store.pickQuiz(accountId);
+  const { accountId, serverId } = req.session;
+  const picked    = store.pickQuiz(accountId, serverId);
 
   if (!picked) {
     return res.json({ empty: true, remaining: 0 });
@@ -121,7 +123,7 @@ router.get('/quiz', (req, res) => {
   const play = store.openQuiz(drawing.id, accountId, { replay });
   res.json(quizPayload(drawing, play, {
     replay,
-    remaining: store.remainingCount(accountId),
+    remaining: store.remainingCount(accountId, serverId),
     myVote:    store.myVote(drawing.id, accountId),
   }));
 });
@@ -129,7 +131,8 @@ router.get('/quiz', (req, res) => {
 /** 그림 + 그 사람의 풀이 상태를 함께 집는다 (없거나 숨겨졌으면 404) */
 function loadQuiz(req, res) {
   const drawing = store.getDrawing(Number(req.params.id));
-  if (!drawing || drawing.hidden) {
+  // 다른 서버(채널)의 그림은 id 를 알아도 없는 그림으로 취급한다.
+  if (!drawing || drawing.hidden || drawing.server_id !== req.session.serverId) {
     res.status(404).json({ error: '그림을 찾을 수 없습니다.' });
     return null;
   }
@@ -218,10 +221,10 @@ router.post('/quiz/:id/report', (req, res) => {
  * 내려간다 — 목록에서 답이 새면 맞히기가 무의미해진다.
  */
 router.get('/board', (req, res) => {
-  const accountId = req.session.accountId;
-  const sort      = store.BOARD_SORT_KEYS.includes(req.query.sort) ? req.query.sort : 'likes';
+  const { accountId, serverId } = req.session;
+  const sort = store.BOARD_SORT_KEYS.includes(req.query.sort) ? req.query.sort : 'likes';
 
-  const items = store.leaderboard(accountId, sort).map((d) => {
+  const items = store.leaderboard(accountId, serverId, sort).map((d) => {
     const mine    = d.author_id === accountId;
     const canSee  = mine || d.finished_by_me === 1;
     return {
@@ -249,8 +252,8 @@ router.get('/board', (req, res) => {
 
 /** GET /api/catchmind/mine — 내가 그린 그림 + 얼마나 맞혀졌는지 */
 router.get('/mine', (req, res) => {
-  const accountId = req.session.accountId;
-  const drawings  = store.myDrawings(accountId, 40).map(d => ({
+  const { accountId, serverId } = req.session;
+  const drawings  = store.myDrawings(accountId, serverId, 40).map(d => ({
     id:       d.id,
     word:     d.word,
     strokes:  parseStrokes(d.strokes),
@@ -265,14 +268,14 @@ router.get('/mine', (req, res) => {
 
   res.json({
     drawings,
-    summary:        store.mySummary(accountId),
+    summary:        store.mySummary(accountId, serverId),
     reportsToHide:  CATCHMIND_REPORTS_TO_HIDE,
   });
 });
 
 /** DELETE /api/catchmind/drawings/:id — 내 그림 내리기 */
 router.delete('/drawings/:id', (req, res) => {
-  const ok = store.hideMyDrawing(Number(req.params.id), req.session.accountId);
+  const ok = store.hideMyDrawing(Number(req.params.id), req.session.accountId, req.session.serverId);
   if (!ok) return res.status(404).json({ error: '그림을 찾을 수 없습니다.' });
   res.json({ hidden: true });
 });
