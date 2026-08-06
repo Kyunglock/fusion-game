@@ -19,7 +19,7 @@ export const GAME_SERVERS = [
     icon:    '🏢',
     desc:    '퓨전 사람들이 모이는 서버',
     envKey:  'SERVER_PASSWORD_FUSION',
-    password: 'fusion!@34',
+    password: 'fusion',
   },
   {
     id:      'friends',
