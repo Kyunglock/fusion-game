@@ -1,6 +1,6 @@
-import { rooms, getRoomOf, getRooms, safeState, removePlayer, removeSpectator, manager } from './rooms.js';
+import { rooms, getRoomOf, safeState, removePlayer, removeSpectator, manager } from './rooms.js';
 import { BOMB_TIME_PER_PLAYER_MIN, BOMB_TIME_PER_PLAYER_MAX, BOMB_RETURN_DELAY, BOMB_WARN_MIN, BOMB_WARN_MAX } from '../../config.js';
-import { registerCommonHandlers } from '../../shared/socketHandlers.js';
+import { registerCommonHandlers, broadcastRoomList } from '../../shared/socketHandlers.js';
 import { recordPlayers } from '../../db/stats.js';
 
 // ── 타이머 관리 ───────────────────────────────────────────────────────────────
@@ -30,7 +30,7 @@ function startReturnTimer(io, room) {
     r.bombHoldStartedAt = null;
     r.players.forEach(p => (p.ready = false));
     io.to(r.code).emit('room_update', safeState(r));
-    io.emit('bomb_rooms_update', getRooms());
+    broadcastRoomList(io, manager, 'bomb_rooms_update');
   }, BOMB_RETURN_DELAY * 1000));
 }
 

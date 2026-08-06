@@ -1,5 +1,16 @@
 import { SOCKET_RECONNECT_GRACE_MS } from '../config.js';
+import { GAME_SERVERS, serverChannel } from '../servers.js';
 import { holdSeat, claimSeat, expireSeat } from './reconnect.js';
+
+/**
+ * 방 목록 브로드캐스트 — 서버(채널)별로 갈라서 보낸다.
+ * 소켓 핸들러 바깥(타이머 콜백 등 socket 이 없는 자리)에서도 쓰라고 따로 뺐다.
+ */
+export function broadcastRoomList(io, manager, roomsEvent) {
+  for (const s of GAME_SERVERS) {
+    io.to(serverChannel(s.id)).emit(roomsEvent, manager.getRooms(s.id));
+  }
+}
 
 /**
  * 공통 소켓 핸들러 등록.
@@ -45,20 +56,37 @@ export function registerCommonHandlers(io, socket, manager, opts) {
   const sessionAvatar    = () => session()?.avatar    ?? null;
   // 로그인 계정(users.id). 게스트는 null → 전적을 남기지 않는다.
   const sessionAccountId = () => session()?.accountId ?? null;
+  // 이 소켓이 들어와 있는 서버(채널). 없으면 방을 만들 수도 들어갈 수도 없다.
+  // (핸드셰이크 시점의 세션 스냅샷이라, 서버를 바꾸면 페이지를 다시 여는 것이 전제다)
+  const sessionServerId  = () => session()?.serverId  ?? null;
+  const myServerId       = sessionServerId();
+
+  // 서버별 방 목록 브로드캐스트를 받도록 채널에 넣어둔다.
+  if (myServerId) socket.join(serverChannel(myServerId));
 
   // ── 브로드캐스트 헬퍼 ────────────────────────────────────────────────────
   const broadcast      = (room) => io.to(room.code).emit('room_update', safeState(room));
-  const broadcastRooms = ()     => { reapDisconnected(liveIds()); io.emit(roomsEvent, getRooms()); };
+  const broadcastRooms = ()     => {
+    reapDisconnected(liveIds());
+    broadcastRoomList(io, manager, roomsEvent);
+  };
   const err            = (msg)  => socket.emit('error_msg', { message: msg });
 
+  // 다른 서버의 방은 없는 방으로 취급한다 (코드를 알아도 들어올 수 없다).
+  const visible = (room) => !!room && !!myServerId && room.serverId === myServerId;
+
   // ── get_rooms ────────────────────────────────────────────────────────────
-  socket.on('get_rooms', () => { reapDisconnected(liveIds()); socket.emit(roomsEvent, getRooms()); });
+  socket.on('get_rooms', () => {
+    reapDisconnected(liveIds());
+    socket.emit(roomsEvent, getRooms(myServerId));
+  });
 
   // ── create_room ──────────────────────────────────────────────────────────
   socket.on('create_room', ({ playerName } = {}) => {
+    if (!myServerId) return err('서버를 먼저 선택해주세요.');
     expireSeat(nsName, cid); // 재접속 유예로 붙잡아 둔 이전 자리가 있으면 정리한다
     const name     = (sessionName() || playerName || '플레이어').trim().slice(0, 16);
-    const room     = createRoom(socket.id, name, sessionAvatar(), session()?.userId ?? null, sessionAccountId());
+    const room     = createRoom(socket.id, name, sessionAvatar(), session()?.userId ?? null, sessionAccountId(), myServerId);
     socket.join(room.code);
     socket.emit('room_created', { code: room.code });
     socket.emit('chat_history', room.chatHistory);
@@ -73,7 +101,7 @@ export function registerCommonHandlers(io, socket, manager, opts) {
     const name     = (sessionName() || playerName || '플레이어').trim().slice(0, 16);
     const room     = getRoomOf(socket.id)?.code === code ? null : rooms.get(code);
 
-    if (!room)                                       return err('존재하지 않는 방입니다.');
+    if (!visible(room))                              return err('존재하지 않는 방입니다.');
     if (room.state !== 'lobby')                      return err('이미 게임이 진행 중인 방입니다.');
     if (room.players.length >= maxPlayers)            return err('방이 꽉 찼습니다.');
     if (room.players.some(p => p.id === socket.id))  return err('이미 입장한 방입니다.');
@@ -99,7 +127,7 @@ export function registerCommonHandlers(io, socket, manager, opts) {
     const name = (sessionName() || playerName || '관전자').trim().slice(0, 16);
     const room = rooms.get(code);
 
-    if (!room)                                       return err('존재하지 않는 방입니다.');
+    if (!visible(room))                              return err('존재하지 않는 방입니다.');
 
     const canSpectate = spectateCheck === 'playing'
       ? room.state === 'playing'
@@ -245,7 +273,7 @@ export function registerCommonHandlers(io, socket, manager, opts) {
       const room = getRoomOf(socket.id) ?? getRoomOfSpectator(socket.id);
       leaveFn(socket.id);
       if (room) socket.leave(room.code);
-      socket.emit(roomsEvent, getRooms());
+      socket.emit(roomsEvent, getRooms(myServerId));
     });
 
     // 재접속 — 붙잡아 둔 자리에 새 소켓을 다시 연결한다.

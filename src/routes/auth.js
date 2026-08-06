@@ -6,6 +6,7 @@ import {
 } from '../db/users.js';
 import { getUserStats } from '../db/stats.js';
 import { getRanking, getUserRank } from '../db/ranking.js';
+import { serverName } from '../servers.js';
 
 const router = Router();
 
@@ -21,19 +22,29 @@ function setSessionUser(req, user) {
 
 function meBody(req) {
   const accountId = req.session.accountId ?? null;
+  const serverId  = req.session.serverId ?? null;
   return {
     id:        req.session.userId,
     accountId,
     username:  req.session.username,
     avatar:    req.session.avatar ?? null,
     rank:      accountId ? getUserRank(accountId) : null,
+    // 지금 들어와 있는 서버(채널). 방 목록이 이 값으로 갈린다.
+    serverId,
+    serverName: serverName(serverId),
   };
 }
 
 // 세션 고정(session fixation) 공격 방지: 접속할 때 세션 id 를 새로 발급한다.
+// 서버(채널) 입장은 닉네임보다 앞단의 관문이므로 재발급 후에도 그대로 이어준다.
 function regenerate(req) {
+  const serverId = req.session.serverId ?? null;
   return new Promise((resolve, reject) => {
-    req.session.regenerate(err => (err ? reject(err) : resolve()));
+    req.session.regenerate(err => {
+      if (err) return reject(err);
+      if (serverId) req.session.serverId = serverId;
+      resolve();
+    });
   });
 }
 
@@ -70,9 +81,12 @@ router.post('/auth', handle(async (req, res) => {
 
 // ── 접속 종료 (다른 닉네임으로 갈아타기) ─────────────────────────────────────
 router.post('/auth/logout', (req, res) => {
-  req.session.destroy(() => {
-    res.clearCookie('connect.sid');
-    res.json({ ok: true });
+  // 서버(채널) 입장은 닉네임과 별개의 관문이므로, 닉네임만 갈아탈 때는 유지한다.
+  // (서버를 바꾸려면 /api/servers/leave 를 따로 부른다)
+  const serverId = req.session.serverId ?? null;
+  req.session.regenerate(() => {
+    if (serverId) req.session.serverId = serverId;
+    req.session.save(() => res.json({ ok: true }));
   });
 });
 

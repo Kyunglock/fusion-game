@@ -36,10 +36,12 @@ export function createRoomManager({
     return code;
   }
 
-  function createRoom(hostId, hostName, hostAvatar = null, hostUserId = null, hostAccountId = null) {
+  function createRoom(hostId, hostName, hostAvatar = null, hostUserId = null, hostAccountId = null, serverId = null) {
     const code = generateRoomCode();
     rooms.set(code, {
       code,
+      // 어느 서버(채널)의 방인지. 방 목록·입장이 이 값으로 갈린다.
+      serverId,
       players: [{
         id: hostId, userId: hostUserId, accountId: hostAccountId, name: hostName,
         avatar: hostAvatar,
@@ -69,8 +71,14 @@ export function createRoomManager({
     return null;
   }
 
-  function getRooms() {
+  /**
+   * 방 목록. 서버(채널)가 다른 방은 아예 보이지 않는다.
+   * serverId 가 없으면(= 서버를 고르지 않은 접속) 빈 목록을 준다.
+   */
+  function getRooms(serverId = null) {
+    if (!serverId) return [];
     return [...rooms.values()]
+      .filter(r => r.serverId === serverId)
       .filter(r => r.state === 'lobby' || (r.state !== 'lobby' && r.allowSpectators))
       .map(r => {
         const host = r.players.find(p => p.isHost);

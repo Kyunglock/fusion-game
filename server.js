@@ -9,9 +9,11 @@ import session        from 'express-session';
 
 import { PORT, SOCKET_PING_INTERVAL, SOCKET_PING_TIMEOUT, SOCKET_RECONNECT_GRACE_MS } from './src/config.js';
 import { SqliteSessionStore } from './src/db/sessionStore.js';
+import { warnDefaultPasswords } from './src/servers.js';
 import authRouter          from './src/routes/auth.js';
 import soloRouter          from './src/routes/solo.js';
 import catchmindRouter     from './src/routes/catchmind.js';
+import serversRouter, { requireServer, requireServerPage } from './src/routes/servers.js';
 import { registerHandlers } from './src/game/crocodile/socket.js';
 import { registerBombHandlers }   from './src/game/bomb/socket.js';
 import { registerTetrisHandlers } from './src/game/tetris/socket.js';
@@ -57,41 +59,44 @@ app.use(sessionMiddleware);
 
 io.use((socket, next) => sessionMiddleware(socket.request, socket.request.res || {}, next));
 
+// 서버(채널) 관문은 닉네임 로그인보다 앞단이라 게이트를 걸지 않는다.
+app.use('/api/servers', serversRouter);
 app.use('/api', authRouter);
-app.use('/api/solo', soloRouter);
-app.use('/api/catchmind', catchmindRouter);
+// 게임 관련 API 는 서버(채널)에 들어와 있어야 열린다.
+app.use('/api/solo', requireServer, soloRouter);
+app.use('/api/catchmind', requireServer, catchmindRouter);
 app.use(express.static(join(__dirname, 'client')));
 
 // ── SVG 사전 로드 ──────────────────────────────────────────────────────────────
 const crocodileSvg = readFileSync(join(__dirname, 'client/partials/crocodile-svg.html'), 'utf-8');
 
 // ── 게임 페이지 라우팅 (Pug) ──────────────────────────────────────────────────
-app.get('/crocodile', (_req, res) => {
+app.get('/crocodile', requireServerPage, (_req, res) => {
   res.render('pages/crocodile', { title: '악어 이빨 뽑기', cssFile: 'crocodile', jsFile: 'crocodile', hasFlash: true, crocodileSvg });
 });
 
-app.get('/bomb', (_req, res) => {
+app.get('/bomb', requireServerPage, (_req, res) => {
   res.render('pages/bomb', { title: '폭탄 돌리기', cssFile: 'bomb', jsFile: 'bomb', hasFlash: true });
 });
 
-app.get('/tetris', (_req, res) => {
+app.get('/tetris', requireServerPage, (_req, res) => {
   res.render('pages/tetris', { title: '테트리스 배틀', cssFile: 'tetris', jsFile: 'tetris', hasFlash: false });
 });
 
-app.get('/jamo', (_req, res) => {
+app.get('/jamo', requireServerPage, (_req, res) => {
   res.render('pages/jamo', { title: '자모 워들', cssFile: 'jamo', jsFile: 'jamo', hasFlash: false });
 });
 
-app.get('/wordchain', (_req, res) => {
+app.get('/wordchain', requireServerPage, (_req, res) => {
   res.render('pages/wordchain', { title: '끝말잇기', cssFile: 'wordchain', jsFile: 'wordchain', hasFlash: true });
 });
 
-app.get('/liar', (_req, res) => {
+app.get('/liar', requireServerPage, (_req, res) => {
   res.render('pages/liar', { title: '라이어 게임', cssFile: 'liar', jsFile: 'liar', hasFlash: false });
 });
 
 // 캐치마인드는 방·소켓이 없는 비동기 게임이라 채팅도 붙이지 않는다 (hasChat: false).
-app.get('/catchmind', (_req, res) => {
+app.get('/catchmind', requireServerPage, (_req, res) => {
   res.render('pages/catchmind', { title: '캐치마인드', cssFile: 'catchmind', jsFile: 'catchmind', hasFlash: false, hasChat: false });
 });
 
@@ -139,4 +144,5 @@ liarIo.on('connection', (socket) => {
   registerLiarHandlers(liarIo, socket);
 });
 
+warnDefaultPasswords();
 server.listen(PORT, () => console.log(`파티 게임즈 → http://localhost:${PORT}`));

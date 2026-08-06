@@ -1,8 +1,8 @@
-import { rooms, getRoomOf, getRooms, safeState, removePlayer, removeSpectator, manager, nextAlive } from './rooms.js';
+import { rooms, getRoomOf, safeState, removePlayer, removeSpectator, manager, nextAlive } from './rooms.js';
 import { WORDCHAIN_TURN_TIMEOUT, WORDCHAIN_RETURN_DELAY, WORDCHAIN_MAX_WORD_LEN } from '../../config.js';
 import { validateWord } from './chainLogic.js';
 import { hasWord } from './dictionary.js';
-import { registerCommonHandlers } from '../../shared/socketHandlers.js';
+import { registerCommonHandlers, broadcastRoomList } from '../../shared/socketHandlers.js';
 import { recordPlayers } from '../../db/stats.js';
 
 // ── 타이머 관리 ───────────────────────────────────────────────────────────────
@@ -80,7 +80,7 @@ function startReturnTimer(io, room) {
     r.winner       = null;
     r.players.forEach(p => { p.ready = false; p.alive = true; });
     io.to(r.code).emit('room_update', safeState(r));
-    io.emit('wordchain_rooms_update', getRooms());
+    broadcastRoomList(io, manager, 'wordchain_rooms_update');
   }, WORDCHAIN_RETURN_DELAY * 1000));
 }
 

@@ -1,6 +1,7 @@
-import { rooms, getRoomOf, getRooms, startGame, safeState, removePlayer, removeSpectator, manager } from './rooms.js';
+import { rooms, getRoomOf, startGame, safeState, removePlayer, removeSpectator, manager } from './rooms.js';
 import { TURN_TIMEOUT, AUTO_RETURN_DELAY } from '../../config.js';
-import { registerCommonHandlers } from '../../shared/socketHandlers.js';
+import { registerCommonHandlers, broadcastRoomList } from '../../shared/socketHandlers.js';
+import { GAME_SERVERS, serverChannel } from '../../servers.js';
 import { recordPlayers } from '../../db/stats.js';
 
 // ── 타이머 관리 ───────────────────────────────────────────────────────────────
@@ -52,23 +53,28 @@ function startReturnTimer(io, room) {
     r.turnDeadline = null;
     r.players.forEach(p => (p.ready = false));
     io.to(r.code).emit('room_update', safeState(r));
-    io.emit('rooms_update', getRooms());
+    broadcastRoomList(io, manager, 'rooms_update');
   }, AUTO_RETURN_DELAY * 1000));
 }
 
 // ── 접속자 관리 (악어 전용) ──────────────────────────────────────────────────
+// 접속자 위젯은 모든 페이지에 뜨므로 여기 목록이 곧 '지금 누가 있나'다.
+// 서버(채널)를 갈라놓은 이상 남의 서버 사람까지 보이면 안 되므로 서버별로 나눠 보낸다.
 const onlineUsers = new Map();
 
 function broadcastOnline(io) {
-  const seen = new Set();
-  const users = [];
+  const perServer = new Map();
   for (const u of onlineUsers.values()) {
-    if (!seen.has(u.userId)) {
-      seen.add(u.userId);
-      users.push({ username: u.username, avatar: u.avatar });
-    }
+    if (!u.serverId) continue;
+    if (!perServer.has(u.serverId)) perServer.set(u.serverId, { seen: new Set(), users: [] });
+    const bucket = perServer.get(u.serverId);
+    if (bucket.seen.has(u.userId)) continue;
+    bucket.seen.add(u.userId);
+    bucket.users.push({ username: u.username, avatar: u.avatar });
   }
-  io.emit('online_users', users);
+  for (const s of GAME_SERVERS) {
+    io.to(serverChannel(s.id)).emit('online_users', perServer.get(s.id)?.users ?? []);
+  }
 }
 
 export function registerHandlers(io, socket) {
@@ -86,6 +92,7 @@ export function registerHandlers(io, socket) {
       userId:   sess.userId,
       username: sess.username,
       avatar:   sess.avatar   ?? null,
+      serverId: sess.serverId ?? null,
     });
   }
   broadcastOnline(io);
@@ -98,6 +105,7 @@ export function registerHandlers(io, socket) {
         onlineUsers.set(socket.id, {
           userId: s.userId, username: s.username,
           avatar: s.avatar ?? null,
+          serverId: s.serverId ?? null,
         });
         broadcastOnline(io);
       }

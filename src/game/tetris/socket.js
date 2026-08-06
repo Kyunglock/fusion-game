@@ -1,5 +1,5 @@
-import { rooms, getRoomOf, getRooms, safeState, removePlayer, removeSpectator, manager, RETURN_DELAY } from './rooms.js';
-import { registerCommonHandlers } from '../../shared/socketHandlers.js';
+import { rooms, getRoomOf, safeState, removePlayer, removeSpectator, manager, RETURN_DELAY } from './rooms.js';
+import { registerCommonHandlers, broadcastRoomList } from '../../shared/socketHandlers.js';
 import { recordPlayers } from '../../db/stats.js';
 
 // ── 타이머 관리 ───────────────────────────────────────────────────────────────
@@ -19,7 +19,7 @@ function startReturnTimer(io, room) {
     r.winner = null;
     r.players.forEach(p => { p.ready = false; p.alive = true; p.board = null; });
     io.to(r.code).emit('room_update', safeState(r));
-    io.emit('tetris_rooms_update', getRooms());
+    broadcastRoomList(io, manager, 'tetris_rooms_update');
   }, RETURN_DELAY));
 }
 

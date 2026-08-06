@@ -18,6 +18,23 @@
 
 **캐치마인드는 소켓을 쓰지 않는다.** 방·턴이 없는 비동기 게임이라 평범한 HTTP(`/api/catchmind/*`)만으로 돈다 → 아래 '캐치마인드' 참고
 
+## 서버(채널) 분리 — 퓨전 서버 · 친구방
+
+앞단에 관문을 하나 두고 **퓨전 서버**(`fusion`)와 **친구방**(`friends`) 둘로 갈랐다. 프로세스·DB를 나눈 **물리적 분리가 아니다** — 같은 앱 안에서 방 목록과 접속자만 서로 안 보이게 한 논리적 분리다. 두 무리가 같은 로비에서 서로의 방을 보지 않게 하는 것이 목적이라 프로세스를 두 벌 띄우고 전적을 쪼갤 이유가 없었다.
+
+- 정의는 `src/servers.js`(`GAME_SERVERS`). 비밀번호는 저장소에 두지 않고 환경변수 `SERVER_PASSWORD_FUSION`·`SERVER_PASSWORD_FRIENDS` 로 받는다. 값이 없으면 개발용 기본값(`fusion`/`friends`)으로 뜨고 기동 로그에 경고가 남는다(`warnDefaultPasswords`). 비교는 sha256 해시의 상수시간 비교(`timingSafeEqual`)
+- 관문은 **닉네임 로그인보다 앞단**이다: 서버 선택 + 비밀번호 → 닉네임 입력 → 게임 목록. 통과하면 `req.session.serverId` 가 박히고 그때부터 게임 페이지·API·소켓이 열린다
+  - `POST /api/auth` 의 세션 재발급(`regenerate`)과 `POST /api/auth/logout` 은 `serverId` 를 그대로 넘겨준다 — 닉네임만 갈아탈 때 다시 비밀번호를 묻지 않기 위함. 서버를 바꾸려면 `POST /api/servers/leave` 를 따로 부른다(클라이언트는 이어서 새로고침 — 소켓이 들고 있는 세션 스냅샷까지 갈아끼워야 하므로)
+- API: `GET /api/servers`(목록 + 현재), `POST /api/servers/enter { serverId, password }`, `POST /api/servers/leave`. 비밀번호는 IP당 10분 10회로 시도를 제한한다(`src/routes/servers.js`, 메모리)
+- 게이트 미들웨어(`src/routes/servers.js`): 페이지는 `requireServerPage`(홈으로 리다이렉트), API 는 `requireServer`(403). 게임 페이지 7개와 `/api/solo`·`/api/catchmind` 에 걸려 있다
+- **방 격리**: 방에 `serverId` 가 박히고(`createRoom`), `getRooms(serverId)` 가 그 서버 방만 준다. 다른 서버의 방은 코드를 알아도 `존재하지 않는 방입니다.` 로 막힌다(`socketHandlers.js` 의 `visible()`) — `join_room`·`join_as_spectator` 공통
+  - 방 코드는 서버와 무관하게 전역 유일하게 발급한다(같은 코드가 두 서버에 동시에 생기지 않음)
+  - 브로드캐스트는 `io.emit` 이 아니라 **서버 채널별**로 보낸다. 소켓은 접속 시 `srv:<serverId>` 방에 들어가고, `broadcastRoomList(io, manager, roomsEvent)` 가 서버마다 다른 목록을 쏜다. 소켓이 없는 자리(타이머 콜백)에서도 쓰라고 `socketHandlers.js` 에서 export 해 두었다
+  - 소켓의 `serverId` 는 **핸드셰이크 시점의 세션 스냅샷**이다. 서버를 바꾸면 페이지를 다시 여는 것이 전제
+- 접속자 위젯(`online_users`, 악어 네임스페이스)도 서버별로 나눠 보낸다
+- **갈리지 않는 것**: 계정·닉네임·전적·등급·캐치마인드 그림은 두 서버가 공용이다. 사람이 양쪽을 오가도 전적이 이어지는 편이 자연스럽고, 그림 갤러리는 쌓일수록 좋기 때문
+- 화면: `client/index.html` 의 `#page-server`(서버 카드 + 비밀번호) → `#page-auth` → `#page-select`. 지금 있는 서버는 `.server-chip` 으로 홈 유저바와 게임 대기실(`views/mixins/lobby.pug` 의 `#session-server`, `authCheck.js` 가 채움)에 표시된다. 홈의 방 개수 소켓은 서버가 정해진 뒤에 연결한다(`startRoomCounts`)
+
 ## 계정 · 전적 · 등급 (DB)
 
 ### 계정 = 닉네임 (비밀번호 없음)
@@ -44,6 +61,7 @@
 ```
 src/
   config.js              ← 게임별 설정 상수 (인원 제한, 타이머 등)
+  servers.js             ← 서버(채널) 정의 — 퓨전 서버/친구방, 비밀번호 검증
   db/
     index.js             ← SQLite 연결 + 마이그레이션(user_version 기반, 배열 끝에 추가만)
     users.js             ← 계정(닉네임) 조회/생성/수정
@@ -56,6 +74,7 @@ src/
   routes/
     auth.js              ← /api/auth, /api/auth/logout, /api/me, /api/me/username,
                            /api/me/avatar, /api/me/stats, /api/ranking
+    servers.js           ← /api/servers (목록·입장·나가기) + requireServer 게이트 미들웨어
     solo.js              ← /api/solo/jamo (GET 오늘 상태 / POST 솔플 한 판 결과)
     catchmind.js         ← /api/catchmind/* (제시어 배정·그림 저장·출제·정답·추천·신고·랭킹·내 그림)
   shared/
@@ -153,6 +172,7 @@ client/
 - `GET /wordchain` → Pug 렌더링 (`views/pages/wordchain.pug`)
 - `GET /liar` → Pug 렌더링 (`views/pages/liar.pug`)
 - `GET /catchmind` → Pug 렌더링 (`views/pages/catchmind.pug`, `hasChat: false`)
+- 게임 페이지는 모두 `requireServerPage` 뒤에 있다 — 서버(채널)를 고르지 않았으면 홈으로 되돌린다
 - 기존 정적 HTML 파일은 제거 가능 (Pug로 대체됨). 단, 홈(로비 선택) 페이지인 `client/index.html`은 정적 파일로 유지
 
 ## 관전 시스템
@@ -392,4 +412,5 @@ chore: .env.sample 추가
 - `getRoomOfSpectator(socketId)` — socketId로 관전자가 있는 방 찾기
 - 이탈 처리는 관전자 먼저 확인, 없으면 플레이어 처리 (`leaveRoom(id)` — socket.id가 아니라 인자로 받은 id를 쓴다)
 - `registerLeaveFlow(leaveFn, opts)` — disconnect를 재접속 유예로 감싸고 `leave_room`/`resume_room`을 함께 등록
+- `broadcastRoomList(io, manager, roomsEvent)` — 방 목록을 서버(채널)별로 갈라 보낸다 (socket 이 없는 타이머 콜백에서도 사용)
 - `reapDisconnected(liveIds)` — 방 목록을 낼 때(`get_rooms`/`broadcastRooms`) 해당 네임스페이스에 연결된 소켓만 남기고, 연결이 끊긴 소켓만 있는 유령 방을 삭제. `liveIds`는 네임스페이스의 실제 연결 소켓 집합(기본 ns는 `io.sockets.sockets`, 그 외는 `io.sockets`)

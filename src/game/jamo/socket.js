@@ -1,5 +1,5 @@
 import { decompose, judge, keyboardFromAttempts } from './jamoLogic.js';
-import { rooms, getRoomOf, getRooms, safeState, removePlayer, removeSpectator, manager } from './rooms.js';
+import { rooms, getRoomOf, safeState, removePlayer, removeSpectator, manager } from './rooms.js';
 import { JAMO_MAX_ATTEMPTS } from '../../config.js';
 import { registerCommonHandlers } from '../../shared/socketHandlers.js';
 import { recordPlayers } from '../../db/stats.js';
