@@ -3,7 +3,7 @@ import { LIAR_HINT_TIMEOUT } from '../../config.js';
 import { registerCommonHandlers } from '../../shared/socketHandlers.js';
 import { recordPlayers } from '../../db/stats.js';
 
-const DEFENSE_TIMEOUT_MS = 10_000; // 라이어로 지목된 사람의 최후 반론 시간
+const DEFENSE_TIMEOUT_MS = 60_000; // 라이어로 지목된 사람의 최후 반론 시간 (기본 1분, '반론 종료'로 조기 종료 가능)
 
 // ── 뷰어별 개인화 상태 전송 ──────────────────────────────────────────────────
 // 방장·관전자는 참가자 전원의 역할·제시어를 볼 수 있고, 참가자는 자신의 제시어만 본다.
@@ -153,7 +153,6 @@ function tallyAccuseVotesIfReady(io, room) {
 
   // 곧바로 결론짓지 않고, 지목된 사람에게 최후 반론 시간을 준다.
   room.state = 'defense';
-  console.log(`[liar-debug] entering defense room=${room.code} accusedId=${accusedId} accusedName=${accused?.name}`);
   io.to(room.code).emit('liar_accused', { accusedId, accusedName: accused?.name ?? '' });
   startDefenseTimer(io, room);
 }
@@ -218,7 +217,9 @@ function resolveAccusation(io, room) {
 }
 
 // ── 라운드 종료 ────────────────────────────────────────────────────────────────
-function endRound(io, room, winnerRole) {
+// liarGuess: 라이어가 실제로 제출한 답 (틀린 지목으로 라운드가 끝나 라이어가 답을
+// 낼 기회조차 없었으면 null) — 실시간 미리보기를 놓친 사람도 결과 배너에서 볼 수 있게.
+function endRound(io, room, winnerRole, liarGuess = null) {
   clearAllTimers(room.code);
   const participants = room.players.filter(p => !p.isHost);
   const liar          = room.players.find(p => p.id === room.liarId);
@@ -238,6 +239,7 @@ function endRound(io, room, winnerRole) {
     liarName: liar?.name ?? '',
     realWord: room.realWord,
     liarWord: room.liarWord,
+    liarGuess,
   };
 
   room.state          = 'wordSetup';
@@ -403,7 +405,25 @@ export function registerLiarHandlers(io, socket) {
     io.to(room.code).emit('room_update', safeState(room));
   });
 
+  // ── 반론 종료 (지목된 사람이 직접, 남은 시간 상관없이 즉시 다음 단계로) ────
+  socket.on('end_defense', () => {
+    const room = getRoomOf(socket.id);
+    if (!room || room.state !== 'defense') return;
+    if (socket.id !== room.accusedId) return err('지목된 사람만 반론을 끝낼 수 있습니다.');
+
+    startConfirmVote(io, room);
+  });
+
   // ── 라이어의 마지막 기회: 진짜 제시어 맞히기 ────────────────────────────────
+  // 입력 중인 글자를 실시간으로 다른 사람들에게도 보여준다 (제출 전, 미리보기).
+  socket.on('submit_guess_typing', ({ text } = {}) => {
+    const room = getRoomOf(socket.id);
+    if (!room || room.state !== 'liarGuess') return;
+    if (socket.id !== room.liarId) return;
+
+    socket.to(room.code).emit('liar_guess_typing', { text: String(text || '').slice(0, 20) });
+  });
+
   socket.on('submit_liar_guess', ({ guess } = {}) => {
     const room = getRoomOf(socket.id);
     if (!room || room.state !== 'liarGuess') return;
@@ -411,7 +431,7 @@ export function registerLiarHandlers(io, socket) {
 
     const clean = String(guess || '').trim();
     const correct = !!clean && clean === room.realWord;
-    endRound(io, room, correct ? 'liar' : 'citizens');
+    endRound(io, room, correct ? 'liar' : 'citizens', clean);
   });
 
   // ── 대기실로 나가기 (방장 전용) ─────────────────────────────────────────────

@@ -527,9 +527,93 @@
 #liar-defense-form {
   display: flex;
   gap: 8px;
+  margin-bottom: 8px;
 
   input { flex: 1; margin-bottom: 0; }
   button { width: auto; padding: 10px 16px; flex-shrink: 0; margin: 0; }
+}
+
+#btn-end-defense {
+  width: 100%;
+  margin: 0;
+}
+
+// ── 동률 알림 토스트 ───────────────────────────────────────────────────────────
+#liar-tie-banner {
+  position: fixed;
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 800;
+  background: var(--yellow);
+  color: #1a1a1a;
+  font-weight: 800;
+  font-size: 0.88rem;
+  padding: 10px 20px;
+  border-radius: 20px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+
+  &.flash { animation: tie-banner-pop 0.35s cubic-bezier(0.17, 0.84, 0.44, 1); }
+}
+
+@keyframes tie-banner-pop {
+  0%   { transform: translateX(-50%) scale(0.7); opacity: 0; }
+  60%  { transform: translateX(-50%) scale(1.08); opacity: 1; }
+  100% { transform: translateX(-50%) scale(1); opacity: 1; }
+}
+
+// ── 라이어 검거 애니메이션 ─────────────────────────────────────────────────────
+#liar-caught-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.75);
+  pointer-events: none;
+
+  &.show { display: flex; animation: caught-fade 2.2s ease-out forwards; }
+}
+
+.liar-caught-emoji {
+  font-size: 5rem;
+  animation: caught-shake 0.5s ease-in-out 3;
+}
+
+.liar-caught-text {
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: var(--red);
+  text-align: center;
+
+  strong { color: var(--yellow); }
+}
+
+@keyframes caught-fade {
+  0%   { opacity: 0; }
+  10%  { opacity: 1; }
+  80%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes caught-shake {
+  0%, 100% { transform: rotate(0deg); }
+  25%      { transform: rotate(-8deg); }
+  75%      { transform: rotate(8deg); }
+}
+
+// ── 라이어 정답 입력 실시간 미리보기 ────────────────────────────────────────────
+#liar-guess-live {
+  min-height: 1.2em;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--yellow);
+  text-align: center;
+  margin-top: 4px;
 }
 
 // ── 라이어의 마지막 기회 ────────────────────────────────────────────────────────

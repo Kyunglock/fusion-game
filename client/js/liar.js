@@ -73,10 +73,19 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
   const confirmWithdrawBtn = $('liar-confirm-withdraw');
   const voteProgress3El    = $('liar-vote-progress3');
   const voteStatusConfirmEl = $('liar-vote-status-confirm');
+  const btnEndDefense   = $('btn-end-defense');
+  const tieBanner       = $('liar-tie-banner');
+  const caughtOverlay   = $('liar-caught-overlay');
+  const caughtNameEl    = $('liar-caught-name');
   const guessForm      = $('liar-guess-form');
   const guessInput     = $('liar-guess-input');
   const btnLiarGuess   = $('btn-liar-guess');
   const guessWait      = $('liar-guess-wait');
+  const guessLiveEl    = $('liar-guess-live');
+
+  // 버튼(투표/입력) 묶음 — 참가자에게만 보이고 방장·관전자에게는 진행 현황만 보인다
+  const voteContinueButtons = voteContinueEl.querySelector('.liar-vote-buttons');
+  const voteConfirmButtons  = confirmVoteEl.querySelector('.liar-vote-buttons');
 
   // ── Socket ───────────────────────────────────────────────────────────────
   const NS     = '/liar';
@@ -133,8 +142,8 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
     timerInterval = setInterval(tick, 100);
   }
 
-  // ── 최후 반론 타이머 (10초 고정) ─────────────────────────────────────────────
-  const DEFENSE_TIME = 10;
+  // ── 최후 반론 타이머 (기본 1분, 서버 DEFENSE_TIMEOUT_MS와 동일하게 유지) ──────
+  const DEFENSE_TIME = 60;
   let defenseInterval = null;
 
   function stopDefenseTimer() {
@@ -189,7 +198,11 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
     if (phase === 'wordSetup' && state.lastResult) {
       const r = state.lastResult;
       const win = r.winnerRole === 'liar' ? '라이어' : '시민';
-      resultBanner.innerHTML = `지난 라운드: <strong>${escHtml(win)} 승리!</strong> · 라이어는 <strong>${nameText(r.liarName)}</strong>님이었습니다 · 진짜 제시어 "${escHtml(r.realWord)}" / 라이어 제시어 "${escHtml(r.liarWord)}"`;
+      resultBanner.innerHTML = [
+        `지난 라운드: <strong>${escHtml(win)} 승리!</strong> · 라이어는 <strong>${nameText(r.liarName)}</strong>님이었습니다`,
+        `진짜 제시어 "${escHtml(r.realWord)}" / 라이어 제시어 "${escHtml(r.liarWord)}"`,
+        r.liarGuess ? `라이어가 작성한 답 "${escHtml(r.liarGuess)}"` : null,
+      ].filter(Boolean).join('<br>');
       resultBanner.style.display = '';
     } else {
       resultBanner.style.display = 'none';
@@ -279,17 +292,17 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
     if (phase === 'hint' && state.turnDeadline) startTimer(state.turnDeadline);
     else stopTimer();
 
-    // ── 투표 1: 지목 vs 한 바퀴 더 ──────────────────────────────────────────
-    const showVoteContinue = phase === 'voteContinue' && !isSpectator && iAmParticipant;
-    voteContinueEl.style.display = showVoteContinue ? '' : 'none';
+    // ── 투표 1: 지목 vs 한 바퀴 더 (현황은 방장·관전자도, 버튼은 참가자만) ──────
+    voteContinueEl.style.display = (phase === 'voteContinue' && !isSpectator) ? '' : 'none';
+    voteContinueButtons.style.display = (phase === 'voteContinue' && iAmParticipant) ? 'flex' : 'none';
     if (phase === 'voteContinue') {
       voteProgressEl.textContent = `${state.votesIn ?? 0} / ${state.votesNeeded ?? 0}명 투표 완료`;
       renderVoterStatus(voteStatusContinueEl, participants, state.votedIds);
     }
 
-    // ── 투표 2: 라이어 지목 ──────────────────────────────────────────────
-    const showVoteLiar = phase === 'voteLiar' && !isSpectator && iAmParticipant;
-    voteLiarEl.style.display = showVoteLiar ? '' : 'none';
+    // ── 투표 2: 라이어 지목 (현황은 방장·관전자도, 선택 목록은 참가자만) ──────
+    voteLiarEl.style.display = (phase === 'voteLiar' && !isSpectator) ? '' : 'none';
+    voteTargetList.style.display = (phase === 'voteLiar' && iAmParticipant) ? '' : 'none';
     if (phase === 'voteLiar') {
       voteTargetList.innerHTML = participants.map(p => `
         <li><button class="btn btn-secondary liar-target-btn" data-id="${p.id}">${nameHtml(p.name)}</button></li>
@@ -301,8 +314,7 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
       renderVoterStatus(voteStatusLiarEl, participants, state.votedIds);
     }
 
-    // ── 최후 반론 (10초 카운트다운 + 지목당한 사람 전용 입력 토스트) ────────
-    console.log('[debug] phase=', phase, 'accusedId=', state.accusedId, 'myId=', myId, 'isSpectator=', isSpectator);
+    // ── 최후 반론 (카운트다운 + 지목당한 사람 전용 입력/종료 토스트) ────────
     defenseEl.style.display = phase === 'defense' ? '' : 'none';
     if (phase === 'defense') {
       const accused = state.players.find(p => p.id === state.accusedId);
@@ -314,24 +326,26 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
 
     const lines = (phase === 'defense' || phase === 'confirmAccuse') ? (state.defenseLines ?? []) : [];
     defenseLogEl.innerHTML = lines.map(l => `<li>${escHtml(l.text)}</li>`).join('');
+    defenseLogEl.scrollTop = defenseLogEl.scrollHeight;
 
     const iAmAccused = phase === 'defense' && !isSpectator && state.accusedId === myId;
     defenseToast.style.display = iAmAccused ? '' : 'none';
     if (iAmAccused && document.activeElement !== defenseInput) defenseInput.focus();
 
-    // ── 투표 3: 반론 이후 그대로 진행 vs 철회 ────────────────────────────────
-    const showConfirmVote = phase === 'confirmAccuse' && !isSpectator && iAmParticipant;
-    confirmVoteEl.style.display = showConfirmVote ? '' : 'none';
+    // ── 투표 3: 반론 이후 그대로 진행 vs 철회 (현황은 방장·관전자도, 버튼은 참가자만) ──
+    confirmVoteEl.style.display = (phase === 'confirmAccuse' && !isSpectator) ? '' : 'none';
+    voteConfirmButtons.style.display = (phase === 'confirmAccuse' && iAmParticipant) ? 'flex' : 'none';
     if (phase === 'confirmAccuse') {
       voteProgress3El.textContent = `${state.votesIn ?? 0} / ${state.votesNeeded ?? 0}명 투표 완료`;
       renderVoterStatus(voteStatusConfirmEl, participants, state.votedIds);
     }
 
-    // ── 라이어의 마지막 기회 ────────────────────────────────────────────────
+    // ── 라이어의 마지막 기회 (본인은 입력, 나머지는 실시간 타이핑 미리보기) ──
     const iAmAccusedLiar = phase === 'liarGuess' && state.accusedId === myId;
     guessForm.style.display = iAmAccusedLiar ? 'flex' : 'none';
     guessWait.style.display = (phase === 'liarGuess' && !iAmAccusedLiar) ? '' : 'none';
     if (iAmAccusedLiar) guessInput.focus();
+    if (phase !== 'liarGuess') { guessInput.value = ''; guessLiveEl.textContent = ''; }
 
     renderSpectatorList(state.spectators ?? []);
   }
@@ -378,8 +392,16 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
 
   socket.on('member_joined', ({ name, isSpectator: isSpec }) => showJoinNotice(name, isSpec));
 
+  let tieBannerTimer = null;
+  function flashTieBanner() {
+    tieBanner.style.display = '';
+    tieBanner.classList.remove('flash'); void tieBanner.offsetWidth; tieBanner.classList.add('flash');
+    clearTimeout(tieBannerTimer);
+    tieBannerTimer = setTimeout(() => { tieBanner.style.display = 'none'; }, 3000);
+  }
+
   socket.on('liar_vote_result', ({ result }) => {
-    if (result === 'tie') appendSystemMessage('🤔 투표가 동률이라 다시 투표합니다.');
+    if (result === 'tie') { appendSystemMessage('🤔 투표가 동률이라 다시 투표합니다.'); flashTieBanner(); }
     else if (result === 'accuse') appendSystemMessage('👉 과반이 라이어 지목에 찬성했습니다.');
     else if (result === 'continue') appendSystemMessage('🔁 한 바퀴 더 돕니다.');
     else if (result === 'proceed') appendSystemMessage('👉 지목을 그대로 진행합니다.');
@@ -387,13 +409,29 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
   });
 
   socket.on('liar_accused', ({ accusedName }) => {
-    appendSystemMessage(`⚠️ ${nameText(accusedName)}님이 라이어로 지목됐습니다! 최후 반론 시간(10초)을 드립니다.`);
+    appendSystemMessage(`⚠️ ${nameText(accusedName)}님이 라이어로 지목됐습니다! 최후 반론 시간(최대 1분)을 드립니다.`);
   });
 
+  let caughtOverlayTimer = null;
+  function flashCaughtOverlay(name) {
+    caughtNameEl.textContent = nameText(name);
+    caughtOverlay.style.display = '';
+    caughtOverlay.classList.remove('show'); void caughtOverlay.offsetWidth; caughtOverlay.classList.add('show');
+    clearTimeout(caughtOverlayTimer);
+    caughtOverlayTimer = setTimeout(() => { caughtOverlay.style.display = 'none'; }, 2200);
+  }
+
   socket.on('liar_accuse_result', ({ correct, accusedName }) => {
-    appendSystemMessage(correct
-      ? `🎯 ${nameText(accusedName)}님이 라이어로 지목됐습니다! 정체가 들켰습니다.`
-      : `❌ ${nameText(accusedName)}님은 라이어가 아니었습니다.`);
+    if (correct) {
+      flashCaughtOverlay(accusedName);
+      appendSystemMessage(`🎯 ${nameText(accusedName)}님이 라이어로 지목됐습니다! 정체가 들켰습니다.`);
+    } else {
+      appendSystemMessage(`❌ ${nameText(accusedName)}님은 라이어가 아니었습니다.`);
+    }
+  });
+
+  socket.on('liar_guess_typing', ({ text }) => {
+    guessLiveEl.textContent = text ? `"${text}"` : '';
   });
 
   socket.on('liar_result', ({ winnerRole, liarName }) => {
@@ -468,11 +506,18 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
     defenseInput.focus();
   });
 
+  btnEndDefense.addEventListener('click', () => socket.emit('end_defense'));
+
   voteAccuseBtn.addEventListener('click', () => socket.emit('cast_continue_vote', { choice: 'accuse' }));
   voteMoreBtn.addEventListener('click',   () => socket.emit('cast_continue_vote', { choice: 'continue' }));
 
   confirmProceedBtn.addEventListener('click',  () => socket.emit('cast_confirm_vote', { choice: 'proceed' }));
   confirmWithdrawBtn.addEventListener('click', () => socket.emit('cast_confirm_vote', { choice: 'withdraw' }));
+
+  // 라이어 본인이 입력하는 동안, 그 내용을 실시간으로 다른 사람들에게도 보여준다.
+  guessInput.addEventListener('input', () => {
+    socket.emit('submit_guess_typing', { text: guessInput.value });
+  });
 
   btnLiarGuess.addEventListener('click', () => {
     const guess = guessInput.value.trim();

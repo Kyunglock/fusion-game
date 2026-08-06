@@ -63,23 +63,26 @@ block content
       input#liar-hint-input(type="text" placeholder="힌트를 입력하세요 (한 마디로!)" maxlength="40" autocomplete="off" enterkeyhint="send")
       button.btn.btn-primary(type="submit") 제출
 
-    //- 투표 1: 라이어 지목 vs 한 바퀴 더
+    //- 동률 알림 (모두에게 노출되는 토스트)
+    #liar-tie-banner(style="display:none") 🤔 투표가 동률이에요! 다시 투표해주세요
+
+    //- 투표 1: 라이어 지목 vs 한 바퀴 더 (버튼은 참가자만, 진행 현황은 방장·관전자도 봄)
     #liar-vote-continue(style="display:none")
       p.liar-vote-title 라이어를 지목할까요, 한 바퀴 더 돌까요?
-      .liar-vote-buttons
+      .liar-vote-buttons(style="display:none")
         button#liar-vote-accuse.btn.btn-danger 라이어 지목하기
         button#liar-vote-more.btn.btn-secondary 한 바퀴 더
       #liar-vote-progress
       ul#liar-vote-status-continue.liar-voter-list
 
-    //- 투표 2: 라이어로 지목할 사람 선택
+    //- 투표 2: 라이어로 지목할 사람 선택 (선택 버튼은 참가자만, 현황은 방장·관전자도 봄)
     #liar-vote-liar(style="display:none")
       p.liar-vote-title 라이어라고 생각하는 사람을 선택하세요
-      ul#liar-vote-target-list.liar-vote-target-list
+      ul#liar-vote-target-list.liar-vote-target-list(style="display:none")
       #liar-vote-progress2
       ul#liar-vote-status-liar.liar-voter-list
 
-    //- 지목당한 사람의 최후 반론 (10초)
+    //- 지목당한 사람의 최후 반론 (기본 1분) — 검거 애니메이션은 지목 확정 시 별도로 뜬다
     #liar-defense(style="display:none")
       p.liar-vote-title
         strong#liar-defense-name
@@ -90,25 +93,35 @@ block content
         #liar-defense-timer-num -
       ul#liar-defense-log.liar-defense-log
 
-    //- 지목당한 사람 전용 반론 입력 토스트 (일기 쓰듯 한 줄씩)
+    //- 지목당한 사람 전용 반론 입력 토스트 (일기 쓰듯 한 줄씩) + 반론 종료 버튼
     #liar-defense-toast(style="display:none")
       .liar-defense-toast-title 🤫 억울하다면 지금 변론하세요 (혼자만 쓸 수 있어요)
       form#liar-defense-form(autocomplete="off")
         input#liar-defense-input(type="text" placeholder="예: 저는 절대 라이어가 아닙니다..." maxlength="80" autocomplete="off" enterkeyhint="send")
         button.btn.btn-primary(type="submit") 적기
+      button#btn-end-defense.btn.btn-secondary 반론 종료
 
-    //- 투표 3: 반론 이후 — 그대로 진행 vs 철회
+    //- 투표 3: 반론 이후 — 그대로 진행 vs 철회 (버튼은 참가자만, 현황은 방장·관전자도 봄)
     #liar-confirm-vote(style="display:none")
       p.liar-vote-title 그대로 지목을 진행할까요, 철회할까요?
-      .liar-vote-buttons
+      .liar-vote-buttons(style="display:none")
         button#liar-confirm-proceed.btn.btn-danger 그대로 진행
         button#liar-confirm-withdraw.btn.btn-secondary 철회
       #liar-vote-progress3
       ul#liar-vote-status-confirm.liar-voter-list
 
-    //- 라이어의 마지막 기회 (본인에게만 입력창, 나머지는 대기 메시지)
+    //- 라이어 검거 애니메이션 (지목이 실제 라이어로 확정되는 순간 모두에게 노출)
+    #liar-caught-overlay(style="display:none")
+      .liar-caught-emoji 🚨
+      .liar-caught-text
+        strong#liar-caught-name
+        |  검거되었습니다!
+
+    //- 라이어의 마지막 기회 (본인에게만 입력창, 나머지는 실시간으로 입력 내용을 본다)
     #liar-guess-form(style="display:none")
       p.liar-vote-title 정체가 들켰습니다! 진짜 제시어를 맞혀보세요
       input#liar-guess-input(type="text" placeholder="진짜 제시어 입력" maxlength="20" autocomplete="off")
       button#btn-liar-guess.btn.btn-primary 제출
-    #liar-guess-wait(style="display:none") 라이어가 진짜 제시어를 맞히는 중입니다…
+    #liar-guess-wait(style="display:none")
+      p 라이어가 진짜 제시어를 맞히는 중입니다…
+      #liar-guess-live
