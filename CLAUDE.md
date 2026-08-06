@@ -22,7 +22,7 @@
 
 앞단에 관문을 하나 두고 **퓨전 서버**(`fusion`)와 **친구방**(`friends`) 둘로 갈랐다. 프로세스·DB를 나눈 **물리적 분리가 아니다** — 같은 앱 안에서 방 목록과 접속자만 서로 안 보이게 한 논리적 분리다. 두 무리가 같은 로비에서 서로의 방을 보지 않게 하는 것이 목적이라 프로세스를 두 벌 띄우고 전적을 쪼갤 이유가 없었다.
 
-- 정의는 `src/servers.js`(`GAME_SERVERS`). 비밀번호는 저장소에 두지 않고 환경변수 `SERVER_PASSWORD_FUSION`·`SERVER_PASSWORD_FRIENDS` 로 받는다. 값이 없으면 개발용 기본값(`fusion`/`friends`)으로 뜨고 기동 로그에 경고가 남는다(`warnDefaultPasswords`). 비교는 sha256 해시의 상수시간 비교(`timingSafeEqual`)
+- 정의는 `src/servers.js`(`GAME_SERVERS`). **비밀번호도 여기에 그대로 적혀 있다** — 저장소가 공개라 누구나 볼 수 있지만, 이 관문은 아는 사람만 들이려는 잠금이 아니라 두 무리를 갈라놓는 구분선에 가깝다는 판단(주인 결정). 숨겨야 할 때는 환경변수 `SERVER_PASSWORD_FUSION`·`SERVER_PASSWORD_FRIENDS` 가 코드값을 덮는다. 비교는 sha256 해시의 상수시간 비교(`timingSafeEqual`)
 - 관문은 **닉네임 로그인보다 앞단**이다: 서버 선택 + 비밀번호 → 닉네임 입력 → 게임 목록. 통과하면 `req.session.serverId` 가 박히고 그때부터 게임 페이지·API·소켓이 열린다
   - `POST /api/auth` 의 세션 재발급(`regenerate`)과 `POST /api/auth/logout` 은 `serverId` 를 그대로 넘겨준다 — 닉네임만 갈아탈 때 다시 비밀번호를 묻지 않기 위함. 서버를 바꾸려면 `POST /api/servers/leave` 를 따로 부른다(클라이언트는 이어서 새로고침 — 소켓이 들고 있는 세션 스냅샷까지 갈아끼워야 하므로)
 - API: `GET /api/servers`(목록 + 현재), `POST /api/servers/enter { serverId, password }`, `POST /api/servers/leave`. 비밀번호는 IP당 10분 10회로 시도를 제한한다(`src/routes/servers.js`, 메모리)
@@ -32,7 +32,8 @@
   - 브로드캐스트는 `io.emit` 이 아니라 **서버 채널별**로 보낸다. 소켓은 접속 시 `srv:<serverId>` 방에 들어가고, `broadcastRoomList(io, manager, roomsEvent)` 가 서버마다 다른 목록을 쏜다. 소켓이 없는 자리(타이머 콜백)에서도 쓰라고 `socketHandlers.js` 에서 export 해 두었다
   - 소켓의 `serverId` 는 **핸드셰이크 시점의 세션 스냅샷**이다. 서버를 바꾸면 페이지를 다시 여는 것이 전제
 - 접속자 위젯(`online_users`, 악어 네임스페이스)도 서버별로 나눠 보낸다
-- **갈리지 않는 것**: 계정·닉네임·전적·등급·캐치마인드 그림은 두 서버가 공용이다. 사람이 양쪽을 오가도 전적이 이어지는 편이 자연스럽고, 그림 갤러리는 쌓일수록 좋기 때문
+- **캐치마인드 그림도 갈린다**: 방이 없는 게임이라 소켓이 아니라 `catchmind_drawings.server_id` 로 가른다 → 아래 '캐치마인드' 참고
+- **갈리지 않는 것**: 계정·닉네임·전적·등급은 두 서버가 공용이다. 사람이 양쪽을 오가도 전적이 이어지는 편이 자연스럽기 때문 (캐치마인드 전적도 게임 키 하나(`catchmind`)로 함께 쌓인다 — 그림 풀만 갈릴 뿐이다)
 - 화면: `client/index.html` 의 `#page-server`(서버 카드 + 비밀번호) → `#page-auth` → `#page-select`. 지금 있는 서버는 `.server-chip` 으로 홈 유저바와 게임 대기실(`views/mixins/lobby.pug` 의 `#session-server`, `authCheck.js` 가 채움)에 표시된다. 홈의 방 개수 소켓은 서버가 정해진 뒤에 연결한다(`startRoomCounts`)
 
 ## 계정 · 전적 · 등급 (DB)
@@ -69,7 +70,7 @@ src/
     ranking.js           ← 백분위 기반 등급 티어 계산(getRanking/getUserRank)
     playerCards.js       ← 방 참가자 목록에 실어 보내는 전적 카드(getPlayerCard, 3초 캐시)
     soloStats.js         ← 자모 솔플 전적(난이도별 하루 첫 판만 기록, jamo_solo_daily)
-    catchmind.js         ← 캐치마인드 그림 저장소(그림 CRUD, 출제, 정답 시도, 추천·비추천, 신고)
+    catchmind.js         ← 캐치마인드 그림 저장소(그림 CRUD, 출제, 정답 시도, 추천·비추천, 신고 — 전부 server_id 로 서버별 격리)
     sessionStore.js      ← express-session SQLite 저장소
   routes/
     auth.js              ← /api/auth, /api/auth/logout, /api/me, /api/me/username,
@@ -334,6 +335,14 @@ client/
 - **오답 수는 따로 세어두지 않는다.** `catchmind_plays` 에서 `SUM(attempts - solved)` 로 그때그때 합산한다(맞힌 판의 마지막 한 번은 정답이므로 빼준다). 목록이 수십 줄이라 부담이 없고, 컬럼을 늘려 실제 기록과 어긋날 여지를 만들지 않는 쪽을 택했다
 - **정답은 내가 이미 끝낸 그림(과 내가 그린 그림)만 실어 보낸다.** 기준이 '맞힘'이 아니라 `catchmind_plays.finished` 인 이유 — 맞혔든 틀렸든 끝냈다면 그 자리에서 정답을 봤으니 목록에서 가릴 이유가 없다. 아직 손대지 않은 그림만 `word: null` 로 내려가고 화면에는 글자 수(`○○○`)만 뜬다
 - 그림·추천 수·오답 수·정답 수는 모두에게 보인다. 가리는 것은 제시어 하나뿐이다
+
+### 서버(채널)별 분리
+- 그림은 **그린 서버에서만** 출제·랭킹에 나온다(`catchmind_drawings.server_id`, 마이그레이션 5). 퓨전 서버 그림은 퓨전 사람들끼리, 친구방 그림은 친구들끼리
+- **그림에만 컬럼을 붙였다.** 풀이(`catchmind_plays`)·추천(`catchmind_votes`)·신고(`catchmind_reports`)는 전부 `drawing_id` 를 타고 달리므로 그림이 갈리면 따라서 갈린다
+- 갈리는 지점: 출제(`pickQuiz`)·남은 장수(`remainingCount`)·랭킹(`leaderboard`)·내 그림(`myDrawings`)·홈 요약(`mySummary`), 그리고 제시어 배정의 쏠림 계산(`drawingCounts`)까지. 서버가 다른 그림은 **id 를 알아도** `loadQuiz` 가 404 로 막는다(방과 같은 원칙)
+- '내 그림'도 지금 들어와 있는 서버의 것만 보인다 — 목록에 뜨는 조회·정답 수가 그 서버에서 일어난 일과 어긋나지 않게 하려는 것. 따라서 퓨전에서 그린 그림은 친구방에 들어가 있는 동안에는 내릴 수 없다
+- **전적은 갈리지 않는다.** 게임 키는 그대로 `catchmind` 하나라 양쪽에서 맞힌 것이 한 줄에 쌓인다
+- 분리 이전에 그려둔 그림은 마이그레이션이 전부 `fusion` 으로 몰아준다(친구방은 이때 새로 생긴 서버라 그린 그림이 없다)
 
 ### 신고 · 내 그림
 - `POST …/report` 신고가 `CATCHMIND_REPORTS_TO_HIDE`(3)회 쌓이면 `hidden = 1` 로 자동 전환되어 출제에서 빠진다(한 사람 1표, `catchmind_reports`)

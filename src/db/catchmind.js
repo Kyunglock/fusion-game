@@ -12,26 +12,30 @@ import {
  * 이 게임만 소켓을 쓰지 않는다 — 그림을 그려 DB에 넣어두면, 다른 사람이 아무 때나
  * 들어와 그 그림을 맞힌다. 그래서 방·턴 대신 '누가 어떤 그림을 이미 풀었는가'를
  * 표로 관리한다.
+ *
+ * 그림은 **서버(채널)별로 갈린다**(`catchmind_drawings.server_id`). 퓨전 서버에서
+ * 그린 그림은 퓨전 사람들끼리, 친구방 그림은 친구들끼리만 출제·랭킹에 나온다.
+ * 풀이·추천·신고는 drawing_id 를 타고 달리므로 그림만 가르면 따라서 갈린다.
  */
 
 export const CATCHMIND_GAME = 'catchmind';
 
 const SQL = {
-  insert: db.prepare(`INSERT INTO catchmind_drawings (user_id, word, strokes)
-                      VALUES (@userId, @word, @strokes)`),
+  insert: db.prepare(`INSERT INTO catchmind_drawings (user_id, server_id, word, strokes)
+                      VALUES (@userId, @serverId, @word, @strokes)`),
 
-  // 제시어 쏠림을 막기 위한 '제시어별 그림 수'
+  // 제시어 쏠림을 막기 위한 '제시어별 그림 수' (쏠림도 서버 안에서만 따진다)
   wordCounts: db.prepare(`SELECT word, COUNT(*) AS n FROM catchmind_drawings
-                          WHERE hidden = 0 GROUP BY word`),
+                          WHERE hidden = 0 AND server_id = @serverId GROUP BY word`),
 
-  // 출제: 숨김 아님 + 내 그림 아님 + 내가 아직 '끝내지' 않은 것.
+  // 출제: 같은 서버 + 숨김 아님 + 내 그림 아님 + 내가 아직 '끝내지' 않은 것.
   // 기준이 '풀이 기록이 없을 것'이 아니라 finished 인 이유 — 열어만 보고 나가버린
   // 그림까지 빼버리면 다시는 안 나온다.
   pickFresh: db.prepare(`
     SELECT d.*, u.username AS author, u.avatar AS author_avatar
     FROM catchmind_drawings d
     JOIN users u ON u.id = d.user_id
-    WHERE d.hidden = 0 AND d.user_id != @userId
+    WHERE d.hidden = 0 AND d.server_id = @serverId AND d.user_id != @userId
       AND NOT EXISTS (SELECT 1 FROM catchmind_plays p
                       WHERE p.drawing_id = d.id AND p.user_id = @userId AND p.finished = 1)
     ORDER BY RANDOM() LIMIT 1`),
@@ -41,7 +45,7 @@ const SQL = {
     SELECT d.*, u.username AS author, u.avatar AS author_avatar
     FROM catchmind_drawings d
     JOIN users u ON u.id = d.user_id
-    WHERE d.hidden = 0 AND d.user_id != @userId
+    WHERE d.hidden = 0 AND d.server_id = @serverId AND d.user_id != @userId
     ORDER BY RANDOM() LIMIT 1`),
 
   byId: db.prepare(`SELECT d.*, u.username AS author, u.avatar AS author_avatar
@@ -78,11 +82,15 @@ const SQL = {
   setReports: db.prepare(`UPDATE catchmind_drawings SET reports = @reports, hidden = @hidden
                           WHERE id = @id`),
 
+  // '내 그림'도 지금 들어와 있는 서버의 것만 보여준다 — 목록에 뜨는 조회·정답 수가
+  // 그 서버에서 실제로 일어난 일과 어긋나지 않도록.
   mine: db.prepare(`SELECT id, word, strokes, seen_count, solved_count, reports, hidden,
                            likes, dislikes, created_at
                     FROM catchmind_drawings
-                    WHERE user_id = ? ORDER BY id DESC LIMIT ?`),
-  hideMine: db.prepare('UPDATE catchmind_drawings SET hidden = 1 WHERE id = ? AND user_id = ?'),
+                    WHERE user_id = @userId AND server_id = @serverId
+                    ORDER BY id DESC LIMIT @limit`),
+  hideMine: db.prepare(`UPDATE catchmind_drawings SET hidden = 1
+                        WHERE id = @id AND user_id = @userId AND server_id = @serverId`),
 
   summary: db.prepare(`
     SELECT COUNT(*) AS drawn,
@@ -90,10 +98,11 @@ const SQL = {
            COALESCE(SUM(solved_count), 0) AS solved,
            COALESCE(SUM(likes), 0)        AS likes,
            COALESCE(SUM(dislikes), 0)     AS dislikes
-    FROM catchmind_drawings WHERE user_id = ? AND hidden = 0`),
+    FROM catchmind_drawings
+    WHERE user_id = @userId AND server_id = @serverId AND hidden = 0`),
   remaining: db.prepare(`
     SELECT COUNT(*) AS n FROM catchmind_drawings d
-    WHERE d.hidden = 0 AND d.user_id != @userId
+    WHERE d.hidden = 0 AND d.server_id = @serverId AND d.user_id != @userId
       AND NOT EXISTS (SELECT 1 FROM catchmind_plays p
                       WHERE p.drawing_id = d.id AND p.user_id = @userId AND p.finished = 1)`),
 
@@ -112,7 +121,7 @@ const SQL = {
     FROM catchmind_drawings d
     JOIN users u ON u.id = d.user_id
     LEFT JOIN catchmind_plays p ON p.drawing_id = d.id
-    WHERE d.hidden = 0
+    WHERE d.hidden = 0 AND d.server_id = @serverId
     GROUP BY d.id
     ORDER BY ${order}
     LIMIT @limit`),
@@ -135,15 +144,15 @@ const BOARD_SQL = Object.fromEntries(
 // ── 그리기 ────────────────────────────────────────────────────────────────────
 
 /** 제시어별로 지금까지 그려진 그림 수 (제시어 배정 시 덜 그려진 쪽을 고르기 위함) */
-export function drawingCounts() {
+export function drawingCounts(serverId) {
   const map = new Map();
-  for (const row of SQL.wordCounts.all()) map.set(row.word, row.n);
+  for (const row of SQL.wordCounts.all({ serverId })) map.set(row.word, row.n);
   return map;
 }
 
-/** 그림 한 장 저장 → 새 id */
-export function saveDrawing({ accountId, word, strokesJson }) {
-  return SQL.insert.run({ userId: accountId, word, strokes: strokesJson }).lastInsertRowid;
+/** 그림 한 장 저장 → 새 id. 그린 서버(채널)를 함께 박아둔다. */
+export function saveDrawing({ accountId, serverId, word, strokesJson }) {
+  return SQL.insert.run({ userId: accountId, serverId, word, strokes: strokesJson }).lastInsertRowid;
 }
 
 // ── 맞히기 ────────────────────────────────────────────────────────────────────
@@ -153,11 +162,11 @@ export function saveDrawing({ accountId, word, strokesJson }) {
  * 아직 안 푼 그림이 우선이고, 다 풀었으면 복습용으로 아무 그림이나 준다
  * (복습은 전적에 반영하지 않는다 → replay 플래그).
  */
-export function pickQuiz(accountId) {
-  const fresh = SQL.pickFresh.get({ userId: accountId });
+export function pickQuiz(accountId, serverId) {
+  const fresh = SQL.pickFresh.get({ userId: accountId, serverId });
   if (fresh) return { drawing: fresh, replay: false };
 
-  const replay = SQL.pickReplay.get({ userId: accountId });
+  const replay = SQL.pickReplay.get({ userId: accountId, serverId });
   return replay ? { drawing: replay, replay: true } : null;
 }
 
@@ -174,9 +183,9 @@ export function getPlay(drawingId, accountId) {
   return SQL.playOf.get(drawingId, accountId) ?? null;
 }
 
-/** 아직 안 푼 그림이 몇 장 남았는지 */
-export function remainingCount(accountId) {
-  return SQL.remaining.get({ userId: accountId })?.n ?? 0;
+/** 아직 안 푼 그림이 몇 장 남았는지 (지금 서버의 그림만) */
+export function remainingCount(accountId, serverId) {
+  return SQL.remaining.get({ userId: accountId, serverId })?.n ?? 0;
 }
 
 /** 그림을 열어볼 때 — 조회수 +1, 풀이 기록 시작 */
@@ -294,24 +303,25 @@ export const BOARD_SORT_KEYS = Object.keys(BOARD_SORTS);
  * 목록으로 새어 나가면 맞히기 자체가 무의미해진다.
  *
  * @param {number} accountId
+ * @param {string} serverId 지금 들어와 있는 서버 — 이 서버의 그림만 줄 세운다
  * @param {'likes'|'dislikes'|'misses'} sort
  */
-export function leaderboard(accountId, sort = 'likes', limit = 30) {
+export function leaderboard(accountId, serverId, sort = 'likes', limit = 30) {
   const stmt = BOARD_SQL[sort] ?? BOARD_SQL.likes;
-  return stmt.all({ userId: accountId, limit });
+  return stmt.all({ userId: accountId, serverId, limit });
 }
 
 // ── 내 그림 ───────────────────────────────────────────────────────────────────
 
-export function myDrawings(accountId, limit = 60) {
-  return SQL.mine.all(accountId, limit);
+export function myDrawings(accountId, serverId, limit = 60) {
+  return SQL.mine.all({ userId: accountId, serverId, limit });
 }
 
 /** 내 그림 내리기 (기록은 남기고 출제에서만 뺀다 — 이미 푼 사람의 전적과 어긋나지 않게) */
-export function hideMyDrawing(id, accountId) {
-  return SQL.hideMine.run(id, accountId).changes > 0;
+export function hideMyDrawing(id, accountId, serverId) {
+  return SQL.hideMine.run({ id, userId: accountId, serverId }).changes > 0;
 }
 
-export function mySummary(accountId) {
-  return SQL.summary.get(accountId) ?? { drawn: 0, seen: 0, solved: 0 };
+export function mySummary(accountId, serverId) {
+  return SQL.summary.get({ userId: accountId, serverId }) ?? { drawn: 0, seen: 0, solved: 0 };
 }
