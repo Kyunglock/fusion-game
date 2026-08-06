@@ -51,6 +51,7 @@ router.post('/jamo', requireLogin, (req, res) => {
   try {
     res.json(recordJamoSolo({
       accountId: req.session.accountId,
+      serverId:  req.session.serverId,
       date, difficulty, solved: won, attempts: tries,
     }));
   } catch (e) {

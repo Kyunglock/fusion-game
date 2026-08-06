@@ -35,7 +35,7 @@ function startTurnTimer(io, room) {
     r.turnDeadline = null;
 
     // 물린 사람만 패배, 나머지는 생존 승리
-    recordPlayers('crocodile', r.players, p => (p.id === current.id ? 'lose' : 'win'));
+    recordPlayers(r.serverId, 'crocodile', r.players, p => (p.id === current.id ? 'lose' : 'win'));
 
     io.to(r.code).emit('room_update', { ...safeState(r), loserName: current.name, trapTooth: r.trapTooth });
     io.to(r.code).emit('bite_event',  { loserId: current.id, loserName: current.name, trapTooth: r.trapTooth, timeout: true });
@@ -138,7 +138,7 @@ export function registerHandlers(io, socket) {
       room.state        = 'roundEnd';
       room.turnDeadline = null;
 
-      recordPlayers('crocodile', room.players, p => (p.id === current.id ? 'lose' : 'win'));
+      recordPlayers(room.serverId, 'crocodile', room.players, p => (p.id === current.id ? 'lose' : 'win'));
 
       io.to(room.code).emit('room_update', { ...safeState(room), loserName: current.name, trapTooth: room.trapTooth });
       io.to(room.code).emit('bite_event',  { loserId: current.id, loserName: current.name, trapTooth: room.trapTooth });

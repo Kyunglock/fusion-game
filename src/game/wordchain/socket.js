@@ -55,7 +55,7 @@ function endRound(io, room, winnerPlayer) {
   if (winnerPlayer) winnerPlayer.wins = (winnerPlayer.wins ?? 0) + 1;
 
   // 마지막까지 살아남은 사람이 승리, 나머지는 패배
-  recordPlayers('wordchain', room.players, p => {
+  recordPlayers(room.serverId, 'wordchain', room.players, p => {
     if (!winnerPlayer)              return 'draw';
     return p.id === winnerPlayer.id ? 'win' : 'lose';
   });

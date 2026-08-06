@@ -42,6 +42,7 @@ function emitGameState(io, room) {
 function recordJamoRound(room, winner = null, winnerScore = 0) {
   const participants = room.players.filter(p => !p.isHost);
   recordPlayers(
+    room.serverId,
     'jamo',
     participants,
     p => (!winner ? 'draw' : (p.id === winner.id ? 'win' : 'lose')),

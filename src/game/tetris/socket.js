@@ -95,7 +95,7 @@ export function registerTetrisHandlers(io, socket) {
       room.state    = 'gameOver';
       room.winner   = winner?.id ?? null;
 
-      recordPlayers('tetris', room.players, p => {
+      recordPlayers(room.serverId, 'tetris', room.players, p => {
         if (!winner)            return 'draw';
         return p.id === winner.id ? 'win' : 'lose';
       });
@@ -141,7 +141,7 @@ export function registerTetrisHandlers(io, socket) {
     } else if (result.gameEnded) {
       const winner = room.players.find(p => p.id === room.winner);
       // 이탈로 승부가 갈린 경우도 남은 사람들의 전적에 반영한다 (나간 사람은 이미 제외됨)
-      recordPlayers('tetris', room.players, p => {
+      recordPlayers(room.serverId, 'tetris', room.players, p => {
         if (!winner)            return 'draw';
         return p.id === winner.id ? 'win' : 'lose';
       });

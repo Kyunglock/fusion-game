@@ -82,7 +82,7 @@ export function registerBombHandlers(io, socket) {
       r.bombHoldStartedAt = null;
 
       // 폭탄을 들고 있던 사람만 패배, 나머지는 승리
-      recordPlayers('bomb', r.players, p => (p.id === holder.id ? 'lose' : 'win'));
+      recordPlayers(r.serverId, 'bomb', r.players, p => (p.id === holder.id ? 'lose' : 'win'));
 
       io.to(r.code).emit('bomb_explode', { loserId: holder.id, loserName: holder.name });
       io.to(r.code).emit('room_update', safeState(r));

@@ -17,8 +17,8 @@ export const JAMO_SOLO_GAME = 'jamoSolo';
 const SQL = {
   // 그날 그 난이도의 첫 판만 들어간다. changes === 0 이면 이미 오늘 기록한 것.
   claimDay: db.prepare(`
-    INSERT INTO jamo_solo_daily (user_id, play_date, difficulty, solved, attempts, cleared_at)
-    VALUES (@userId, @date, @difficulty, @solved, @attempts,
+    INSERT INTO jamo_solo_daily (user_id, server_id, play_date, difficulty, solved, attempts, cleared_at)
+    VALUES (@userId, @serverId, @date, @difficulty, @solved, @attempts,
             CASE WHEN @solved = 1 THEN datetime('now') END)
     ON CONFLICT(user_id, play_date, difficulty) DO NOTHING`),
   markCleared: db.prepare(`
@@ -48,6 +48,9 @@ export function getJamoSoloDay(accountId, date) {
  * 솔플 한 판의 결과를 기록한다.
  * @param {object} r
  * @param {number} r.accountId
+ * @param {string} r.serverId    친 서버(채널) — 전적이 이 서버에 쌓인다.
+ *                               단 '난이도별 하루 한 판' 잠금은 서버와 무관하게 하나다
+ *                               (서버를 오가며 하루에 두 배로 기록하지 못하도록).
  * @param {string} r.date        '오늘의 낱말' 기준일 (YYYY-MM-DD)
  * @param {string} r.difficulty  easy | medium | hard
  * @param {boolean} r.solved     맞혔는지
@@ -55,9 +58,10 @@ export function getJamoSoloDay(accountId, date) {
  * @returns {{ recorded: boolean, cleared: object, played: object }} recorded=false 면
  *          오늘 이미 기록한 난이도라 전적에는 반영하지 않았다는 뜻.
  */
-export function recordJamoSolo({ accountId, date, difficulty, solved, attempts }) {
+export function recordJamoSolo({ accountId, serverId, date, difficulty, solved, attempts }) {
   const first = SQL.claimDay.run({
     userId:     accountId,
+    serverId,
     date,
     difficulty,
     solved:     solved ? 1 : 0,
@@ -65,7 +69,7 @@ export function recordJamoSolo({ accountId, date, difficulty, solved, attempts }
   }).changes > 0;
 
   if (first) {
-    recordRound(JAMO_SOLO_GAME, [{
+    recordRound(serverId, JAMO_SOLO_GAME, [{
       accountId,
       outcome: solved ? 'win' : 'lose',
       score:   solved ? soloScore(attempts) : 0,

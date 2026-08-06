@@ -5,6 +5,9 @@ import { db } from './index.js';
  *
  * 절대 점수 구간이 아니라 **전체 유저 중 상위 몇 %인지**로 티어를 나눈다.
  * (인원이 적을 때도 위아래가 골고루 갈리도록 — 5명이면 5명이 서로 다른 티어가 된다)
+ *
+ * 전적이 서버(채널)별로 갈리므로 등급도 **그 서버 안에서만** 매긴다. 퓨전에서
+ * 챌린저인 사람이 친구방에서는 그곳 전적으로 다시 줄을 선다.
  */
 
 // 상위 누적 백분위 상한. LoL 실제 분포와 비슷한 비율로 잡았다.
@@ -37,7 +40,7 @@ const SQL = {
            SUM(s.wins)   AS wins,
            SUM(s.losses) AS losses
     FROM users u
-    JOIN game_stats s ON s.user_id = u.id
+    JOIN game_stats s ON s.user_id = u.id AND s.server_id = @serverId
     GROUP BY u.id
     HAVING plays >= ${MIN_PLAYS}`),
 };
@@ -67,11 +70,13 @@ export function tierByPercentile(percentile) {
 }
 
 /**
- * 전체 유저를 점수순으로 정렬하고 백분위에 맞는 티어를 붙여 돌려준다.
+ * 그 서버의 유저를 점수순으로 정렬하고 백분위에 맞는 티어를 붙여 돌려준다.
  * 동점자는 승 → 판수 → 가입순으로 순서를 갈라, 같은 점수라도 등급이 겹치지 않게 한다.
+ * @param {string} serverId 등급을 매길 서버(채널)
  */
-export function getRanking() {
-  const rows = SQL.aggregate.all()
+export function getRanking(serverId) {
+  if (!serverId) return [];
+  const rows = SQL.aggregate.all({ serverId })
     .map(r => ({ ...r, points: pointsOf(r) }))
     .sort((a, b) =>
       b.points - a.points ||
@@ -102,9 +107,9 @@ export function getRanking() {
   });
 }
 
-/** 특정 유저의 등급. 전적이 없으면 언랭크 */
-export function getUserRank(userId) {
-  const ranking = getRanking();
+/** 특정 유저의 등급 (그 서버에서). 전적이 없으면 언랭크 */
+export function getUserRank(userId, serverId) {
+  const ranking = getRanking(serverId);
   const entry   = ranking.find(r => r.userId === userId);
   if (entry) return entry;
   return {
