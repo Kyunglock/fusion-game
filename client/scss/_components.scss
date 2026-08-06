@@ -741,25 +741,6 @@ li.is-offline {
   }
 }
 
-// ── 서버(채널) 배지 ───────────────────────────────────────────────────────────
-// 지금 들어와 있는 서버(퓨전/친구방)를 알려주는 칩. 홈 유저바와 게임 대기실이 함께 쓴다.
-.server-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--green-pale);
-  background: var(--chip);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 3px 10px;
-  white-space: nowrap;
-
-  // display 를 지정했으므로 브라우저 기본 [hidden] 규칙이 밀린다 — 직접 못박아 둔다.
-  &[hidden] { display: none; }
-}
-
 // 전적 모달 맨 위 — 어느 서버(채널) 기준의 기록인지 밝히는 줄
 .stats-server-note {
   text-align: center;

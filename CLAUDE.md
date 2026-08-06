@@ -24,8 +24,9 @@
 
 - 정의는 `src/servers.js`(`GAME_SERVERS`). **비밀번호도 여기에 그대로 적혀 있다** — 저장소가 공개라 누구나 볼 수 있지만, 이 관문은 아는 사람만 들이려는 잠금이 아니라 두 무리를 갈라놓는 구분선에 가깝다는 판단(주인 결정). 숨겨야 할 때는 환경변수 `SERVER_PASSWORD_FUSION`·`SERVER_PASSWORD_FRIENDS` 가 코드값을 덮는다. 비교는 sha256 해시의 상수시간 비교(`timingSafeEqual`)
 - 관문은 **닉네임 로그인보다 앞단**이다: 서버 선택 + 비밀번호 → 닉네임 입력 → 게임 목록. 통과하면 `req.session.serverId` 가 박히고 그때부터 게임 페이지·API·소켓이 열린다
-  - `POST /api/auth` 의 세션 재발급(`regenerate`)과 `POST /api/auth/logout` 은 `serverId` 를 그대로 넘겨준다 — 닉네임만 갈아탈 때 다시 비밀번호를 묻지 않기 위함. 서버를 바꾸려면 `POST /api/servers/leave` 를 따로 부른다(클라이언트는 이어서 새로고침 — 소켓이 들고 있는 세션 스냅샷까지 갈아끼워야 하므로)
-- API: `GET /api/servers`(목록 + 현재), `POST /api/servers/enter { serverId, password }`, `POST /api/servers/leave`. 비밀번호는 IP당 10분 10회로 시도를 제한한다(`src/routes/servers.js`, 메모리)
+  - `POST /api/auth` 의 세션 재발급(`regenerate`)과 `POST /api/auth/logout` 은 `serverId` 를 그대로 넘겨준다 — 닉네임만 갈아탈 때 다시 비밀번호를 묻지 않기 위함
+  - **한 번 고른 서버는 다시 고르지 않는다**(주인 결정). 지금 있는 서버를 알리는 배지도, 바꾸는 버튼도 화면에 두지 않는다 — 두 무리가 각자 한쪽에만 머무는 것이 전제라 매번 확인할 이유가 없다는 판단. `POST /api/servers/leave` 라우트는 남겨두었다(부르면 `serverId` 만 지우고 세션은 유지 → 새로고침하면 다시 서버 선택 화면). 화면에서 다시 부르려면 이 API 를 호출하고 새로고침하면 된다 — 소켓이 들고 있는 세션 스냅샷까지 갈아끼워야 하므로 새로고침이 필요하다
+- API: `GET /api/servers`(목록 + 현재), `POST /api/servers/enter { serverId, password }`, `POST /api/servers/leave`(화면에서는 부르지 않음). 비밀번호는 IP당 10분 10회로 시도를 제한한다(`src/routes/servers.js`, 메모리)
 - 게이트 미들웨어(`src/routes/servers.js`): 페이지는 `requireServerPage`(홈으로 리다이렉트), API 는 `requireServer`(403). 게임 페이지 7개와 `/api/solo`·`/api/catchmind` 에 걸려 있다
 - **방 격리**: 방에 `serverId` 가 박히고(`createRoom`), `getRooms(serverId)` 가 그 서버 방만 준다. 다른 서버의 방은 코드를 알아도 `존재하지 않는 방입니다.` 로 막힌다(`socketHandlers.js` 의 `visible()`) — `join_room`·`join_as_spectator` 공통
   - 방 코드는 서버와 무관하게 전역 유일하게 발급한다(같은 코드가 두 서버에 동시에 생기지 않음)
@@ -35,7 +36,7 @@
 - **캐치마인드 그림도 갈린다**: 방이 없는 게임이라 소켓이 아니라 `catchmind_drawings.server_id` 로 가른다 → 아래 '캐치마인드' 참고
 - **전적·등급도 갈린다**: `game_stats`·`game_results`에 `server_id` 가 붙어 서버마다 따로 쌓이고, 등급(백분위 티어)도 그 서버 안에서만 매겨진다 → 아래 '계정 · 전적 · 등급' 참고
 - **갈리지 않는 것**: 계정(닉네임·아바타)뿐이다. 같은 닉네임은 두 서버에서 같은 계정이고, 프로필을 한 번만 바꾸면 양쪽에 반영된다
-- 화면: `client/index.html` 의 `#page-server`(서버 카드 + 비밀번호) → `#page-auth` → `#page-select`. 지금 있는 서버는 `.server-chip` 으로 홈 유저바와 게임 대기실(`views/mixins/lobby.pug` 의 `#session-server`, `authCheck.js` 가 채움)에 표시된다. 홈의 방 개수 소켓은 서버가 정해진 뒤에 연결한다(`startRoomCounts`)
+- 화면: `client/index.html` 의 `#page-server`(서버 카드 + 비밀번호) → `#page-auth` → `#page-select`. 홈의 방 개수 소켓은 서버가 정해진 뒤에 연결한다(`startRoomCounts`). 서버 이름이 화면에 나오는 곳은 전적 모달 맨 위 한 줄(`.stats-server-note`)뿐이다 — 어느 서버 기준의 전적인지 밝히려는 것이라 남겨두었다
 
 ## 계정 · 전적 · 등급 (DB)
 
