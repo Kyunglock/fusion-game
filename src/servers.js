@@ -7,8 +7,10 @@ import crypto from 'crypto';
  * 퓨전 사람들과 친구들이 서로의 방·접속자를 보지 않게 하려는 것이라, 프로세스를
  * 두 벌 띄우고 DB·전적을 쪼갤 이유가 없다. 계정·전적·등급은 그대로 공용이다.
  *
- * 입장은 서버마다 다른 비밀번호로 막는다. 비밀번호는 저장소에 두지 않고 환경변수로
- * 받는다(.env). 값이 없으면 개발용 기본값으로 뜨되 기동 로그에 경고를 남긴다.
+ * 입장은 서버마다 다른 비밀번호로 막는다. **비밀번호는 아래에 그대로 적혀 있다** —
+ * 저장소가 공개라 누구나 볼 수 있지만, 이 관문은 아는 사람만 들이려는 잠금이 아니라
+ * 두 무리를 갈라놓는 구분선에 가깝다는 판단(주인 결정). 굳이 숨겨야 할 때는 환경변수
+ * (envKey)로 덮어쓰면 코드를 고치지 않고 바꿀 수 있다.
  */
 export const GAME_SERVERS = [
   {
@@ -17,7 +19,7 @@ export const GAME_SERVERS = [
     icon:    '🏢',
     desc:    '퓨전 사람들이 모이는 서버',
     envKey:  'SERVER_PASSWORD_FUSION',
-    devPassword: 'fusion',
+    password: 'fusion!@34',
   },
   {
     id:      'friends',
@@ -25,7 +27,7 @@ export const GAME_SERVERS = [
     icon:    '🎉',
     desc:    '친구들끼리 노는 서버',
     envKey:  'SERVER_PASSWORD_FRIENDS',
-    devPassword: 'friends',
+    password: 'dlxjsjftlxl',
   },
 ];
 
@@ -49,18 +51,9 @@ export function serverChannel(id) {
   return `srv:${id}`;
 }
 
+/** 환경변수가 있으면 그쪽이 이긴다 (코드를 고치지 않고 바꾸고 싶을 때). */
 function passwordOf(server) {
-  return process.env[server.envKey] || server.devPassword;
-}
-
-/** 기동 시 1회 — 기본 비밀번호로 도는 서버가 있으면 알린다. */
-export function warnDefaultPasswords() {
-  const bare = GAME_SERVERS.filter(s => !process.env[s.envKey]);
-  if (bare.length === 0) return;
-  console.warn(
-    `[servers] ⚠ ${bare.map(s => s.envKey).join(', ')} 가 설정되지 않아 개발용 기본 비밀번호로 동작합니다. ` +
-    '배포 환경이라면 .env 에 값을 넣어주세요.',
-  );
+  return process.env[server.envKey] || server.password;
 }
 
 /**

@@ -22,7 +22,7 @@
 
 앞단에 관문을 하나 두고 **퓨전 서버**(`fusion`)와 **친구방**(`friends`) 둘로 갈랐다. 프로세스·DB를 나눈 **물리적 분리가 아니다** — 같은 앱 안에서 방 목록과 접속자만 서로 안 보이게 한 논리적 분리다. 두 무리가 같은 로비에서 서로의 방을 보지 않게 하는 것이 목적이라 프로세스를 두 벌 띄우고 전적을 쪼갤 이유가 없었다.
 
-- 정의는 `src/servers.js`(`GAME_SERVERS`). 비밀번호는 저장소에 두지 않고 환경변수 `SERVER_PASSWORD_FUSION`·`SERVER_PASSWORD_FRIENDS` 로 받는다. 값이 없으면 개발용 기본값(`fusion`/`friends`)으로 뜨고 기동 로그에 경고가 남는다(`warnDefaultPasswords`). 비교는 sha256 해시의 상수시간 비교(`timingSafeEqual`)
+- 정의는 `src/servers.js`(`GAME_SERVERS`). **비밀번호도 여기에 그대로 적혀 있다** — 저장소가 공개라 누구나 볼 수 있지만, 이 관문은 아는 사람만 들이려는 잠금이 아니라 두 무리를 갈라놓는 구분선에 가깝다는 판단(주인 결정). 숨겨야 할 때는 환경변수 `SERVER_PASSWORD_FUSION`·`SERVER_PASSWORD_FRIENDS` 가 코드값을 덮는다. 비교는 sha256 해시의 상수시간 비교(`timingSafeEqual`)
 - 관문은 **닉네임 로그인보다 앞단**이다: 서버 선택 + 비밀번호 → 닉네임 입력 → 게임 목록. 통과하면 `req.session.serverId` 가 박히고 그때부터 게임 페이지·API·소켓이 열린다
   - `POST /api/auth` 의 세션 재발급(`regenerate`)과 `POST /api/auth/logout` 은 `serverId` 를 그대로 넘겨준다 — 닉네임만 갈아탈 때 다시 비밀번호를 묻지 않기 위함. 서버를 바꾸려면 `POST /api/servers/leave` 를 따로 부른다(클라이언트는 이어서 새로고침 — 소켓이 들고 있는 세션 스냅샷까지 갈아끼워야 하므로)
 - API: `GET /api/servers`(목록 + 현재), `POST /api/servers/enter { serverId, password }`, `POST /api/servers/leave`. 비밀번호는 IP당 10분 10회로 시도를 제한한다(`src/routes/servers.js`, 메모리)

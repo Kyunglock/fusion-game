@@ -9,7 +9,6 @@ import session        from 'express-session';
 
 import { PORT, SOCKET_PING_INTERVAL, SOCKET_PING_TIMEOUT, SOCKET_RECONNECT_GRACE_MS } from './src/config.js';
 import { SqliteSessionStore } from './src/db/sessionStore.js';
-import { warnDefaultPasswords } from './src/servers.js';
 import authRouter          from './src/routes/auth.js';
 import soloRouter          from './src/routes/solo.js';
 import catchmindRouter     from './src/routes/catchmind.js';
@@ -144,5 +143,4 @@ liarIo.on('connection', (socket) => {
   registerLiarHandlers(liarIo, socket);
 });
 
-warnDefaultPasswords();
 server.listen(PORT, () => console.log(`파티 게임즈 → http://localhost:${PORT}`));

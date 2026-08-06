@@ -47,8 +47,8 @@ cp .env.sample .env
 | `SESSION_SECRET` | ✅ | 세션 서명용 비밀 키. 아래 명령으로 랜덤 값을 생성해 채워주세요. |
 | `PORT` | ❌ | 서버 포트. 비워두면 `4000`번을 사용합니다. |
 | `DB_PATH` | ❌ | SQLite 파일 경로. 비워두면 `data/app.db`가 자동 생성됩니다. |
-| `SERVER_PASSWORD_FUSION` | ❌ | '퓨전 서버' 입장 비밀번호. 비워두면 개발용 기본값(`fusion`)으로 동작합니다. |
-| `SERVER_PASSWORD_FRIENDS` | ❌ | '친구방' 입장 비밀번호. 비워두면 개발용 기본값(`friends`)으로 동작합니다. |
+| `SERVER_PASSWORD_FUSION` | ❌ | '퓨전 서버' 입장 비밀번호. 비워두면 `src/servers.js`의 값을 씁니다. |
+| `SERVER_PASSWORD_FRIENDS` | ❌ | '친구방' 입장 비밀번호. 비워두면 `src/servers.js`의 값을 씁니다. |
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
