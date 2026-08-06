@@ -33,7 +33,8 @@
   - 소켓의 `serverId` 는 **핸드셰이크 시점의 세션 스냅샷**이다. 서버를 바꾸면 페이지를 다시 여는 것이 전제
 - 접속자 위젯(`online_users`, 악어 네임스페이스)도 서버별로 나눠 보낸다
 - **캐치마인드 그림도 갈린다**: 방이 없는 게임이라 소켓이 아니라 `catchmind_drawings.server_id` 로 가른다 → 아래 '캐치마인드' 참고
-- **갈리지 않는 것**: 계정·닉네임·전적·등급은 두 서버가 공용이다. 사람이 양쪽을 오가도 전적이 이어지는 편이 자연스럽기 때문 (캐치마인드 전적도 게임 키 하나(`catchmind`)로 함께 쌓인다 — 그림 풀만 갈릴 뿐이다)
+- **전적·등급도 갈린다**: `game_stats`·`game_results`에 `server_id` 가 붙어 서버마다 따로 쌓이고, 등급(백분위 티어)도 그 서버 안에서만 매겨진다 → 아래 '계정 · 전적 · 등급' 참고
+- **갈리지 않는 것**: 계정(닉네임·아바타)뿐이다. 같은 닉네임은 두 서버에서 같은 계정이고, 프로필을 한 번만 바꾸면 양쪽에 반영된다
 - 화면: `client/index.html` 의 `#page-server`(서버 카드 + 비밀번호) → `#page-auth` → `#page-select`. 지금 있는 서버는 `.server-chip` 으로 홈 유저바와 게임 대기실(`views/mixins/lobby.pug` 의 `#session-server`, `authCheck.js` 가 채움)에 표시된다. 홈의 방 개수 소켓은 서버가 정해진 뒤에 연결한다(`startRoomCounts`)
 
 ## 계정 · 전적 · 등급 (DB)
@@ -45,17 +46,18 @@
 - 닉네임 변경(`PUT /api/me/username`)은 계정 이름 변경이다(전적·등급 유지). 이미 쓰는 닉네임이면 409
 
 ### 전적
-- 게임 한 판이 끝날 때 `recordPlayers(game, players, outcomeOf, scoreOf)`(`src/db/stats.js`)로 기록한다. 소켓 플레이어 객체에 실린 `accountId`가 기준이며, 기록 실패는 로그만 남기고 게임 진행을 막지 않는다
+- **전적은 서버(채널)별로 갈린다**(마이그레이션 6). `game_stats` 는 PK 가 `(user_id, server_id, game)` 이고 `game_results` 에도 `server_id` 가 붙는다. 계정은 하나인데 퓨전에서 쌓은 승패와 친구방에서 쌓은 승패가 서로 섞이지 않는다. 최근 전적 보관 한도(100건)도 서버마다 따로 센다
+- 게임 한 판이 끝날 때 `recordPlayers(serverId, game, players, outcomeOf, scoreOf)`(`src/db/stats.js`)로 기록한다. `serverId` 는 방에 박혀 있는 `room.serverId` 를 넘긴다. 소켓 플레이어 객체에 실린 `accountId`가 기준이며, 기록 실패는 로그만 남기고 게임 진행을 막지 않는다
 - 기록 시점: 악어=물린 사람 패/나머지 승, 폭탄=터뜨린 사람 패/나머지 승, 테트리스=마지막 생존자 승(이탈로 끝난 경우 포함), 끝말잇기=최후 1인 승, 자모=첫 정답자 승(방장은 참여하지 않으므로 제외, 전원 소진이면 무승부)
-- 캐치마인드도 소켓이 아니라 HTTP로 기록한다. 게임 키 `catchmind`, **한 그림을 처음 끝낼 때 한 번만** — 맞히면 승, 시도를 다 쓰거나 포기하면 패 → 아래 '캐치마인드' 참고
-- 자모 워들 솔플은 소켓이 아니라 HTTP(`POST /api/solo/jamo`)로 기록한다. 게임 키가 `jamoSolo`(자모 워들 솔로)로 멀티(`jamo`)와 분리돼 쌓인다 → 아래 '자모 워들 — 솔로 플레이' 참고
+- 캐치마인드도 소켓이 아니라 HTTP로 기록한다. 전적이 쌓이는 서버는 **그 그림이 그려진 서버**(`drawing.server_id`)다. 게임 키 `catchmind`, **한 그림을 처음 끝낼 때 한 번만** — 맞히면 승, 시도를 다 쓰거나 포기하면 패 → 아래 '캐치마인드' 참고
+- 자모 워들 솔플도 서버별로 쌓인다. 다만 **'난이도별 하루 한 판' 잠금은 일부러 서버와 무관하게 하나로 둔다** — `jamo_solo_daily` 의 PK 에 `server_id` 를 넣으면 서버를 오가며 하루에 두 배로 기록할 수 있어 반복 제출 방지 장치가 헐거워진다. 소켓이 아니라 HTTP(`POST /api/solo/jamo`)로 기록한다. 게임 키가 `jamoSolo`(자모 워들 솔로)로 멀티(`jamo`)와 분리돼 쌓인다 → 아래 '자모 워들 — 솔로 플레이' 참고
 - `game_stats`(게임별 누적) + `game_results`(판별 기록, 유저당 최근 100건만 보관) 두 테이블에 함께 쌓인다
 
 ### 등급 (리그 오브 레전드식)
-- `src/db/ranking.js`. 절대 점수 구간이 아니라 **전체 유저 중 상위 몇 %인지**로 티어를 나눈다 → 인원이 적어도 위아래가 골고루 갈린다(5명이면 5명이 서로 다른 티어)
+- `src/db/ranking.js`. **등급도 서버별로 매긴다**(`getRanking(serverId)`) — 전적이 갈리므로 당연한 귀결이다. 퓨전에서 챌린저라도 친구방에서는 그곳 전적으로 다시 줄을 선다. 절대 점수 구간이 아니라 **그 서버 유저 중 상위 몇 %인지**로 티어를 나눈다 → 인원이 적어도 위아래가 골고루 갈린다(5명이면 5명이 서로 다른 티어)
 - 점수: 승 +25, 패 -10(0 미만은 0). 동점자는 승 → 판수 → 가입순으로 갈라 등급이 겹치지 않게 한다
 - 티어 상한(상위 누적 %): 챌린저 0.05 / 그랜드마스터 0.2 / 마스터 1 / 다이아 4 / 에메랄드 12 / 플래티넘 25 / 골드 45 / 실버 65 / 브론즈 85 / 아이언 100. 마스터 이상을 뺀 티어는 구간 내 위치로 IV~I 디비전을 매긴다
-- 한 판도 안 한 유저는 언랭크. 등급은 `GET /api/me`·`GET /api/me/stats`에 실려 오고 전체 등급표는 `GET /api/ranking`(상위 100명)
+- 한 판도 안 한 유저는 언랭크. 등급은 `GET /api/me`·`GET /api/me/stats`에 실려 오고 등급표는 `GET /api/ranking`(그 서버 상위 100명). 셋 다 세션의 `serverId` 기준이라 서버를 바꾸면 다른 숫자가 나온다
 - 홈 화면: 유저바에 티어 배지, `전적 · 등급` 버튼 → 등급 카드 + 게임별 전적표 + 최근 전적 + 전체 등급표 모달
 
 ## 파일 구조
@@ -245,7 +247,7 @@ client/
   - 갱신: 페이지 진입(로그인 확인 직후) 1회 → 이후 대기실을 그릴 때마다(최소 5초 간격). 라운드를 마치고 대기실로 돌아온 순간과 솔플 전적을 기록한 직후에는 간격을 무시하고 바로 다시 조회한다
   - 티어 색 팔레트(`$tier-colors`)와 `.tier-badge`는 홈·대기실 공용이라 `_variables.scss`/`_components.scss`에 있다(예전에는 `index.scss`에만 있었음)
 - **방에 있는 사람들의 전적도 서로 볼 수 있다.** 대기실 참가자 목록의 이름 아래에 티어 배지 + `자모 n승 n패` + `전체 n승 n패`가, 관전자 칩에는 티어 배지 + 자모 승패가 붙는다
-  - 서버가 `safePlayer`/`safeSpectator`에 `card`(`src/db/playerCards.js`의 `getPlayerCard(accountId, 'jamo')`)를 실어 보낸다. `safeState`는 자주 호출되므로 전체 등급 계산은 3초 TTL로 캐시한다(전적이 바뀌어도 TTL 안에 반영)
+  - 서버가 `safePlayer`/`safeSpectator`에 `card`(`src/db/playerCards.js`의 `getPlayerCard(accountId, 'jamo', room.serverId)`)를 실어 보낸다. 전적이 서버별로 갈리므로 `safePlayer(p, room)`·`safeSpectator(s, room)` 가 방을 함께 받아 `room.serverId` 를 넘긴다(다른 게임은 방을 안 쓰므로 그대로다). `safeState`는 자주 호출되므로 등급 계산은 **서버별로** 3초 TTL 캐시를 둔다(전적이 바뀌어도 TTL 안에 반영)
   - 관전자도 티어를 보여줘야 하므로 `join_as_spectator`가 관전자 객체에 `accountId`를 넣고, `createRoomManager`에 `safeSpectator` 옵션이 생겼다(기본값은 기존과 동일하게 id/이름/아바타)
   - 클라이언트 렌더는 공용(`lobbyRenderer` + `myRank.js`의 `playerCardHtml`/`tierBadgeHtml`)이라 `card`를 안 보내는 다른 게임은 화면이 그대로다. 게임 이름 라벨은 `renderWaiting`의 `cardGameLabel` 옵션으로 넘긴다
 
@@ -421,5 +423,6 @@ chore: .env.sample 추가
 - `getRoomOfSpectator(socketId)` — socketId로 관전자가 있는 방 찾기
 - 이탈 처리는 관전자 먼저 확인, 없으면 플레이어 처리 (`leaveRoom(id)` — socket.id가 아니라 인자로 받은 id를 쓴다)
 - `registerLeaveFlow(leaveFn, opts)` — disconnect를 재접속 유예로 감싸고 `leave_room`/`resume_room`을 함께 등록
+- `recordPlayers(serverId, game, ...)` / `getRanking(serverId)` / `getPlayerCard(accountId, game, serverId)` — 전적·등급은 언제나 서버(채널)를 함께 받는다
 - `broadcastRoomList(io, manager, roomsEvent)` — 방 목록을 서버(채널)별로 갈라 보낸다 (socket 이 없는 타이머 콜백에서도 사용)
 - `reapDisconnected(liveIds)` — 방 목록을 낼 때(`get_rooms`/`broadcastRooms`) 해당 네임스페이스에 연결된 소켓만 남기고, 연결이 끊긴 소켓만 있는 유령 방을 삭제. `liveIds`는 네임스페이스의 실제 연결 소켓 집합(기본 ns는 `io.sockets.sockets`, 그 외는 `io.sockets`)

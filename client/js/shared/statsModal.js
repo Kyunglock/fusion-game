@@ -84,7 +84,7 @@ function renderRanking(ranking, myId) {
     </tr>`).join('');
 
   return `
-    <p class="stats-subtitle">전체 등급표</p>
+    <p class="stats-subtitle">이 서버 등급표</p>
     <table class="stats-table ranking-table">
       <thead><tr><th>#</th><th>닉네임</th><th>등급</th><th>점수</th><th>전적</th></tr></thead>
       <tbody>${rows}</tbody>
@@ -118,7 +118,9 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeStatsMo
 async function loadAndRender() {
   try {
     const [mine, ranking] = await Promise.all([api('/api/me/stats'), api('/api/ranking')]);
+    // 전적·등급은 서버(채널)별로 갈리므로 어느 서버 기록인지 먼저 밝힌다.
     statsBody.innerHTML =
+      (mine.serverName ? `<p class="stats-server-note">${escHtml(mine.serverName)} 기준 · 서버마다 전적이 따로 쌓입니다</p>` : '') +
       renderRankCard(mine.rank) +
       renderStatsTable(mine) +
       renderRecent(mine.recent) +

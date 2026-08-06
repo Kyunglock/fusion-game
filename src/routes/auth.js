@@ -7,6 +7,7 @@ import {
 import { getUserStats } from '../db/stats.js';
 import { getRanking, getUserRank } from '../db/ranking.js';
 import { serverName } from '../servers.js';
+import { requireServer } from './servers.js';
 
 const router = Router();
 
@@ -28,7 +29,8 @@ function meBody(req) {
     accountId,
     username:  req.session.username,
     avatar:    req.session.avatar ?? null,
-    rank:      accountId ? getUserRank(accountId) : null,
+    // 전적·등급은 서버(채널)별로 갈리므로 지금 들어와 있는 서버 기준이다.
+    rank:      accountId && serverId ? getUserRank(accountId, serverId) : null,
     // 지금 들어와 있는 서버(채널). 방 목록이 이 값으로 갈린다.
     serverId,
     serverName: serverName(serverId),
@@ -127,16 +129,19 @@ router.put('/me/avatar', requireLogin, handle(async (req, res) => {
 }));
 
 // ── GET /api/me/stats — 내 전적 + 등급 ───────────────────────────────────────
-router.get('/me/stats', requireLogin, handle(async (req, res) => {
+// 전적·등급은 지금 들어와 있는 서버의 것만 준다 (서버를 안 골랐으면 403).
+router.get('/me/stats', requireLogin, requireServer, handle(async (req, res) => {
+  const { accountId, serverId } = req.session;
   res.json({
-    ...getUserStats(req.session.accountId),
-    rank: getUserRank(req.session.accountId),
+    ...getUserStats(accountId, serverId),
+    rank: getUserRank(accountId, serverId),
+    serverName: serverName(serverId),
   });
 }));
 
-// ── GET /api/ranking — 전체 등급표 (상위 100명) ──────────────────────────────
-router.get('/ranking', (_req, res) => {
-  res.json(getRanking().slice(0, 100));
+// ── GET /api/ranking — 그 서버의 등급표 (상위 100명) ─────────────────────────
+router.get('/ranking', requireServer, (req, res) => {
+  res.json(getRanking(req.session.serverId).slice(0, 100));
 });
 
 export default router;

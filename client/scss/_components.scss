@@ -725,3 +725,11 @@ li.is-offline {
   // display 를 지정했으므로 브라우저 기본 [hidden] 규칙이 밀린다 — 직접 못박아 둔다.
   &[hidden] { display: none; }
 }
+
+// 전적 모달 맨 위 — 어느 서버(채널) 기준의 기록인지 밝히는 줄
+.stats-server-note {
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-bottom: 10px;
+}

@@ -14,10 +14,10 @@ export function createRoomManager({
   defaultPlayerFields = {},
   /** safeState 에 추가로 포함할 필드 추출기 */
   extraStateFields = (_room) => ({}),
-  /** 플레이어를 safe 변환 (기본: 그대로) */
-  safePlayer = (p) => p,
+  /** 플레이어를 safe 변환 (기본: 그대로). 방도 함께 받는다 — 전적 카드에 serverId 가 필요 */
+  safePlayer = (p, _room) => p,
   /** 관전자를 safe 변환 (기본: id/이름/아바타만) */
-  safeSpectator = (s) => ({ id: s.id, name: s.name, avatar: s.avatar }),
+  safeSpectator = (s, _room) => ({ id: s.id, name: s.name, avatar: s.avatar }),
   /** removePlayer 후 게임 상태 초기화 로직 */
   resetGameState = (_room) => {},
   /** removePlayer 중 게임 고유 처리 (폭탄 넘기기 등). 반환값이 있으면 그것을 result에 merge */
@@ -98,8 +98,8 @@ export function createRoomManager({
     // disconnected: 재접속 유예 중(잠시 연결이 끊긴 상태)임을 모든 게임에서 공통으로 알린다.
     return {
       code:            room.code,
-      players:         room.players.map(p => ({ ...safePlayer(p), disconnected: !!p.disconnected })),
-      spectators:      room.spectators.map(s => ({ ...safeSpectator(s), disconnected: !!s.disconnected })),
+      players:         room.players.map(p => ({ ...safePlayer(p, room), disconnected: !!p.disconnected })),
+      spectators:      room.spectators.map(s => ({ ...safeSpectator(s, room), disconnected: !!s.disconnected })),
       allowSpectators: room.allowSpectators,
       state:           room.state,
       ...extraStateFields(room),

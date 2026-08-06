@@ -223,7 +223,7 @@ function endRound(io, room, winnerRole) {
   const participants = room.players.filter(p => !p.isHost);
   const liar          = room.players.find(p => p.id === room.liarId);
 
-  recordPlayers('liar', participants,
+  recordPlayers(room.serverId, 'liar', participants,
     p => (p.id === room.liarId) === (winnerRole === 'liar') ? 'win' : 'lose',
     () => 0,
   );

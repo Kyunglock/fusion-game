@@ -227,7 +227,8 @@ export const submitGuess = db.transaction((drawing, accountId, correct, { replay
     if (correct) SQL.bumpSolved.run(drawing.id);
     score    = correct ? guessScore() : 0;
     recorded = true;
-    recordRound(CATCHMIND_GAME, [{
+    // 전적은 그 그림이 속한 서버(채널)에 쌓인다.
+    recordRound(drawing.server_id, CATCHMIND_GAME, [{
       accountId,
       outcome: correct ? 'win' : 'lose',
       score,
@@ -253,7 +254,7 @@ export const giveUp = db.transaction((drawing, accountId, { replay }) => {
   if (replay || play?.finished === 1) return { recorded: false };
 
   SQL.finishPlay.run({ drawingId: drawing.id, userId: accountId, solved: 0 });
-  recordRound(CATCHMIND_GAME, [{ accountId, outcome: 'lose', score: 0 }]);
+  recordRound(drawing.server_id, CATCHMIND_GAME, [{ accountId, outcome: 'lose', score: 0 }]);
   return { recorded: true };
 });
 

@@ -155,6 +155,39 @@ const MIGRATIONS = [
   ALTER TABLE catchmind_drawings ADD COLUMN server_id TEXT NOT NULL DEFAULT 'fusion';
   CREATE INDEX idx_catchmind_server ON catchmind_drawings(server_id, hidden, id);
   `,
+  `
+  -- 전적도 서버(채널)별로 가른다. 퓨전에서 쌓은 승패와 친구방에서 쌓은 승패가
+  -- 서로 섞이지 않고, 등급(백분위 티어)도 그 서버 안에서만 매겨진다.
+  -- 계정(닉네임·아바타)은 그대로 공용이다 — 같은 사람이 양쪽을 오갈 뿐이다.
+  --
+  -- game_stats 는 PRIMARY KEY 에 server_id 를 넣어야 하는데 SQLite 는 PK 를
+  -- 고칠 수 없어 표를 새로 만들어 옮긴다.
+  CREATE TABLE game_stats_new (
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    server_id  TEXT    NOT NULL DEFAULT 'fusion',
+    game       TEXT    NOT NULL,
+    plays      INTEGER NOT NULL DEFAULT 0,
+    wins       INTEGER NOT NULL DEFAULT 0,
+    losses     INTEGER NOT NULL DEFAULT 0,
+    score      INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT    NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, server_id, game)
+  );
+  -- 분리 이전의 전적은 갈 곳을 정해줘야 해서 'fusion' 으로 몰아준다
+  -- (친구방은 이때 새로 생긴 서버라 아직 쌓인 판이 없다).
+  INSERT INTO game_stats_new (user_id, server_id, game, plays, wins, losses, score, updated_at)
+    SELECT user_id, 'fusion', game, plays, wins, losses, score, updated_at FROM game_stats;
+  DROP TABLE game_stats;
+  ALTER TABLE game_stats_new RENAME TO game_stats;
+
+  ALTER TABLE game_results ADD COLUMN server_id TEXT NOT NULL DEFAULT 'fusion';
+  CREATE INDEX idx_game_results_server ON game_results(server_id, user_id, id DESC);
+
+  -- 솔플은 어느 서버에서 친 판인지만 적어둔다. '난이도별 하루 한 판' 잠금은
+  -- 일부러 서버와 무관하게 유지한다 — server_id 를 PK 에 넣으면 서버를 옮겨가며
+  -- 하루에 두 배로 기록할 수 있게 되어 반복 제출 방지 장치가 헐거워진다.
+  ALTER TABLE jamo_solo_daily ADD COLUMN server_id TEXT NOT NULL DEFAULT 'fusion';
+  `,
 ];
 
 function migrate() {
