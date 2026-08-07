@@ -400,6 +400,7 @@ function setQuizFinished(answer, { won }) {
   $('quiz-input').disabled  = true;
   $('quiz-submit').disabled = true;
   $('quiz-giveup').hidden   = true;
+  $('quiz-skip').hidden     = true;
   $('quiz-next').hidden     = false;
 
   $('quiz-slots').innerHTML = [...answer].map(ch =>
@@ -409,19 +410,24 @@ function setQuizFinished(answer, { won }) {
   if (!won) setQuizBanner(`정답은 '${answer}' 였습니다`, 'lose');
 }
 
-async function loadQuiz() {
+/**
+ * 다음 문제를 띄운다. `skipId` 를 주면 그 그림을 '다음에 풀기'로 넘긴다 —
+ * 기록은 남기지 않고 당장 다시 나오지만 않게 서버가 세션에 기억해 둔다.
+ */
+async function loadQuiz(skipId = null) {
   setQuizBanner(null);
   $('quiz-empty').hidden    = true;
   $('quiz-input').disabled  = false;
   $('quiz-submit').disabled = false;
   $('quiz-giveup').hidden   = false;
+  $('quiz-skip').hidden     = false;
   $('quiz-next').hidden     = true;
   $('quiz-input').value     = '';
   quizDone = false;
 
   let data;
   try {
-    data = await api('/api/catchmind/quiz');
+    data = await api(`/api/catchmind/quiz${skipId ? `?skip=${skipId}` : ''}`);
   } catch (e) {
     showError(e.message);
     return;
@@ -431,12 +437,19 @@ async function loadQuiz() {
     quiz = null;
     $('quiz-empty').hidden = false;
     $('quiz-answer-box').hidden = true;
+    $('quiz-giveup').hidden = true;
+    $('quiz-skip').hidden   = true;
     quizCanvas.setStrokes([]);
     return;
   }
 
   quiz = data;
   $('quiz-answer-box').hidden = false;
+
+  // 넘겼는데 같은 그림이 돌아왔다면 맞힐 그림이 이것뿐이라는 뜻이다.
+  if (skipId && data.id === skipId) {
+    setQuizBanner('맞힐 수 있는 다른 그림이 없어 같은 그림이 다시 나왔어요', 'info');
+  }
 
   const av = data.author.avatar
     ? `<img src="${escHtml(data.author.avatar)}" alt="" />`
@@ -512,6 +525,13 @@ $('quiz-votes').addEventListener('click', async (e) => {
   } catch (err) {
     showError(err.message);
   }
+});
+
+// '다음에 풀기' — 포기와 달리 아무것도 기록하지 않는다. 이미 쓴 시도 횟수는
+// 그림에 남아 있으므로 나중에 다시 만나면 이어서 풀게 된다(넘겨서 초기화되지 않는다).
+$('quiz-skip').addEventListener('click', () => {
+  if (!quiz || quizDone) return;
+  loadQuiz(quiz.id);
 });
 
 $('quiz-giveup').addEventListener('click', async () => {

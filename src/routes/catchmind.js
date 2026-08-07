@@ -4,6 +4,7 @@ import {
   CATCHMIND_MAX_ATTEMPTS,
   CATCHMIND_HINT_AFTER_ATTEMPTS,
   CATCHMIND_REPORTS_TO_HIDE,
+  CATCHMIND_SKIP_MEMORY,
 } from '../config.js';
 import { chosungOf, isCorrect, sanitizeStrokes, parseStrokes } from '../game/catchmind/drawingLogic.js';
 import { pickWord, categoryOf, isKnownWord } from '../game/catchmind/words.js';
@@ -111,14 +112,32 @@ router.get('/summary', (req, res) => {
 
 // ── 맞히기 ────────────────────────────────────────────────────────────────────
 
-/** GET /api/catchmind/quiz — 맞힐 그림 한 장 */
+/**
+ * GET /api/catchmind/quiz?skip=<id> — 맞힐 그림 한 장
+ *
+ * `skip` 은 방금 화면에 있던 그림을 '다음에 풀기'로 넘긴다는 뜻이다. 넘긴 그림은
+ * **버리는 것이 아니라 뒤로 미루는 것**이라 풀이 기록·전적은 건드리지 않고
+ * 세션에만 기억해 당장 다시 주지 않는다(제시어 배정의 `?refresh=1` 과 같은 방식).
+ * 넘긴 것밖에 안 남으면 store 가 알려주므로(`exhausted`) 기록을 접고 다시 돌린다.
+ */
 router.get('/quiz', (req, res) => {
   const { accountId, serverId } = req.session;
-  const picked    = store.pickQuiz(accountId, serverId);
+
+  const skipped = req.session.catchmindSkipped ?? [];
+  const skipId  = Number(req.query.skip);
+  if (Number.isInteger(skipId) && skipId > 0 && !skipped.includes(skipId)) {
+    skipped.push(skipId);
+    // 오래 넘긴 것부터 다시 나오도록 기억은 최근 것만 들고 있는다.
+    if (skipped.length > CATCHMIND_SKIP_MEMORY) skipped.shift();
+    req.session.catchmindSkipped = skipped;
+  }
+
+  const picked = store.pickQuiz(accountId, serverId, skipped);
 
   if (!picked) {
     return res.json({ empty: true, remaining: 0 });
   }
+  if (picked.exhausted) req.session.catchmindSkipped = [];
 
   const { drawing, replay } = picked;
   const play = store.openQuiz(drawing.id, accountId, { replay });

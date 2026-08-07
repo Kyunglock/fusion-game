@@ -323,6 +323,14 @@ client/
 - 시도는 `CATCHMIND_MAX_ATTEMPTS`(5회). 다 쓰면 패, `POST …/giveup`(포기)도 패. 정답 비교는 `isCorrect` — 공백·문장부호를 걷어낸 완전 일치
 - 전적 키는 `catchmind`. **그 그림을 처음 끝낼 때 한 번만** 기록한다(`catchmind_plays.finished`) → 복습·재도전으로 승수가 부풀지 않는다. 맞히면 `CATCHMIND_SCORE_SOLVE`(3점)
 
+#### 다음에 풀기 (skip)
+- `GET /api/catchmind/quiz?skip=<id>` — 지금 그림을 넘기고 다음 그림을 받는다. **포기와 다르다**: 아무것도 기록하지 않으니 패도 아니고, 넘긴 그림은 나중에 다시 나온다
+- 넘긴 그림은 **버리는 것이 아니라 뒤로 미루는 것**이라 `catchmind_plays` 를 건드리지 않고 **세션에만** 기억한다(`req.session.catchmindSkipped`, 최근 `CATCHMIND_SKIP_MEMORY`(20)장). 제시어 배정의 `?refresh=1` 과 같은 방식이다
+  - DB 쪽은 `pickQuiz(accountId, serverId, skipIds)` 가 `d.id NOT IN (SELECT value FROM json_each(@skip))` 로 빼기만 한다. 기억을 세션에 둔 덕에 컬럼도 표도 늘지 않는다
+  - 넘긴 것밖에 안 남으면 한 바퀴 다 돈 것이므로 `exhausted` 를 올려 보내고 라우터가 세션의 넘김 목록을 비운다 → 넘기다 보면 영원히 낼 그림이 없어지는 일이 없다
+- **이미 쓴 시도 횟수는 그대로 남는다**(풀이 기록을 건드리지 않으므로). 3번 틀린 뒤 넘겼다면 다시 만났을 때도 2번이 남아 있다 — 넘겨서 시도를 초기화하는 우회로가 되지 않는다
+- 화면에서는 `⏭️ 다음에 풀기` 버튼. 판이 끝났거나(정답·소진·포기) 낼 그림이 없으면 숨는다. 넘겼는데 같은 그림이 돌아오면(맞힐 그림이 그것뿐) 배너로 알린다
+
 ### 초성 힌트 — 4번 틀리면 공개
 - **`CATCHMIND_HINT_AFTER_ATTEMPTS`(4)번 틀리면** 그 사람에게 초성이 보인다. 마지막 한 번을 남겨두고 주는 구제책이라 동의·투표 같은 절차가 없다
 - 조건은 **사람마다 따로** 센다(`catchmind_plays.attempts`). 남이 4번 틀렸다고 내 화면에 초성이 뜨지는 않는다
