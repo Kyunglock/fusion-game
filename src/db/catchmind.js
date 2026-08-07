@@ -106,6 +106,35 @@ const SQL = {
       AND NOT EXISTS (SELECT 1 FROM catchmind_plays p
                       WHERE p.drawing_id = d.id AND p.user_id = @userId AND p.finished = 1)`),
 
+  // 그림 평가 — 내가 **끝낸**(맞혔든 틀렸든) 그림만 대상이다. 아직 손대지 않은
+  // 그림을 여기 끼우면 목록에 정답이 그대로 새어 나가므로 제외한다.
+  // 내가 그린 그림도 뺀다(자기 그림에는 표를 던질 수 없다 — 라우터의 loadQuiz 와 같은 규칙).
+  rated: (cond) => db.prepare(`
+    SELECT d.id, d.word, d.strokes, d.likes, d.dislikes,
+           d.seen_count, d.solved_count, d.created_at,
+           u.username AS author, u.avatar AS author_avatar,
+           p.solved AS solved_by_me, p.attempts AS my_attempts,
+           COALESCE(v.value, 0) AS my_vote
+    FROM catchmind_plays p
+    JOIN catchmind_drawings d ON d.id = p.drawing_id
+    JOIN users u ON u.id = d.user_id
+    LEFT JOIN catchmind_votes v ON v.drawing_id = d.id AND v.user_id = @userId
+    WHERE p.user_id = @userId AND p.finished = 1
+      AND d.hidden = 0 AND d.server_id = @serverId AND d.user_id != @userId
+      ${cond}
+    ORDER BY p.created_at DESC, d.id DESC
+    LIMIT @limit`),
+
+  // 홈 안내문용 — 평가할 수 있는 그림이 몇 장이고 그중 아직 표를 안 던진 것이 몇 장인지
+  playedCounts: db.prepare(`
+    SELECT COUNT(*) AS played,
+           COALESCE(SUM(v.value IS NULL), 0) AS unrated
+    FROM catchmind_plays p
+    JOIN catchmind_drawings d ON d.id = p.drawing_id
+    LEFT JOIN catchmind_votes v ON v.drawing_id = d.id AND v.user_id = @userId
+    WHERE p.user_id = @userId AND p.finished = 1
+      AND d.hidden = 0 AND d.server_id = @serverId AND d.user_id != @userId`),
+
   // 랭킹. 오답 수는 따로 세어두지 않고 풀이 기록에서 그때그때 합산한다
   // (한 판에서 틀린 횟수 = 시도 횟수 - 맞힌 여부. 맞힌 판의 마지막 한 번은 정답이므로).
   // 목록이 수십 줄이라 매번 세도 부담이 없고, 컬럼을 늘려 어긋날 여지를 만들지 않는다.
@@ -139,6 +168,20 @@ const BOARD_SORTS = {
 
 const BOARD_SQL = Object.fromEntries(
   Object.entries(BOARD_SORTS).map(([key, order]) => [key, SQL.board(order)]),
+);
+
+/**
+ * 그림 평가 목록의 필터. 랭킹의 정렬과 같은 이유로 조건절을 미리 만들어 두고
+ * 키로만 고른다(사용자 입력이 SQL 에 끼어들 여지를 없앤다).
+ */
+const RATE_FILTERS = {
+  all:    '',
+  solved: 'AND p.solved = 1',
+  missed: 'AND p.solved = 0',
+};
+
+const RATE_SQL = Object.fromEntries(
+  Object.entries(RATE_FILTERS).map(([key, cond]) => [key, SQL.rated(cond)]),
 );
 
 // ── 그리기 ────────────────────────────────────────────────────────────────────
@@ -310,6 +353,30 @@ export const BOARD_SORT_KEYS = Object.keys(BOARD_SORTS);
 export function leaderboard(accountId, serverId, sort = 'likes', limit = 30) {
   const stmt = BOARD_SQL[sort] ?? BOARD_SQL.likes;
   return stmt.all({ userId: accountId, serverId, limit });
+}
+
+// ── 그림 평가 ─────────────────────────────────────────────────────────────────
+
+export const RATE_FILTER_KEYS = Object.keys(RATE_FILTERS);
+
+/**
+ * 평가할 수 있는 그림 목록 — **내가 이미 끝낸 그림**(맞혔거나 틀렸거나 포기한 것)만.
+ *
+ * 맞히기 화면에서는 지금 풀고 있는 한 장에만 표를 던질 수 있어서, 지나간 그림을
+ * 다시 찾아 평가할 방법이 없었다. 이 목록이 그 자리를 메운다. 대상이 '끝낸 그림'인
+ * 이유는 두 가지다 — 그 자리에서 정답을 이미 봤으니 제시어를 그대로 보여줄 수 있고,
+ * 그림이 어땠는지 판단할 근거(맞혔는지·몇 번 틀렸는지)가 그 사람에게 있다.
+ *
+ * @param {'all'|'solved'|'missed'} filter 전체 / 맞힌 것만 / 틀린 것만
+ */
+export function ratedDrawings(accountId, serverId, filter = 'all', limit = 60) {
+  const stmt = RATE_SQL[filter] ?? RATE_SQL.all;
+  return stmt.all({ userId: accountId, serverId, limit });
+}
+
+/** 평가 대상(끝낸 그림) 수와 그중 아직 표를 안 던진 수 */
+export function playedSummary(accountId, serverId) {
+  return SQL.playedCounts.get({ userId: accountId, serverId }) ?? { played: 0, unrated: 0 };
 }
 
 // ── 내 그림 ───────────────────────────────────────────────────────────────────

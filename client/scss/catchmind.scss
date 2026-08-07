@@ -387,7 +387,7 @@
   }
 
   // 비추천은 눌렀을 때 빨강으로 (추천과 한눈에 구분되게)
-  &#quiz-dislike.active {
+  &.is-down.active {
     border-color: var(--red);
     background: transparent;
     color: var(--red);
@@ -532,6 +532,31 @@
 .cm-card-word.is-masked {
   color: var(--muted);
   letter-spacing: 2px;
+}
+
+// ── 그림 평가 ─────────────────────────────────────────────────────────────────
+.cm-rate-note { margin: 0 0 12px; }
+
+// 카드 안에 들어가는 작은 추천·비추천 버튼 (맞히기 화면의 큰 버튼과 같은 모양·규칙)
+.cm-vote-sm {
+  flex: 1 1 0;
+  justify-content: center;
+  padding: 5px 8px;
+  font-size: 0.76rem;
+}
+
+.cm-rate-votes {
+  display: flex;
+  gap: 6px;
+  padding: 0 10px 10px;
+}
+
+// 썸네일을 누르면 다시 재생되므로 누를 수 있다는 것을 보여준다.
+.cm-rate-card .cm-thumb { cursor: pointer; }
+
+.cm-rate-card .cm-card-flag {
+  left: auto;
+  right: 6px;
 }
 
 // ── 내 그림 ───────────────────────────────────────────────────────────────────

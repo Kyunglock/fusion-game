@@ -23,7 +23,7 @@ const PAPER = '#ffffff';
 const $ = id => document.getElementById(id);
 
 // ── 화면 전환 ─────────────────────────────────────────────────────────────────
-const SCREENS = ['home', 'draw', 'quiz', 'board', 'mine'];
+const SCREENS = ['home', 'draw', 'quiz', 'rate', 'board', 'mine'];
 
 function showScreen(name) {
   for (const s of SCREENS) $(`screen-${s}`).classList.toggle('active', s === name);
@@ -546,6 +546,152 @@ $('quiz-empty-draw').addEventListener('click', () => openDraw());
 $('quiz-exit').addEventListener('click', () => goHome());
 
 // ══════════════════════════════════════════════════════════════════════════════
+// 그림 평가
+//
+// 맞히기 화면에서는 지금 풀고 있는 한 장에만 표를 던질 수 있어서 지나간 그림은
+// 다시 평가할 방법이 없었다. 여기서는 **내가 이미 끝낸 그림**(맞혔거나 틀렸던 것)만
+// 모아 보여준다 — 이미 정답을 본 그림이라 제시어를 가릴 이유가 없고, 그림이
+// 어땠는지 판단할 근거(맞혔는지·몇 번 틀렸는지)도 그 사람에게 있다.
+// ══════════════════════════════════════════════════════════════════════════════
+let rateFilter = 'all';
+/** 지금 목록에 떠 있는 그림들 (표를 던지면 이 배열만 고치고 그 카드만 다시 그린다) */
+let rateItems = [];
+/** 안내문에 쓰는 숫자 — 필터와 무관한 전체 기준이라 목록에서 셀 수 없다 */
+let ratePlayed  = 0;
+let rateUnrated = 0;
+/** 썸네일 캔버스 엔진 — 카드를 누르면 그린 순서대로 다시 재생하려고 들고 있는다 */
+const rateThumbs = new Map();
+
+const RATE_EMPTY_TEXT = {
+  all:    '아직 맞히기를 해본 그림이 없어요.',
+  solved: '아직 맞힌 그림이 없어요.',
+  missed: '아직 틀린 그림이 없어요.',
+};
+
+function rateVotesHtml(d) {
+  return `
+    <button class="cm-vote cm-vote-sm${d.myVote === 1 ? ' active' : ''}" data-rate-vote="1">
+      👍 <span class="cm-vote-n">${d.likes}</span>
+    </button>
+    <button class="cm-vote cm-vote-sm is-down${d.myVote === -1 ? ' active' : ''}" data-rate-vote="-1">
+      👎 <span class="cm-vote-n">${d.dislikes}</span>
+    </button>`;
+}
+
+/**
+ * 내 결과 배지. 못 맞혔는데 시도를 다 쓰지도 않았다면 중간에 포기한 것이다
+ * (시도를 다 써야만 포기 없이 패가 되므로 이 둘은 확실히 갈린다).
+ */
+function rateBadgeHtml(d) {
+  if (d.solvedByMe) return `<span class="cm-card-flag ok">맞힘 · ${d.myAttempts}회</span>`;
+  if (d.myAttempts >= d.maxAttempts) return `<span class="cm-card-flag miss">틀림 · ${d.myAttempts}회</span>`;
+  return '<span class="cm-card-flag miss">포기</span>';
+}
+
+function rateCardHtml(d) {
+  return `
+    <div class="cm-card cm-rate-card" data-rate-card="${d.id}">
+      <canvas class="cm-thumb" data-rate-thumb="${d.id}" title="눌러서 다시 재생"></canvas>
+      ${rateBadgeHtml(d)}
+      <div class="cm-card-body">
+        <span class="cm-card-word">${escHtml(d.word)}</span>
+        <span class="cm-card-stat">👀 ${d.seen} · ✅ ${d.solved}</span>
+      </div>
+      <div class="cm-board-meta">
+        <span class="cm-board-author">${escHtml(d.author.name)}님의 그림</span>
+      </div>
+      <div class="cm-rate-votes" data-rate-votes="${d.id}">${rateVotesHtml(d)}</div>
+    </div>`;
+}
+
+function renderRateNote() {
+  $('rate-note').textContent = rateUnrated > 0
+    ? `맞히기를 해본 그림 ${ratePlayed}장 · 아직 평가하지 않은 그림 ${rateUnrated}장`
+    : `맞히기를 해본 그림 ${ratePlayed}장 · 모두 평가했어요 👍`;
+}
+
+async function loadRate() {
+  $('rate-grid').innerHTML = '<p class="cm-loading">불러오는 중…</p>';
+  rateThumbs.clear();
+
+  let data;
+  try {
+    data = await api(`/api/catchmind/rated?filter=${rateFilter}`);
+  } catch (e) {
+    showError(e.message);
+    return;
+  }
+
+  for (const b of $('rate-tabs').children) {
+    b.classList.toggle('active', b.dataset.filter === rateFilter);
+  }
+
+  rateItems   = data.items;
+  ratePlayed  = data.played;
+  rateUnrated = data.unrated;
+  renderRateNote();
+
+  $('rate-empty').hidden = rateItems.length > 0;
+  $('rate-empty-text').textContent = RATE_EMPTY_TEXT[rateFilter] ?? RATE_EMPTY_TEXT.all;
+  $('rate-grid').innerHTML = rateItems.map(rateCardHtml).join('');
+
+  for (const d of rateItems) {
+    const c = $('rate-grid').querySelector(`[data-rate-thumb="${d.id}"]`);
+    if (c) rateThumbs.set(d.id, renderThumb(c, d.strokes));
+  }
+}
+
+async function openRate() {
+  showScreen('rate');
+  await loadRate();
+}
+
+$('rate-tabs').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-filter]');
+  if (!btn || btn.dataset.filter === rateFilter) return;
+  rateFilter = btn.dataset.filter;
+  loadRate();
+});
+
+$('rate-grid').addEventListener('click', async (e) => {
+  const card = e.target.closest('[data-rate-card]');
+  if (!card) return;
+  const id = Number(card.dataset.rateCard);
+  const item = rateItems.find(d => d.id === id);
+  if (!item) return;
+
+  const voteBtn = e.target.closest('[data-rate-vote]');
+  if (!voteBtn) {
+    // 카드(썸네일)를 누르면 그린 순서대로 다시 재생 — 평가하려면 그림을 봐야 한다.
+    rateThumbs.get(id)?.replay();
+    return;
+  }
+
+  // 같은 표를 다시 누르면 취소(0)로 보낸다 — 맞히기 화면과 같은 규칙.
+  const raw   = Number(voteBtn.dataset.rateVote);
+  const value = item.myVote === raw ? 0 : raw;
+
+  try {
+    const r = await api(`/api/catchmind/quiz/${id}/vote`, { method: 'POST', body: { value } });
+    // 표가 생겼는지 없어졌는지에 따라 '아직 평가 안 한 장수'를 함께 옮긴다
+    // (목록에는 지금 필터의 그림만 있어서 다시 세는 것으로는 알 수 없다).
+    if (item.myVote === 0 && r.mine !== 0) rateUnrated--;
+    if (item.myVote !== 0 && r.mine === 0) rateUnrated++;
+
+    Object.assign(item, { likes: r.likes, dislikes: r.dislikes, myVote: r.mine });
+    const box = $('rate-grid').querySelector(`[data-rate-votes="${id}"]`);
+    if (box) box.innerHTML = rateVotesHtml(item);
+    renderRateNote();
+  } catch (err) {
+    showError(err.message);
+  }
+});
+
+$('rate-exit').addEventListener('click', () => goHome());
+$('rate-quiz').addEventListener('click', () => openQuiz());
+$('rate-empty-quiz').addEventListener('click', () => openQuiz());
+
+// ══════════════════════════════════════════════════════════════════════════════
 // 그림 랭킹
 //
 // 그림과 통계(추천·오답 수)는 모두에게 보이지만 **제시어는 내가 맞힌 것만** 보인다.
@@ -700,11 +846,17 @@ async function refreshHomeCounts() {
     $('cm-mine-desc').textContent = s.drawn === 0
       ? '내가 그린 그림이 얼마나 맞혀졌는지 보기'
       : `${s.drawn}장 올림 · ${s.solved}번 맞혀짐 · 추천 ${s.likes}`;
+    $('cm-rate-desc').textContent = s.played === 0
+      ? '내가 맞혔거나 틀렸던 그림에 추천·비추천 남기기'
+      : s.unrated > 0
+        ? `맞히기를 해본 ${s.played}장 중 ${s.unrated}장이 아직 평가 전이에요`
+        : `맞히기를 해본 ${s.played}장을 모두 평가했어요 👍`;
   } catch { /* 홈 안내문일 뿐이라 실패해도 그냥 둔다 */ }
 }
 
 $('btn-go-draw').addEventListener('click', () => openDraw());
 $('btn-go-quiz').addEventListener('click', () => openQuiz());
+$('btn-go-rate').addEventListener('click', () => openRate());
 $('btn-go-board').addEventListener('click', () => openBoard());
 $('btn-go-mine').addEventListener('click', () => openMine());
 
