@@ -105,6 +105,7 @@ router.get('/summary', (req, res) => {
   res.json({
     remaining: store.remainingCount(accountId, serverId),
     ...store.mySummary(accountId, serverId),
+    ...store.playedSummary(accountId, serverId),
   });
 });
 
@@ -246,6 +247,38 @@ router.get('/board', (req, res) => {
   });
 
   res.json({ sort, items });
+});
+
+// ── 그림 평가 ─────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/catchmind/rated?filter=all|solved|missed — 평가할 그림 목록
+ *
+ * 대상은 **내가 이미 끝낸 그림**뿐이다(맞혔거나 틀렸거나 포기한 것). 그래서 랭킹과
+ * 달리 제시어를 가릴 필요가 없다 — 어차피 그 자리에서 정답을 봤다.
+ * 표를 던지는 것은 기존 `POST /quiz/:id/vote` 를 그대로 쓴다.
+ */
+router.get('/rated', (req, res) => {
+  const { accountId, serverId } = req.session;
+  const filter = store.RATE_FILTER_KEYS.includes(req.query.filter) ? req.query.filter : 'all';
+
+  const items = store.ratedDrawings(accountId, serverId, filter).map(d => ({
+    id:       d.id,
+    strokes:  parseStrokes(d.strokes),
+    word:     d.word,
+    solvedByMe: d.solved_by_me === 1,
+    myAttempts: d.my_attempts,
+    maxAttempts: CATCHMIND_MAX_ATTEMPTS,
+    likes:    d.likes,
+    dislikes: d.dislikes,
+    myVote:   d.my_vote,
+    seen:     d.seen_count,
+    solved:   d.solved_count,
+    author:   { name: d.author, avatar: d.author_avatar ?? null },
+    createdAt: d.created_at,
+  }));
+
+  res.json({ filter, items, ...store.playedSummary(accountId, serverId) });
 });
 
 // ── 내 그림 ───────────────────────────────────────────────────────────────────

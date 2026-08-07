@@ -73,14 +73,14 @@ src/
     ranking.js           ← 백분위 기반 등급 티어 계산(getRanking/getUserRank)
     playerCards.js       ← 방 참가자 목록에 실어 보내는 전적 카드(getPlayerCard, 3초 캐시)
     soloStats.js         ← 자모 솔플 전적(난이도별 하루 첫 판만 기록, jamo_solo_daily)
-    catchmind.js         ← 캐치마인드 그림 저장소(그림 CRUD, 출제, 정답 시도, 추천·비추천, 신고 — 전부 server_id 로 서버별 격리)
+    catchmind.js         ← 캐치마인드 그림 저장소(그림 CRUD, 출제, 정답 시도, 추천·비추천, 평가 목록, 신고 — 전부 server_id 로 서버별 격리)
     sessionStore.js      ← express-session SQLite 저장소
   routes/
     auth.js              ← /api/auth, /api/auth/logout, /api/me, /api/me/username,
                            /api/me/avatar, /api/me/stats, /api/ranking
     servers.js           ← /api/servers (목록·입장·나가기) + requireServer 게이트 미들웨어
     solo.js              ← /api/solo/jamo (GET 오늘 상태 / POST 솔플 한 판 결과)
-    catchmind.js         ← /api/catchmind/* (제시어 배정·그림 저장·출제·정답·추천·신고·랭킹·내 그림)
+    catchmind.js         ← /api/catchmind/* (제시어 배정·그림 저장·출제·정답·추천·평가 목록·신고·랭킹·내 그림)
   shared/
     roomManager.js       ← 범용 방 관리 팩토리 (createRoomManager)
     socketHandlers.js    ← 공통 소켓 핸들러 등록 (registerCommonHandlers)
@@ -110,7 +110,7 @@ views/
     jamo.pug             ← +waitingRoom() 블록으로 방장 제시어 입력 UI 주입
     wordchain.pug
     liar.pug             ← 방장 진짜/가짜 제시어 입력, 힌트·투표·라이어 최후 추측 UI
-    catchmind.pug        ← 홈/그리기/맞히기/랭킹/내 그림 5개 화면 (로비·대기실 믹스인 안 씀, 채팅 없음)
+    catchmind.pug        ← 홈/그리기/맞히기/평가/랭킹/내 그림 6개 화면 (로비·대기실 믹스인 안 씀, 채팅 없음)
 
 client/
   js/
@@ -131,7 +131,7 @@ client/
     jamo.js              ← 자모 보드/키보드 렌더링, 답 제출
     wordchain.js         ← 끝말잇기 고유 로직 (단어 체인 렌더링, 턴 타이머, 단어 제출)
     liar.js              ← 라이어 게임 고유 로직 (역할·제시어 개인화 렌더링, 힌트·투표 UI)
-    catchmind.js         ← 캔버스 그리기 엔진(획 기록·되돌리기·재생) + 그리기/맞히기/내 그림 화면
+    catchmind.js         ← 캔버스 그리기 엔진(획 기록·되돌리기·재생) + 그리기/맞히기/평가/내 그림 화면
     utils.js            ← escHtml, showError
   partials/
     crocodile-svg.html  ← 악어 SVG (서버에서 읽어 Pug 변수로 주입)
@@ -334,6 +334,16 @@ client/
 - 합계는 목록에서 매번 세지 않도록 `catchmind_drawings.likes` / `dislikes` 에 함께 적어둔다
 - 신고와 달리 **출제 여부에는 영향을 주지 않는다** — '잘 그렸다/못 그렸다'는 평가일 뿐이다. 그림을 내리는 것은 신고 쪽 몫
 
+### 그림 평가하기 (`GET /api/catchmind/rated?filter=all|solved|missed`)
+- 맞히기 화면에서는 **지금 풀고 있는 한 장**에만 표를 던질 수 있어서 지나간 그림은 다시 평가할 방법이 없었다. 홈의 `🖐️ 그림 평가하기` 메뉴(`#screen-rate`)가 그 자리를 메운다
+- 대상은 **내가 이미 끝낸 그림**뿐이다 — `catchmind_plays.finished = 1`, 즉 맞혔거나 시도를 다 썼거나 포기한 것. 아직 손대지 않은 그림을 끼우면 목록에 정답이 그대로 새어 나가고, 어차피 안 본 그림은 평가할 근거도 없다. 내가 그린 그림은 표를 던질 수 없으므로(라우터 `loadQuiz` 와 같은 규칙) 목록에서도 뺀다
+- 필터는 `all`(전체) / `solved`(맞힌 그림) / `missed`(틀린 그림) 셋. 랭킹의 `sort` 와 같은 이유로 조건절을 미리 만들어 두고 **키로만 고른다**(`RATE_FILTERS`)
+- 이미 끝낸 그림만 나오므로 **제시어를 가리지 않는다**. 카드에는 정답·그린 사람·내 결과 배지(맞힘 n회 / 틀림 n회 / 포기)가 함께 뜬다. 못 맞혔는데 시도를 다 쓰지도 않았다면 중간에 포기한 것 — 시도를 다 써야만 포기 없이 패가 되므로 이 둘은 확실히 갈린다
+- 카드(썸네일)를 누르면 **그린 순서대로 다시 재생**한다. 평가하려면 그림을 다시 봐야 하니까
+- 표는 기존 `POST …/vote` 를 그대로 쓴다(새 엔드포인트를 만들지 않았다). 응답으로 합계·내 표가 오므로 목록 전체를 다시 부르지 않고 그 카드의 버튼 줄만 다시 그린다
+- 안내문에 쓰는 `played`(평가할 수 있는 장수)·`unrated`(아직 표를 안 던진 장수)는 필터와 무관한 전체 기준이라 목록에서 셀 수 없다 → 서버가 함께 내려주고(`GET …/rated`·`GET …/summary`), 표를 던질 때는 생겼는지 없어졌는지에 따라 클라이언트가 숫자를 옮긴다
+- 그림이 서버(채널)별로 갈리므로 이 목록도 따라 갈린다 — 퓨전에서 맞힌 그림은 친구방에 들어가 있는 동안에는 평가할 수 없다
+
 ### 그림 랭킹 (`GET /api/catchmind/board?sort=likes|dislikes|misses`)
 - 세 가지 순서로 준다 — `likes`(추천 많은 순) / `dislikes`(비추천 많은 순) / `misses`(사람들이 많이 틀린 순). `sort` 는 미리 만들어둔 `ORDER BY` 를 키로만 고르게 해서 입력이 SQL 에 끼어들 여지를 없앴다
 - **오답 수는 따로 세어두지 않는다.** `catchmind_plays` 에서 `SUM(attempts - solved)` 로 그때그때 합산한다(맞힌 판의 마지막 한 번은 정답이므로 빼준다). 목록이 수십 줄이라 부담이 없고, 컬럼을 늘려 실제 기록과 어긋날 여지를 만들지 않는 쪽을 택했다
@@ -354,7 +364,7 @@ client/
 - 홈 화면 안내문은 `GET /api/catchmind/summary`(조회 전용)를 쓴다. 홈에서 `/quiz` 를 부르면 그림이 열람 처리되어 버린다
 
 ### 화면 (`views/pages/catchmind.pug` + `client/js/catchmind.js`)
-- 로비·대기실 믹스인을 쓰지 않고 `#screen-home` / `#screen-draw` / `#screen-quiz` / `#screen-mine` 4개 화면을 자체 전환한다. 방이 없으니 채팅도 없다(`hasChat: false` → `base.pug` 가 채팅 믹스인을 빼고 렌더)
+- 로비·대기실 믹스인을 쓰지 않고 `#screen-home` / `#screen-draw` / `#screen-quiz` / `#screen-rate` / `#screen-board` / `#screen-mine` 6개 화면을 자체 전환한다. 방이 없으니 채팅도 없다(`hasChat: false` → `base.pug` 가 채팅 믹스인을 빼고 렌더)
 - 캔버스 엔진 `createCanvas(el, { interactive })` 하나로 그리기·맞히기 재생·목록 썸네일을 모두 그린다. 획 배열을 들고 있으므로 되돌리기가 공짜이고, `ResizeObserver` 로 크기가 바뀌면 다시 그린다
 - 마이그레이션 3의 `hint_votes` · `hint_revealed` 컬럼과 `catchmind_hint_votes` 표는 초성 3인 동의제를 걷어내면서 쓰지 않게 됐다. **이미 배포된 마이그레이션은 고치지 않는 것이 원칙**이라 지우지 않고 남겨두었다(읽지도 쓰지도 않음)
 - 이 페이지는 요소를 `hidden` 속성으로 감춘다. `.btn` 처럼 `display` 를 지정한 클래스가 브라우저 기본 `[hidden]` 규칙을 이기므로 `catchmind.scss` 맨 위에 `[hidden] { display: none !important; }` 를 못 박아 뒀다

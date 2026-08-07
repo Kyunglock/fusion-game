@@ -28,6 +28,12 @@ block content
           span.cm-mode-title 그림 그리기
           span.cm-mode-desc 제시어를 받아 그리면 다른 사람의 문제가 됩니다
 
+      button#btn-go-rate.btn.btn-secondary.cm-mode-btn
+        span.cm-mode-emoji 🖐️
+        span.cm-mode-text
+          span.cm-mode-title 그림 평가하기
+          span.cm-mode-desc#cm-rate-desc 내가 맞혔거나 틀렸던 그림에 추천·비추천 남기기
+
       button#btn-go-board.btn.btn-secondary.cm-mode-btn
         span.cm-mode-emoji 🏆
         span.cm-mode-text
@@ -81,7 +87,7 @@ block content
     //- 추천 · 비추천 (한 사람 한 표, 같은 걸 다시 누르면 취소)
     .cm-votes#quiz-votes
       button#quiz-like.cm-vote(data-value="1") 👍 <span class="cm-vote-n">0</span>
-      button#quiz-dislike.cm-vote(data-value="-1") 👎 <span class="cm-vote-n">0</span>
+      button#quiz-dislike.cm-vote.is-down(data-value="-1") 👎 <span class="cm-vote-n">0</span>
 
     #quiz-answer-box.cm-answer-box
       //- 글자 수 칸에 초성이 처음부터 들어가 있다 (동의 없이 항상 공개)
@@ -123,6 +129,27 @@ block content
     #board-empty.cm-empty(hidden)
       p 아직 올라온 그림이 없어요.
       button#board-empty-draw.btn.btn-primary 첫 그림 그리기
+
+  //- ── 그림 평가 ─────────────────────────────────────────────────────────────
+  //- 내가 이미 끝낸(맞혔거나 틀렸던) 그림만 모아 다시 보고 추천·비추천을 남긴다.
+  #screen-rate.screen
+    .cm-top
+      button#rate-exit.btn.btn-secondary ← 나가기
+      h2.cm-board-title 🖐️ 그림 평가
+      button#rate-quiz.btn.btn-primary 맞히러 가기
+
+    .cm-tabs#rate-tabs
+      button.cm-tab.active(data-filter="all") 전체
+      button.cm-tab(data-filter="solved") ✅ 맞힌 그림
+      button.cm-tab(data-filter="missed") ❌ 틀린 그림
+
+    p.cm-note.cm-rate-note#rate-note
+
+    #rate-grid.cm-grid
+    #rate-empty.cm-empty(hidden)
+      p#rate-empty-text 아직 맞히기를 해본 그림이 없어요.
+      p.cm-empty-sub 그림을 맞히거나 포기하면 여기에서 평가할 수 있어요.
+      button#rate-empty-quiz.btn.btn-primary 그림 맞히러 가기
 
   //- ── 내 그림 ───────────────────────────────────────────────────────────────
   #screen-mine.screen
