@@ -31,11 +31,13 @@ const SQL = {
   // 출제: 같은 서버 + 숨김 아님 + 내 그림 아님 + 내가 아직 '끝내지' 않은 것.
   // 기준이 '풀이 기록이 없을 것'이 아니라 finished 인 이유 — 열어만 보고 나가버린
   // 그림까지 빼버리면 다시는 안 나온다.
+  // @skip 은 '다음에 풀기'로 넘긴 id 들(JSON 배열). 빈 배열이면 아무것도 빼지 않는다.
   pickFresh: db.prepare(`
     SELECT d.*, u.username AS author, u.avatar AS author_avatar
     FROM catchmind_drawings d
     JOIN users u ON u.id = d.user_id
     WHERE d.hidden = 0 AND d.server_id = @serverId AND d.user_id != @userId
+      AND d.id NOT IN (SELECT value FROM json_each(@skip))
       AND NOT EXISTS (SELECT 1 FROM catchmind_plays p
                       WHERE p.drawing_id = d.id AND p.user_id = @userId AND p.finished = 1)
     ORDER BY RANDOM() LIMIT 1`),
@@ -46,6 +48,7 @@ const SQL = {
     FROM catchmind_drawings d
     JOIN users u ON u.id = d.user_id
     WHERE d.hidden = 0 AND d.server_id = @serverId AND d.user_id != @userId
+      AND d.id NOT IN (SELECT value FROM json_each(@skip))
     ORDER BY RANDOM() LIMIT 1`),
 
   byId: db.prepare(`SELECT d.*, u.username AS author, u.avatar AS author_avatar
@@ -175,9 +178,12 @@ const BOARD_SQL = Object.fromEntries(
  * 키로만 고른다(사용자 입력이 SQL 에 끼어들 여지를 없앤다).
  */
 const RATE_FILTERS = {
-  all:    '',
-  solved: 'AND p.solved = 1',
-  missed: 'AND p.solved = 0',
+  all:     '',
+  solved:  'AND p.solved = 1',
+  missed:  'AND p.solved = 0',
+  // 아직 표를 안 던진 것만. 목록 쿼리가 이미 내 표를 LEFT JOIN 해 두었으므로
+  // 조건 한 줄로 갈린다.
+  unrated: 'AND v.value IS NULL',
 };
 
 const RATE_SQL = Object.fromEntries(
@@ -204,13 +210,25 @@ export function saveDrawing({ accountId, serverId, word, strokesJson }) {
  * 맞힐 그림을 한 장 꺼낸다.
  * 아직 안 푼 그림이 우선이고, 다 풀었으면 복습용으로 아무 그림이나 준다
  * (복습은 전적에 반영하지 않는다 → replay 플래그).
+ *
+ * `skipIds` 는 '다음에 풀기'로 넘긴 그림들이다. 넘긴 그림은 **버리는 것이 아니라
+ * 뒤로 미루는 것**이라 조건에서만 빼고 풀이 기록은 건드리지 않는다. 넘긴 것밖에
+ * 남지 않았다면 한 바퀴 다 돈 것이므로 그 기록을 접고 처음부터 다시 준다
+ * (`exhausted` → 라우터가 세션의 넘김 목록을 비운다).
  */
-export function pickQuiz(accountId, serverId) {
-  const fresh = SQL.pickFresh.get({ userId: accountId, serverId });
-  if (fresh) return { drawing: fresh, replay: false };
+export function pickQuiz(accountId, serverId, skipIds = []) {
+  const pick = (stmt, skip) => stmt.get({ userId: accountId, serverId, skip }) ?? null;
+  const skip = JSON.stringify(skipIds);
 
-  const replay = SQL.pickReplay.get({ userId: accountId, serverId });
-  return replay ? { drawing: replay, replay: true } : null;
+  const fresh = pick(SQL.pickFresh, skip);
+  if (fresh) return { drawing: fresh, replay: false, exhausted: false };
+
+  const freshAgain = skipIds.length ? pick(SQL.pickFresh, '[]') : null;
+  if (freshAgain) return { drawing: freshAgain, replay: false, exhausted: true };
+
+  // 새 그림이 아예 없으면 복습. 이때도 방금 넘긴 것은 되도록 피해준다.
+  const replay = pick(SQL.pickReplay, skip) ?? (skipIds.length ? pick(SQL.pickReplay, '[]') : null);
+  return replay ? { drawing: replay, replay: true, exhausted: skipIds.length > 0 } : null;
 }
 
 export function getDrawing(id) {
@@ -367,7 +385,7 @@ export const RATE_FILTER_KEYS = Object.keys(RATE_FILTERS);
  * 이유는 두 가지다 — 그 자리에서 정답을 이미 봤으니 제시어를 그대로 보여줄 수 있고,
  * 그림이 어땠는지 판단할 근거(맞혔는지·몇 번 틀렸는지)가 그 사람에게 있다.
  *
- * @param {'all'|'solved'|'missed'} filter 전체 / 맞힌 것만 / 틀린 것만
+ * @param {'all'|'solved'|'missed'|'unrated'} filter 전체 / 맞힌 것 / 틀린 것 / 아직 평가 안 한 것
  */
 export function ratedDrawings(accountId, serverId, filter = 'all', limit = 60) {
   const stmt = RATE_SQL[filter] ?? RATE_SQL.all;

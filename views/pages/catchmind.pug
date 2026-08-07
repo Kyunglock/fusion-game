@@ -104,6 +104,8 @@ block content
       span#quiz-remaining.cm-remaining
 
     .cm-actions.cm-actions-wrap
+      //- 넘긴 그림은 기록이 남지 않고 나중에 다시 나온다 (포기와 달리 패가 아니다)
+      button#quiz-skip.btn.btn-secondary ⏭️ 다음에 풀기
       button#quiz-giveup.btn.btn-secondary 포기하고 정답 보기
       button#quiz-next.btn.btn-primary(hidden) 다음 그림 →
 
@@ -142,6 +144,7 @@ block content
       button.cm-tab.active(data-filter="all") 전체
       button.cm-tab(data-filter="solved") ✅ 맞힌 그림
       button.cm-tab(data-filter="missed") ❌ 틀린 그림
+      button.cm-tab(data-filter="unrated") 🕒 평가 안 한 그림
 
     p.cm-note.cm-rate-note#rate-note
 

@@ -51,6 +51,9 @@ export const CATCHMIND_REPORTS_TO_HIDE   = 3; // 이만큼 신고가 쌓이면 �
 export const CATCHMIND_HINT_AFTER_ATTEMPTS = 4;
 // 초성 공개 여부는 시도 횟수로만 갈리므로 맞혔을 때 점수는 하나뿐이다.
 export const CATCHMIND_SCORE_SOLVE       = 3;
+// '다음에 풀기'로 넘긴 그림을 몇 장까지 기억해 당장 다시 주지 않을지 (세션 안에서만).
+// 이만큼 넘기면 가장 먼저 넘긴 것부터 다시 나온다.
+export const CATCHMIND_SKIP_MEMORY       = 20;
 // 그림 용량 상한. 좌표는 정수로 정규화해 넣으므로 이 정도면 넉넉하다.
 export const CATCHMIND_MAX_STROKES       = 300;    // 획 개수
 export const CATCHMIND_MAX_POINTS        = 12_000; // 전체 점 개수

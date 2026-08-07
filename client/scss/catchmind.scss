@@ -554,6 +554,9 @@
 // 썸네일을 누르면 다시 재생되므로 누를 수 있다는 것을 보여준다.
 .cm-rate-card .cm-thumb { cursor: pointer; }
 
+// '평가 안 한 그림' 목록에서 방금 표를 던진 카드 — 목록을 다시 부르면 빠질 자리다.
+.cm-rate-card.is-rated { opacity: 0.55; }
+
 .cm-rate-card .cm-card-flag {
   left: auto;
   right: 6px;
