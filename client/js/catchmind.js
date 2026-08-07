@@ -563,9 +563,10 @@ let rateUnrated = 0;
 const rateThumbs = new Map();
 
 const RATE_EMPTY_TEXT = {
-  all:    '아직 맞히기를 해본 그림이 없어요.',
-  solved: '아직 맞힌 그림이 없어요.',
-  missed: '아직 틀린 그림이 없어요.',
+  all:     '아직 맞히기를 해본 그림이 없어요.',
+  solved:  '아직 맞힌 그림이 없어요.',
+  missed:  '아직 틀린 그림이 없어요.',
+  unrated: '평가하지 않은 그림이 없어요 — 다 던졌습니다 👍',
 };
 
 function rateVotesHtml(d) {
@@ -682,6 +683,11 @@ $('rate-grid').addEventListener('click', async (e) => {
     const box = $('rate-grid').querySelector(`[data-rate-votes="${id}"]`);
     if (box) box.innerHTML = rateVotesHtml(item);
     renderRateNote();
+
+    // '평가 안 한 그림' 목록에서 표를 던지면 이 카드는 더 이상 그 조건이 아니다.
+    // 그렇다고 바로 없애면 취소하려 할 때 사라져 버리므로, 자리는 두고 흐리게만 한다
+    // (목록을 다시 부르면 그때 빠진다).
+    if (rateFilter === 'unrated') card.classList.toggle('is-rated', item.myVote !== 0);
   } catch (err) {
     showError(err.message);
   }

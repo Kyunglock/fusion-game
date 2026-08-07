@@ -175,9 +175,12 @@ const BOARD_SQL = Object.fromEntries(
  * 키로만 고른다(사용자 입력이 SQL 에 끼어들 여지를 없앤다).
  */
 const RATE_FILTERS = {
-  all:    '',
-  solved: 'AND p.solved = 1',
-  missed: 'AND p.solved = 0',
+  all:     '',
+  solved:  'AND p.solved = 1',
+  missed:  'AND p.solved = 0',
+  // 아직 표를 안 던진 것만. 목록 쿼리가 이미 내 표를 LEFT JOIN 해 두었으므로
+  // 조건 한 줄로 갈린다.
+  unrated: 'AND v.value IS NULL',
 };
 
 const RATE_SQL = Object.fromEntries(
@@ -367,7 +370,7 @@ export const RATE_FILTER_KEYS = Object.keys(RATE_FILTERS);
  * 이유는 두 가지다 — 그 자리에서 정답을 이미 봤으니 제시어를 그대로 보여줄 수 있고,
  * 그림이 어땠는지 판단할 근거(맞혔는지·몇 번 틀렸는지)가 그 사람에게 있다.
  *
- * @param {'all'|'solved'|'missed'} filter 전체 / 맞힌 것만 / 틀린 것만
+ * @param {'all'|'solved'|'missed'|'unrated'} filter 전체 / 맞힌 것 / 틀린 것 / 아직 평가 안 한 것
  */
 export function ratedDrawings(accountId, serverId, filter = 'all', limit = 60) {
   const stmt = RATE_SQL[filter] ?? RATE_SQL.all;
