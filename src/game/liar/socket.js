@@ -1,19 +1,18 @@
 import { rooms, getRoomOf, safeState, removePlayer, removeSpectator, manager, activeParticipants } from './rooms.js';
-import { LIAR_HINT_TIMEOUT } from '../../config.js';
+import { LIAR_HINT_TIMEOUT, LIAR_DEFENSE_TIMEOUT, LIAR_GUESS_TIMEOUT, LIAR_RECONNECT_GRACE_MS } from '../../config.js';
 import { registerCommonHandlers } from '../../shared/socketHandlers.js';
 import { recordPlayers } from '../../db/stats.js';
-
-const DEFENSE_TIMEOUT_MS = 60_000; // 라이어로 지목된 사람의 최후 반론 시간 (기본 1분, '반론 종료'로 조기 종료 가능)
+import { WORD_LIST } from '../../../client/js/jamoWords.js';
 
 // ── 뷰어별 개인화 상태 전송 ──────────────────────────────────────────────────
-// 방장·관전자는 참가자 전원의 역할·제시어를 볼 수 있고, 참가자는 자신의 제시어만 본다.
+// 방장도 이제 참가자이므로 자신의 역할·제시어만 보고, 관전자만 참가자 전원의
+// 역할·제시어를 모두 본다. 라이어는 role만 알 뿐 word는 null로 내려간다(제시어 모름).
 function emitLiarState(io, room) {
   const inRound = room.state === 'hint' || room.state === 'voteContinue' ||
                   room.state === 'voteLiar' || room.state === 'defense' ||
                   room.state === 'confirmAccuse' || room.state === 'liarGuess';
-  const participants = room.players.filter(p => !p.isHost);
-  const hostIds = room.players.filter(p => p.isHost).map(p => p.id);
-  const privileged = new Set([...hostIds, ...room.spectators.map(s => s.id)]);
+  const participants = room.players;
+  const privileged = new Set(room.spectators.map(s => s.id));
   const viewers = [...room.players.map(p => p.id), ...room.spectators.map(s => s.id)];
 
   viewers.forEach(viewerId => {
@@ -39,9 +38,10 @@ function shuffled(arr) {
   return a;
 }
 
-// ── 타이머 관리 (힌트 제출 · 최후 반론 제한시간) ──────────────────────────────
+// ── 타이머 관리 (힌트 제출 · 최후 반론 · 라이어 정답 제한시간) ────────────────
 const hintTimers    = new Map();
 const defenseTimers = new Map();
+const guessTimers   = new Map();
 
 function clearHintTimer(code) {
   clearTimeout(hintTimers.get(code));
@@ -53,9 +53,15 @@ function clearDefenseTimer(code) {
   defenseTimers.delete(code);
 }
 
+function clearGuessTimer(code) {
+  clearTimeout(guessTimers.get(code));
+  guessTimers.delete(code);
+}
+
 function clearAllTimers(code) {
   clearHintTimer(code);
   clearDefenseTimer(code);
+  clearGuessTimer(code);
 }
 
 function startHintTimer(io, room) {
@@ -159,14 +165,15 @@ function tallyAccuseVotesIfReady(io, room) {
 
 function startDefenseTimer(io, room) {
   clearDefenseTimer(room.code);
-  room.defenseDeadline = Date.now() + DEFENSE_TIMEOUT_MS;
+  const timeoutMs = (room.defenseTimeout || LIAR_DEFENSE_TIMEOUT) * 1000;
+  room.defenseDeadline = Date.now() + timeoutMs;
   io.to(room.code).emit('room_update', safeState(room));
 
   defenseTimers.set(room.code, setTimeout(() => {
     const r = rooms.get(room.code);
     if (!r || r.state !== 'defense') return;
     startConfirmVote(io, r);
-  }, DEFENSE_TIMEOUT_MS));
+  }, timeoutMs));
 }
 
 function startConfirmVote(io, room) {
@@ -210,18 +217,70 @@ function resolveAccusation(io, room) {
     io.to(room.code).emit('liar_accuse_result', { correct: true, accusedId: room.accusedId, accusedName: accused?.name ?? '' });
     io.to(room.code).emit('room_update', safeState(room));
     emitLiarState(io, room);
+    startGuessTimer(io, room);
   } else {
     io.to(room.code).emit('liar_accuse_result', { correct: false, accusedId: room.accusedId, accusedName: accused?.name ?? '' });
     endRound(io, room, 'liar');
   }
 }
 
+// 라이어가 제한시간 안에 답을 내지 못하면 시민 승리로 라운드가 끝난다.
+function startGuessTimer(io, room) {
+  clearGuessTimer(room.code);
+  const timeoutMs = (room.guessTimeout || LIAR_GUESS_TIMEOUT) * 1000;
+  room.guessDeadline = Date.now() + timeoutMs;
+  io.to(room.code).emit('room_update', safeState(room));
+
+  guessTimers.set(room.code, setTimeout(() => {
+    const r = rooms.get(room.code);
+    if (!r || r.state !== 'liarGuess') return;
+    endRound(io, r, 'citizens');
+  }, timeoutMs));
+}
+
+// ── 라운드 시작 (제시어 자동 배정) ───────────────────────────────────────────
+// 방장도 참가자이므로 room.players 전원이 후보다. 자모 워들의 낱말 사전에서
+// 무작위로 제시어를 뽑고, 그중 한 명을 라이어로 정한다 — 라이어는 자신이
+// 라이어라는 사실은 알지만(role) 제시어(word)는 받지 못한다.
+function assignNewRound(io, room) {
+  const participants = room.players;
+  const word      = WORD_LIST[Math.floor(Math.random() * WORD_LIST.length)];
+  const turnOrder = shuffled(participants.map(p => p.id));
+  const liarId    = turnOrder[Math.floor(Math.random() * turnOrder.length)];
+
+  room.realWord = word;
+  room.liarId   = liarId;
+  participants.forEach(p => {
+    p.role = (p.id === liarId) ? 'liar' : 'citizen';
+    p.word = (p.id === liarId) ? null   : word;
+  });
+
+  room.turnOrder        = turnOrder;
+  room.currentTurnIndex = 0;
+  room.currentTurn      = turnOrder[0];
+  room.hints            = []; // 직전 라운드 힌트 기록은 다음 라운드가 시작되는 지금 비운다
+  room.cycleCount       = 0;
+  room.continueVotes    = {};
+  room.accuseVotes      = {};
+  room.accusedId        = null;
+  room.defenseDeadline  = null;
+  room.defenseLines     = [];
+  room.confirmVotes     = {};
+  room.lastResult        = null;
+  room.state             = 'hint';
+
+  emitLiarState(io, room);
+  startHintTimer(io, room); // room_update 브로드캐스트 포함
+}
+
 // ── 라운드 종료 ────────────────────────────────────────────────────────────────
 // liarGuess: 라이어가 실제로 제출한 답 (틀린 지목으로 라운드가 끝나 라이어가 답을
 // 낼 기회조차 없었으면 null) — 실시간 미리보기를 놓친 사람도 결과 배너에서 볼 수 있게.
+// 힌트 기록(room.hints)은 여기서 지우지 않는다 — 다음 라운드가 시작될 때(assignNewRound)
+// 비워지므로, 대기실로 돌아간 사이에도 직전 라운드 힌트를 계속 볼 수 있다.
 function endRound(io, room, winnerRole, liarGuess = null) {
   clearAllTimers(room.code);
-  const participants = room.players.filter(p => !p.isHost);
+  const participants = room.players;
   const liar          = room.players.find(p => p.id === room.liarId);
 
   recordPlayers(room.serverId, 'liar', participants,
@@ -238,20 +297,20 @@ function endRound(io, room, winnerRole, liarGuess = null) {
     winnerRole,
     liarName: liar?.name ?? '',
     realWord: room.realWord,
-    liarWord: room.liarWord,
     liarGuess,
   };
 
-  room.state          = 'wordSetup';
+  room.state          = 'lobby';
   room.currentTurn    = null;
   room.turnDeadline   = null;
-  room.hints          = [];
   room.continueVotes  = {};
   room.accuseVotes    = {};
   room.accusedId      = null;
   room.defenseDeadline = null;
   room.defenseLines    = [];
   room.confirmVotes    = {};
+  room.guessDeadline   = null;
+  room.players.forEach(p => { p.ready = false; p.role = null; p.word = null; });
 
   io.to(room.code).emit('liar_result', room.lastResult);
   io.to(room.code).emit('room_update', safeState(room));
@@ -267,21 +326,19 @@ export function registerLiarHandlers(io, socket) {
     });
 
   // ── 게임 시작 ───────────────────────────────────────────────────────────────
-  // 대기실 → 제시어 입력 대기(wordSetup). 자모 워들과 동일하게 방장은 게임 화면
-  // 안에서 직접 제시어(진짜/가짜)를 낸다.
+  // 전원 준비 완료 후 방장이 누르면, 방장을 포함한 전원에게 곧바로 제시어를 자동 배정하고
+  // 첫 힌트 차례로 들어간다(수동으로 제시어를 입력하는 단계 없음).
   socket.on('start_game', () => {
     const { ok, room } = validateStartGame();
     if (!ok) return;
 
-    room.state = 'wordSetup';
-    room.players.forEach(p => { p.ready = false; p.role = null; p.word = null; p.wins = 0; });
-    room.lastResult = null;
-
-    broadcast(room);
+    room.players.forEach(p => { p.wins = 0; });
+    assignNewRound(io, room);
     broadcastRooms();
+    io.to(room.code).emit('game_started');
   });
 
-  // ── 힌트 제한시간 조절 (방장, 언제든 변경 가능 — 다음 차례부터 적용) ───────
+  // ── 제한시간 조절 (방장, 대기실에서 언제든 변경 가능) ───────────────────────
   socket.on('set_hint_timeout', ({ seconds } = {}) => {
     const room   = getRoomOf(socket.id);
     const player = room?.players.find(p => p.id === socket.id);
@@ -294,53 +351,31 @@ export function registerLiarHandlers(io, socket) {
     broadcast(room);
   });
 
-  // ── 제시어 출제 (방장, 진짜/가짜 제시어 둘 다 직접 입력) ───────────────────
-  socket.on('set_words', ({ realWord, liarWord } = {}) => {
+  socket.on('set_defense_timeout', ({ seconds } = {}) => {
     const room   = getRoomOf(socket.id);
     const player = room?.players.find(p => p.id === socket.id);
-    if (!room || !player?.isHost)   return;
-    if (room.state !== 'wordSetup') return;
+    if (!room || !player?.isHost) return;
 
-    const participants = room.players.filter(p => !p.isHost);
-    if (participants.length < 3) return err('참가자가 최소 3명 필요합니다.');
+    const value = Number(seconds);
+    if (!Number.isFinite(value) || value < 10 || value > 120) return err('반론 제한시간은 10~120초 사이여야 합니다.');
 
-    const real = String(realWord || '').trim();
-    const liar = String(liarWord || '').trim();
-    if (!real || !liar) return err('진짜 제시어와 라이어 제시어를 모두 입력해주세요.');
-    if (real === liar) return err('두 제시어는 서로 달라야 합니다.');
-
-    room.realWord = real;
-    room.liarWord = liar;
-
-    const turnOrder = shuffled(participants.map(p => p.id));
-    const liarId    = turnOrder[Math.floor(Math.random() * turnOrder.length)];
-    room.liarId = liarId;
-
-    participants.forEach(p => {
-      p.role = (p.id === liarId) ? 'liar' : 'citizen';
-      p.word = (p.id === liarId) ? liar   : real;
-    });
-
-    room.turnOrder        = turnOrder;
-    room.currentTurnIndex = 0;
-    room.currentTurn      = turnOrder[0];
-    room.hints            = [];
-    room.cycleCount        = 0;
-    room.continueVotes    = {};
-    room.accuseVotes      = {};
-    room.accusedId        = null;
-    room.defenseDeadline   = null;
-    room.defenseLines      = [];
-    room.confirmVotes      = {};
-    room.lastResult        = null;
-    room.state             = 'hint';
-
-    broadcastRooms();
-    emitLiarState(io, room);
-    startHintTimer(io, room); // room_update 브로드캐스트 포함
+    room.defenseTimeout = Math.round(value);
+    broadcast(room);
   });
 
-  // ── 힌트 제출 (현재 차례인 참가자만) ────────────────────────────────────────
+  socket.on('set_guess_timeout', ({ seconds } = {}) => {
+    const room   = getRoomOf(socket.id);
+    const player = room?.players.find(p => p.id === socket.id);
+    if (!room || !player?.isHost) return;
+
+    const value = Number(seconds);
+    if (!Number.isFinite(value) || value < 10 || value > 60) return err('정답 제한시간은 10~60초 사이여야 합니다.');
+
+    room.guessTimeout = Math.round(value);
+    broadcast(room);
+  });
+
+  // ── 힌트 제출 (현재 차례인 사람만) ──────────────────────────────────────────
   socket.on('submit_hint', ({ text } = {}) => {
     const room = getRoomOf(socket.id);
     if (!room || room.state !== 'hint') return;
@@ -358,8 +393,8 @@ export function registerLiarHandlers(io, socket) {
   socket.on('cast_continue_vote', ({ choice } = {}) => {
     const room   = getRoomOf(socket.id);
     const player = room?.players.find(p => p.id === socket.id);
-    if (!room || !player || player.isHost)    return;
-    if (room.state !== 'voteContinue')        return;
+    if (!room || !player)              return;
+    if (room.state !== 'voteContinue') return;
     if (choice !== 'accuse' && choice !== 'continue') return;
 
     room.continueVotes[socket.id] = choice;
@@ -370,9 +405,9 @@ export function registerLiarHandlers(io, socket) {
   socket.on('cast_accuse_vote', ({ targetId } = {}) => {
     const room   = getRoomOf(socket.id);
     const player = room?.players.find(p => p.id === socket.id);
-    if (!room || !player || player.isHost) return;
-    if (room.state !== 'voteLiar')         return;
-    if (!room.players.some(p => !p.isHost && p.id === targetId)) return;
+    if (!room || !player)          return;
+    if (room.state !== 'voteLiar') return;
+    if (!room.players.some(p => p.id === targetId)) return;
 
     room.accuseVotes[socket.id] = targetId;
     tallyAccuseVotesIfReady(io, room);
@@ -382,8 +417,8 @@ export function registerLiarHandlers(io, socket) {
   socket.on('cast_confirm_vote', ({ choice } = {}) => {
     const room   = getRoomOf(socket.id);
     const player = room?.players.find(p => p.id === socket.id);
-    if (!room || !player || player.isHost)  return;
-    if (room.state !== 'confirmAccuse')     return;
+    if (!room || !player)               return;
+    if (room.state !== 'confirmAccuse') return;
     if (choice !== 'proceed' && choice !== 'withdraw') return;
 
     room.confirmVotes[socket.id] = choice;
@@ -434,7 +469,7 @@ export function registerLiarHandlers(io, socket) {
     endRound(io, room, correct ? 'liar' : 'citizens', clean);
   });
 
-  // ── 대기실로 나가기 (방장 전용) ─────────────────────────────────────────────
+  // ── 대기실로 나가기 (방장 전용, 게임 도중 언제든 라운드를 중단) ─────────────
   socket.on('return_to_lobby', () => {
     const room   = getRoomOf(socket.id);
     const player = room?.players.find(p => p.id === socket.id);
@@ -442,10 +477,11 @@ export function registerLiarHandlers(io, socket) {
 
     clearAllTimers(room.code);
     room.state = 'lobby';
-    room.realWord = ''; room.liarWord = ''; room.liarId = null;
+    room.realWord = ''; room.liarId = null;
     room.turnOrder = []; room.currentTurnIndex = 0; room.currentTurn = null; room.turnDeadline = null;
     room.hints = []; room.cycleCount = 0; room.continueVotes = {}; room.accuseVotes = {};
     room.accusedId = null; room.defenseDeadline = null; room.defenseLines = []; room.confirmVotes = {};
+    room.guessDeadline = null;
     room.lastResult = null;
     room.players.forEach(p => { p.ready = false; p.role = null; p.word = null; });
 
@@ -474,10 +510,10 @@ export function registerLiarHandlers(io, socket) {
     const room = getRoomOf(id);
     if (!room) return;
 
-    const wasInRound = room.state !== 'lobby' && room.state !== 'wordSetup';
+    const wasInRound = room.state !== 'lobby';
     const result      = removePlayer(room, id);
 
-    // 인원 미달(방장+최소 인원 아래로 떨어짐) — 승패 기록 없이 대기실로 되돌아간다.
+    // 인원 미달 — 승패 기록 없이 대기실로 되돌아간다.
     if (result.deleted) { clearAllTimers(room.code); broadcastRooms(); return; }
     if (result.alone) {
       clearAllTimers(room.code);
@@ -487,14 +523,16 @@ export function registerLiarHandlers(io, socket) {
       return;
     }
 
-    // 라이어가 나가면 라운드 자체가 성립하지 않으므로 무효 처리하고 다음 라운드를 준비시킨다.
+    // 라이어가 나가면 라운드 자체가 성립하지 않으므로 무효 처리하고 대기실로 되돌린다.
     if (wasInRound && result.wasLiar) {
       clearAllTimers(room.code);
-      room.state = 'wordSetup';
+      room.state = 'lobby';
       room.currentTurn = null; room.turnDeadline = null;
       room.hints = []; room.continueVotes = {}; room.accuseVotes = {};
       room.accusedId = null; room.defenseDeadline = null; room.defenseLines = []; room.confirmVotes = {};
+      room.guessDeadline = null;
       room.lastResult = null;
+      room.players.forEach(p => { p.ready = false; p.role = null; p.word = null; });
       io.to(room.code).emit('round_cancelled');
       io.to(room.code).emit('room_update', safeState(room));
       broadcastRooms();
@@ -523,7 +561,6 @@ export function registerLiarHandlers(io, socket) {
     // (재접속 유예 90초를 다 기다리지 않아도 되게). 아직 markDisconnected 가 돌기 전이라
     // 직접 표시해 둔다 — 뒤이어 한 번 더 표시돼도 안전하다(멱등).
     immediate: () => {
-      console.log(`[liar disconnect] ${socket.id}`);
       const room   = getRoomOf(socket.id);
       const player = room?.players.find(p => p.id === socket.id);
       if (!room || !player) return;
@@ -531,5 +568,7 @@ export function registerLiarHandlers(io, socket) {
       recheckVoteOnDisconnect(room);
     },
     onResume: (room) => { if (room.state !== 'lobby') emitLiarState(io, room); },
+    // 힌트·투표가 실시간으로 맞물려 돌아가므로 공용 90초 유예 대신 60초만 기다린다.
+    graceMs: LIAR_RECONNECT_GRACE_MS,
   });
 }

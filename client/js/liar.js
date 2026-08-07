@@ -15,6 +15,8 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
   let amHost      = false;
   let isSpectator = false;
   let hintTime    = 15; // 방장이 조절 가능. state.hintTimeout으로 매번 갱신
+  let defenseTime = 60; // 〃 state.defenseTimeout으로 매번 갱신
+  let guessTime   = 30; // 〃 state.guessTimeout으로 매번 갱신
   // 개인화 상태(liar_state): 참가자는 { me: { role, word } }, 방장·관전자는 { all: [{ id,name,role,word }] }
   let liarState = { me: null, all: null };
 
@@ -30,16 +32,13 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
   const btnStart       = $('btn-start');
   const btnLeaveLobby  = $('btn-leave-lobby');
   const waitingHint    = $('waiting-hint');
-  const hintTimeoutWrap   = $('liar-hint-timeout-wrap');
-  const hintTimeoutSelect = $('liar-hint-timeout-select');
-  const hintTimeoutSelect2 = $('liar-hint-timeout-select-2');
+  const timeoutSettingsWrap = $('liar-timeout-settings');
+  const hintTimeoutSelect     = $('liar-hint-timeout-select');
+  const defenseTimeoutSelect  = $('liar-defense-timeout-select');
+  const guessTimeoutSelect    = $('liar-guess-timeout-select');
 
-  const resultBanner   = $('liar-result-banner');
-  const hostSetup      = $('liar-host-setup');
-  const inputRealWord  = $('input-real-word');
-  const inputLiarWord  = $('input-liar-word');
-  const btnSetWords    = $('btn-set-words');
-  const waitNotice     = $('liar-wait-notice');
+  const resultBannerLobby = $('liar-result-banner-lobby');
+  const hintLogLobby      = $('liar-hint-log-lobby');
   const returnLobby    = $('liar-return-lobby');
   const myWordEl       = $('liar-my-word');
   const revealPanel    = $('liar-reveal-panel');
@@ -82,6 +81,10 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
   const btnLiarGuess   = $('btn-liar-guess');
   const guessWait      = $('liar-guess-wait');
   const guessLiveEl    = $('liar-guess-live');
+  const guessTimerWrap = $('liar-guess-timer-wrap');
+  const guessTimerBar  = $('liar-guess-timer-bar');
+  const guessTimerNum  = $('liar-guess-timer-num');
+  const startedToast   = $('liar-started-toast');
 
   // 버튼(투표/입력) 묶음 — 참가자에게만 보이고 방장·관전자에게는 진행 현황만 보인다
   const voteContinueButtons = voteContinueEl.querySelector('.liar-vote-buttons');
@@ -111,6 +114,7 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
       roomState = null;
       stopTimer();
       stopDefenseTimer();
+      stopGuessTimer();
       showScreen('lobby');
     },
   });
@@ -142,8 +146,7 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
     timerInterval = setInterval(tick, 100);
   }
 
-  // ── 최후 반론 타이머 (기본 1분, 서버 DEFENSE_TIMEOUT_MS와 동일하게 유지) ──────
-  const DEFENSE_TIME = 60;
+  // ── 최후 반론 타이머 (방장이 조절 가능. state.defenseTimeout으로 매번 갱신) ──
   let defenseInterval = null;
 
   function stopDefenseTimer() {
@@ -156,11 +159,34 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
     const tick = () => {
       const rem = Math.max(0, deadline - Date.now());
       defenseTimerNum.textContent = Math.ceil(rem / 1000);
-      defenseTimerBar.style.width = `${Math.min(100, (rem / (DEFENSE_TIME * 1000)) * 100)}%`;
+      defenseTimerBar.style.width = `${Math.min(100, (rem / (defenseTime * 1000)) * 100)}%`;
       if (rem <= 0) clearInterval(defenseInterval);
     };
     tick();
     defenseInterval = setInterval(tick, 100);
+  }
+
+  // ── 라이어 정답 제한시간 타이머 (방장이 조절 가능. state.guessTimeout으로 매번 갱신) ──
+  let guessInterval = null;
+
+  function stopGuessTimer() {
+    clearInterval(guessInterval);
+    guessInterval = null;
+    guessTimerWrap.style.display = 'none';
+  }
+
+  function startGuessTimer(deadline) {
+    clearInterval(guessInterval);
+    guessTimerWrap.style.display = '';
+    const tick = () => {
+      const rem = Math.max(0, deadline - Date.now());
+      guessTimerNum.textContent = Math.ceil(rem / 1000);
+      guessTimerBar.style.width = `${Math.min(100, (rem / (guessTime * 1000)) * 100)}%`;
+      guessTimerBar.classList.toggle('urgent', rem <= 5000);
+      if (rem <= 0) clearInterval(guessInterval);
+    };
+    tick();
+    guessInterval = setInterval(tick, 100);
   }
 
   // ── 투표 참여 현황(누가 투표했는지) ──────────────────────────────────────────
@@ -173,53 +199,58 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
       </li>`).join('');
   }
 
+  // ── 힌트 기록 렌더 (대기실·게임 화면 공용) ──────────────────────────────────
+  function renderHintLog(container, hints) {
+    container.innerHTML = hints.map(h => `
+      <div class="liar-hint-row${h.playerId === myId ? ' mine' : ''}">
+        <span class="liar-hint-name">${nameHtml(h.playerName)}</span>
+        <span class="liar-hint-text${h.skipped ? ' skipped' : ''}">${h.skipped ? '(시간 초과 · 힌트 없음)' : escHtml(h.text)}</span>
+      </div>`).join('');
+  }
+
+  function resultBannerHtml(r) {
+    const win = r.winnerRole === 'liar' ? '라이어' : '시민';
+    return [
+      `지난 라운드: <strong>${escHtml(win)} 승리!</strong> · 라이어는 <strong>${nameText(r.liarName)}</strong>님이었습니다`,
+      `진짜 제시어 "${escHtml(r.realWord)}"`,
+      r.liarGuess ? `라이어가 작성한 답 "${escHtml(r.liarGuess)}"` : null,
+    ].filter(Boolean).join('<br>');
+  }
+
   // ── Render waiting ───────────────────────────────────────────────────────
   function renderWaiting(state) {
     amHost = renderWaitingBase(state, {
       myId, socket, playerListEl, btnReady, btnStart, waitingHint,
-      avatarIcons: AVATAR_ICONS, playerAvatarEmojis, nameHtml, minPlayers: 4,
+      avatarIcons: AVATAR_ICONS, playerAvatarEmojis, nameHtml, minPlayers: 3,
     });
 
-    hintTimeoutWrap.style.display = amHost ? '' : 'none';
+    timeoutSettingsWrap.style.display = amHost ? '' : 'none';
     if (document.activeElement !== hintTimeoutSelect) {
       hintTimeoutSelect.value = String(state.hintTimeout ?? 15);
     }
+    if (document.activeElement !== defenseTimeoutSelect) {
+      defenseTimeoutSelect.value = String(state.defenseTimeout ?? 60);
+    }
+    if (document.activeElement !== guessTimeoutSelect) {
+      guessTimeoutSelect.value = String(state.guessTimeout ?? 30);
+    }
+
+    // ── 직전 라운드 결과 + 힌트 기록 (다음 라운드가 시작되면 서버가 비운다) ──
+    if (state.lastResult) {
+      resultBannerLobby.innerHTML = resultBannerHtml(state.lastResult);
+      resultBannerLobby.style.display = '';
+    } else {
+      resultBannerLobby.style.display = 'none';
+    }
+    renderHintLog(hintLogLobby, state.hints ?? []);
   }
 
   // ── Render game ──────────────────────────────────────────────────────────
   function renderGame(state) {
     const phase        = state.state;
     const iAmHost       = state.players.find(p => p.id === myId)?.isHost ?? false;
-    const participants  = state.players.filter(p => !p.isHost);
+    const participants  = state.players;
     const iAmParticipant = participants.some(p => p.id === myId);
-    const privileged     = isSpectator || iAmHost;
-
-    // ── 지난 라운드 결과 배너 ──────────────────────────────────────────────
-    if (phase === 'wordSetup' && state.lastResult) {
-      const r = state.lastResult;
-      const win = r.winnerRole === 'liar' ? '라이어' : '시민';
-      resultBanner.innerHTML = [
-        `지난 라운드: <strong>${escHtml(win)} 승리!</strong> · 라이어는 <strong>${nameText(r.liarName)}</strong>님이었습니다`,
-        `진짜 제시어 "${escHtml(r.realWord)}" / 라이어 제시어 "${escHtml(r.liarWord)}"`,
-        r.liarGuess ? `라이어가 작성한 답 "${escHtml(r.liarGuess)}"` : null,
-      ].filter(Boolean).join('<br>');
-      resultBanner.style.display = '';
-    } else {
-      resultBanner.style.display = 'none';
-    }
-
-    // ── 방장: 제시어 입력 ──────────────────────────────────────────────────
-    const showHostSetup = iAmHost && !isSpectator && phase === 'wordSetup';
-    hostSetup.style.display = showHostSetup ? 'flex' : 'none';
-    if (showHostSetup) {
-      inputRealWord.value = ''; inputLiarWord.value = ''; inputRealWord.focus();
-      if (document.activeElement !== hintTimeoutSelect2) {
-        hintTimeoutSelect2.value = String(state.hintTimeout ?? 15);
-      }
-    }
-
-    // ── 참가자: 대기 안내 ──────────────────────────────────────────────────
-    waitNotice.style.display = (!iAmHost && !isSpectator && phase === 'wordSetup') ? '' : 'none';
 
     // ── 방장 '대기실로 나가기' ─────────────────────────────────────────────
     returnLobby.style.display = (iAmHost && !isSpectator) ? '' : 'none';
@@ -227,21 +258,23 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
     const inRound = phase === 'hint' || phase === 'voteContinue' || phase === 'voteLiar' ||
                     phase === 'defense' || phase === 'confirmAccuse' || phase === 'liarGuess';
 
-    // ── 내 제시어 (참가자 전용) ────────────────────────────────────────────
-    if (inRound && !isSpectator && !iAmHost && liarState.me) {
-      myWordEl.innerHTML = `내 제시어 <strong>"${escHtml(liarState.me.word)}"</strong>`;
+    // ── 내 역할·제시어 (참가자 전용 — 방장도 이제 참가자다) ─────────────────
+    if (inRound && !isSpectator && liarState.me) {
+      myWordEl.innerHTML = liarState.me.role === 'liar'
+        ? `당신은 <strong>라이어</strong>입니다! 제시어를 모릅니다 — 힌트를 듣고 눈치껏 넘어가세요`
+        : `내 제시어 <strong>"${escHtml(liarState.me.word)}"</strong>`;
       myWordEl.style.display = '';
     } else {
       myWordEl.style.display = 'none';
     }
 
-    // ── 방장·관전자 전용 전체 공개 패널 ────────────────────────────────────
-    if (inRound && privileged && liarState.all) {
+    // ── 관전자 전용 전체 공개 패널 (방장도 이제 참가자이므로 역할을 모른다) ──
+    if (inRound && isSpectator && liarState.all) {
       revealPanel.innerHTML = liarState.all.map(p => `
         <div class="liar-reveal-row${p.role === 'liar' ? ' is-liar' : ''}">
           <span class="liar-reveal-name">${nameHtml(p.name)}</span>
           <span class="liar-reveal-role">${p.role === 'liar' ? '🕵️ 라이어' : '🙂 시민'}</span>
-          <span class="liar-reveal-word">"${escHtml(p.word)}"</span>
+          <span class="liar-reveal-word">${p.word ? `"${escHtml(p.word)}"` : '(제시어 모름)'}</span>
         </div>`).join('');
       revealPanel.style.display = '';
     } else {
@@ -276,12 +309,7 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
     }
 
     // ── 힌트 기록 ──────────────────────────────────────────────────────────
-    const hints = state.hints ?? [];
-    hintLog.innerHTML = hints.map(h => `
-      <div class="liar-hint-row${h.playerId === myId ? ' mine' : ''}">
-        <span class="liar-hint-name">${nameHtml(h.playerName)}</span>
-        <span class="liar-hint-text${h.skipped ? ' skipped' : ''}">${h.skipped ? '(시간 초과 · 힌트 없음)' : escHtml(h.text)}</span>
-      </div>`).join('');
+    renderHintLog(hintLog, state.hints ?? []);
     hintLog.scrollTop = hintLog.scrollHeight;
 
     // ── 힌트 입력 ──────────────────────────────────────────────────────────
@@ -347,6 +375,9 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
     if (iAmAccusedLiar) guessInput.focus();
     if (phase !== 'liarGuess') { guessInput.value = ''; guessLiveEl.textContent = ''; }
 
+    if (phase === 'liarGuess' && state.guessDeadline) startGuessTimer(state.guessDeadline);
+    else stopGuessTimer();
+
     renderSpectatorList(state.spectators ?? []);
   }
 
@@ -355,7 +386,9 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
 
   socket.on('room_update', (state) => {
     roomState = state;
-    if (state.hintTimeout) hintTime = state.hintTimeout;
+    if (state.hintTimeout)    hintTime    = state.hintTimeout;
+    if (state.defenseTimeout) defenseTime = state.defenseTimeout;
+    if (state.guessTimeout)   guessTime   = state.guessTimeout;
     if (isSpectator) {
       if (state.state === 'lobby') {
         showScreen('waiting');
@@ -391,6 +424,14 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
   });
 
   socket.on('member_joined', ({ name, isSpectator: isSpec }) => showJoinNotice(name, isSpec));
+
+  let startedToastTimer = null;
+  socket.on('game_started', () => {
+    startedToast.style.display = '';
+    startedToast.classList.remove('flash'); void startedToast.offsetWidth; startedToast.classList.add('flash');
+    clearTimeout(startedToastTimer);
+    startedToastTimer = setTimeout(() => { startedToast.style.display = 'none'; }, 2500);
+  });
 
   let tieBannerTimer = null;
   function flashTieBanner() {
@@ -452,7 +493,7 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
   });
 
   socket.on('alone_in_room', ({ message }) => {
-    showAloneOverlay(message, () => { stopTimer(); stopDefenseTimer(); });
+    showAloneOverlay(message, () => { stopTimer(); stopDefenseTimer(); stopGuessTimer(); });
   });
 
   // ── UI event listeners ────────────────────────────────────────────────────
@@ -471,8 +512,11 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
   hintTimeoutSelect.addEventListener('change', () => {
     socket.emit('set_hint_timeout', { seconds: parseInt(hintTimeoutSelect.value, 10) });
   });
-  hintTimeoutSelect2.addEventListener('change', () => {
-    socket.emit('set_hint_timeout', { seconds: parseInt(hintTimeoutSelect2.value, 10) });
+  defenseTimeoutSelect.addEventListener('change', () => {
+    socket.emit('set_defense_timeout', { seconds: parseInt(defenseTimeoutSelect.value, 10) });
+  });
+  guessTimeoutSelect.addEventListener('change', () => {
+    socket.emit('set_guess_timeout', { seconds: parseInt(guessTimeoutSelect.value, 10) });
   });
 
   btnLeaveLobby.addEventListener('click', () => {
@@ -484,10 +528,6 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
   });
 
   returnLobby.addEventListener('click', () => socket.emit('return_to_lobby'));
-
-  btnSetWords.addEventListener('click', () => {
-    socket.emit('set_words', { realWord: inputRealWord.value.trim(), liarWord: inputLiarWord.value.trim() });
-  });
 
   hintForm.addEventListener('submit', (e) => {
     e.preventDefault();

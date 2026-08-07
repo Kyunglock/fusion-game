@@ -236,8 +236,9 @@ export function registerCommonHandlers(io, socket, manager, opts) {
    * @param {object}   [opts]
    * @param {function} [opts.immediate] - 유예 없이 disconnect 즉시 해야 하는 처리 (접속자 목록 등)
    * @param {function} [opts.onResume]  - 재접속 성공 시 게임별 상태 재전송 (room, socket)
+   * @param {number}   [opts.graceMs]   - 유예 시간 재정의 (게임별로 더 짧게 두고 싶을 때, 기본 SOCKET_RECONNECT_GRACE_MS)
    */
-  function registerLeaveFlow(leaveFn, { immediate = null, onResume = null } = {}) {
+  function registerLeaveFlow(leaveFn, { immediate = null, onResume = null, graceMs = SOCKET_RECONNECT_GRACE_MS } = {}) {
     socket.on('disconnect', (reason) => {
       console.log(`[reconnect-debug][${nsName}] disconnect socket=${socket.id} cid=${cid} reason=${reason} t=${new Date().toISOString()}`);
       immediate?.();
@@ -249,7 +250,7 @@ export function registerCommonHandlers(io, socket, manager, opts) {
       const leaverId = socket.id;
       const held = holdSeat({
         ns: nsName, cid, roomCode: room.code, oldId: leaverId, kind,
-        graceMs:  SOCKET_RECONNECT_GRACE_MS,
+        graceMs,
         onExpire: () => {
           console.log(`[reconnect-debug][${nsName}] seat EXPIRED cid=${cid} oldId=${leaverId} t=${new Date().toISOString()}`);
           leaveFn(leaverId);

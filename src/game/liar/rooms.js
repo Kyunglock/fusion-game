@@ -1,47 +1,52 @@
 import { createRoomManager } from '../../shared/roomManager.js';
-import { LIAR_MAX_PLAYERS, LIAR_MIN_PLAYERS, LIAR_HINT_TIMEOUT } from '../../config.js';
+import { LIAR_MAX_PLAYERS, LIAR_MIN_PLAYERS, LIAR_HINT_TIMEOUT, LIAR_DEFENSE_TIMEOUT, LIAR_GUESS_TIMEOUT } from '../../config.js';
 
 /**
- * 라이어 게임 — 방장은 자모 워들처럼 진행만 담당하고 게임에 참여하지 않는다.
- * 참가자(non-host) 중 한 명이 무작위로 라이어가 되어 방장이 정해준 '가짜 제시어'를
- * 받고, 나머지는 '진짜 제시어'를 받는다. room.state 로 라운드 진행 단계를 표현한다:
+ * 라이어 게임 — 방장도 끝말잇기처럼 참가자로 함께 플레이한다(진행 전용 역할 없음).
+ * 매 라운드 시작 시 전원 중 한 명이 무작위로 라이어가 되어 **제시어를 받지 못한 채**
+ * (자신이 라이어라는 사실만 안다) 힌트를 내야 하고, 나머지는 진짜 제시어를 받는다.
+ * 제시어는 방장이 입력하지 않고 자모 워들의 낱말 사전(jamoWords.js WORD_LIST)에서
+ * 자동으로 무작위 배정한다. room.state 로 라운드 진행 단계를 표현한다:
  *
- *   lobby → wordSetup(방장이 두 제시어 입력) → hint(순서대로 힌트) →
- *   voteContinue(한 바퀴 더 vs 라이어 지목) → [voteLiar(지목 투표) → defense(최후 반론
- *   10초) → confirmAccuse(그대로 진행 vs 철회) → [liarGuess(라이어가 진짜 제시어 맞히기)]]
- *   → wordSetup(결과 공개, 다음 라운드 대기)
+ *   lobby(대기실, 전원 준비 → 방장이 게임 시작) → hint(순서대로 힌트) →
+ *   voteContinue(한 바퀴 더 vs 라이어 지목) → [voteLiar(지목 투표) → defense(최후 반론)
+ *   → confirmAccuse(그대로 진행 vs 철회) → [liarGuess(라이어가 진짜 제시어 맞히기)]]
+ *   → 다시 lobby(결과·직전 라운드 힌트 기록 공개, 전원 재준비 대기)
  *
  * 참가자의 역할(role)·제시어(word)는 뷰어별로 감춰야 하므로 safeState 에는 넣지 않고
- * socket.js 의 emitLiarState 가 개인화된 이벤트로 따로 보낸다.
+ * socket.js 의 emitLiarState 가 개인화된 이벤트로 따로 보낸다(관전자만 전원 공개로 봄,
+ * 방장도 이제 참가자이므로 자신의 역할만 본다).
  *
- * 투표 집계(votesIn/votesNeeded)는 재접속 유예 중(disconnected)인 참가자를 분모에서
+ * 투표 집계(votesIn/votesNeeded)는 재접속 유예 중(disconnected)인 사람을 분모에서
  * 뺀다 — 안 그러면 끊긴 사람 몫만큼 영원히 채워지지 않아 투표가 멈춘 것처럼 보인다.
  */
 function activeParticipants(room) {
-  return room.players.filter(p => !p.isHost && !p.disconnected);
+  return room.players.filter(p => !p.disconnected);
 }
 
 const manager = createRoomManager({
   maxPlayers: LIAR_MAX_PLAYERS,
   minPlayers: LIAR_MIN_PLAYERS,
   extraRoomFields: {
-    hintTimeout:      LIAR_HINT_TIMEOUT, // 방장이 대기실에서 조절 가능 (초)
+    hintTimeout:      LIAR_HINT_TIMEOUT,    // 방장이 대기실에서 조절 가능 (초)
+    defenseTimeout:   LIAR_DEFENSE_TIMEOUT, // 〃 최후 반론 제한시간 (초)
+    guessTimeout:     LIAR_GUESS_TIMEOUT,   // 〃 라이어 정답 제한시간 (초)
     realWord:         '',
-    liarWord:         '',
     liarId:           null,
     turnOrder:        [],   // 참가자 id 배열 (라운드 시작 시 무작위 셔플, 시계방향 순서)
     currentTurnIndex: 0,
     currentTurn:      null,
     turnDeadline:     null,
-    hints:            [],   // [{ playerId, playerName, text, skipped }]
+    hints:            [],   // [{ playerId, playerName, text, skipped }] — 라운드 시작 시에만 비우고, 라운드 종료 후에는 다음 라운드 시작 전까지 남겨둔다
     cycleCount:       0,    // 몇 바퀴를 돌았는지
     continueVotes:    {},   // playerId → 'accuse' | 'continue'
     accuseVotes:      {},   // playerId → 지목한 대상 playerId
     accusedId:        null, // voteLiar 결과로 지목된 사람 (defense~liarGuess 단계에서 공개)
-    defenseDeadline:  null, // 최후 반론 10초 마감 시각
+    defenseDeadline:  null, // 최후 반론 마감 시각
     defenseLines:     [],   // 지목된 사람이 반론 시간에 적은 글 [{ text }]
     confirmVotes:     {},   // playerId → 'proceed' | 'withdraw'
-    lastResult:       null, // { winnerRole, liarName, realWord, liarWord } — wordSetup 단계에서만 공개
+    guessDeadline:    null, // 라이어 정답 제출 마감 시각 (liarGuess 단계에서만 공개)
+    lastResult:       null, // { winnerRole, liarName, realWord, liarGuess } — 라운드 종료 후 다음 라운드 시작 전까지 공개
   },
   defaultPlayerFields: { role: null, word: null, wins: 0 },
   safePlayer: (p) => ({
@@ -50,17 +55,19 @@ const manager = createRoomManager({
   }),
   extraStateFields: (room) => {
     const participants = activeParticipants(room);
-    const inRound = room.state === 'hint' || room.state === 'voteContinue' ||
-                    room.state === 'voteLiar' || room.state === 'defense' ||
-                    room.state === 'confirmAccuse' || room.state === 'liarGuess';
     const votesMap = room.state === 'voteContinue' ? room.continueVotes
                     : room.state === 'voteLiar'      ? room.accuseVotes
                     : room.state === 'confirmAccuse'  ? room.confirmVotes
                     : null;
     return {
-      minPlayers:   LIAR_MIN_PLAYERS,
-      hintTimeout:  room.hintTimeout,
-      hints:        inRound ? room.hints : [],
+      minPlayers:     LIAR_MIN_PLAYERS,
+      hintTimeout:    room.hintTimeout,
+      defenseTimeout: room.defenseTimeout,
+      guessTimeout:   room.guessTimeout,
+      // 힌트 기록·직전 결과는 그 자체로 비밀 정보가 아니며, 다음 라운드가 시작될 때
+      // (assignNewRound) 비워지므로 언제 내려줘도 안전하다 — 대기실에서도 그대로 보인다.
+      hints:        room.hints,
+      lastResult:   room.lastResult,
       currentTurn:  room.state === 'hint' ? room.currentTurn  : null,
       turnDeadline: room.state === 'hint' ? room.turnDeadline : null,
       cycleCount:   room.cycleCount,
@@ -70,8 +77,7 @@ const manager = createRoomManager({
       accusedId:    (room.state === 'defense' || room.state === 'confirmAccuse' || room.state === 'liarGuess') ? room.accusedId : null,
       defenseDeadline: room.state === 'defense' ? room.defenseDeadline : null,
       defenseLines: (room.state === 'defense' || room.state === 'confirmAccuse') ? room.defenseLines : [],
-      // 결과·정답 공개는 다음 라운드 대기(wordSetup) 단계에서만
-      lastResult:   room.state === 'wordSetup' ? room.lastResult : null,
+      guessDeadline: room.state === 'liarGuess' ? room.guessDeadline : null,
     };
   },
   remapPlayerId: (room, oldId, newId) => {
@@ -110,7 +116,6 @@ const manager = createRoomManager({
   },
   resetGameState: (room) => {
     room.realWord         = '';
-    room.liarWord         = '';
     room.liarId           = null;
     room.turnOrder        = [];
     room.currentTurnIndex = 0;
@@ -124,6 +129,7 @@ const manager = createRoomManager({
     room.defenseDeadline  = null;
     room.defenseLines     = [];
     room.confirmVotes     = {};
+    room.guessDeadline    = null;
     room.lastResult       = null;
     room.players.forEach(p => { p.ready = false; p.role = null; p.word = null; });
   },

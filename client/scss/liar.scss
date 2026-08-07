@@ -135,8 +135,8 @@
   gap: 12px;
 }
 
-// ── 지난 라운드 결과 배너 ──────────────────────────────────────────────────────
-#liar-result-banner {
+// ── 지난 라운드 결과 배너 (대기실에서 다음 라운드 시작 전까지 노출) ───────────
+#liar-result-banner-lobby {
   width: 100%;
   max-width: 600px;
   text-align: center;
@@ -147,22 +147,12 @@
   color: var(--yellow);
   font-size: 0.85rem;
   line-height: 1.5;
+  margin: 4px 0;
 
   strong { color: var(--green-light); }
 }
 
-// ── 방장 제시어 입력 ───────────────────────────────────────────────────────────
-#liar-host-setup {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 100%;
-  max-width: 500px;
-
-  input { margin-bottom: 0; }
-}
-
-// ── 힌트 제한시간 selectbox (대기실 + 제시어 입력 화면 공용) ──────────────────
+// ── 힌트 제한시간 selectbox (대기실 전용) ─────────────────────────────────────
 .liar-timeout-select {
   appearance: none;
   -webkit-appearance: none;
@@ -185,13 +175,6 @@
     background: var(--card);
     color: var(--text);
   }
-}
-
-#liar-wait-notice {
-  text-align: center;
-  font-size: 0.9rem;
-  color: var(--muted);
-  padding: 20px 0;
 }
 
 // ── 내 제시어 ──────────────────────────────────────────────────────────────────
@@ -304,8 +287,9 @@
   text-align: center;
 }
 
-// ── 힌트 기록 ──────────────────────────────────────────────────────────────────
-#liar-hint-log {
+// ── 힌트 기록 (게임 화면 + 대기실 공용) ────────────────────────────────────────
+#liar-hint-log,
+#liar-hint-log-lobby {
   width: 100%;
   max-width: 600px;
   min-height: 80px;
@@ -616,6 +600,61 @@
   margin-top: 4px;
 }
 
+// ── 라이어 정답 제한시간 ───────────────────────────────────────────────────────
+#liar-guess-timer-wrap {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#liar-guess-timer-track {
+  flex: 1;
+  height: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+#liar-guess-timer-bar {
+  height: 100%;
+  width: 100%;
+  border-radius: 20px;
+  background: linear-gradient(90deg, var(--green-mid), var(--green-light));
+  transition: width 0.1s linear;
+
+  &.urgent { background: linear-gradient(90deg, var(--red-dark), var(--red)); }
+}
+
+#liar-guess-timer-num {
+  font-size: 1.2rem;
+  font-weight: 900;
+  color: var(--green-light);
+  min-width: 32px;
+  text-align: center;
+}
+
+// ── 게임 시작 토스트 ───────────────────────────────────────────────────────────
+#liar-started-toast {
+  position: fixed;
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 800;
+  background: var(--green-dark);
+  color: var(--white);
+  font-weight: 800;
+  font-size: 0.9rem;
+  padding: 10px 22px;
+  border-radius: 20px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+
+  &.flash { animation: tie-banner-pop 0.35s cubic-bezier(0.17, 0.84, 0.44, 1); }
+}
+
 // ── 라이어의 마지막 기회 ────────────────────────────────────────────────────────
 #liar-guess-form {
   display: flex;
@@ -636,8 +675,7 @@
   padding: 12px 0;
 }
 
-// ── 방장 버튼(제시어 입력/대기실 나가기) 여백 ──────────────────────────────────
-#liar-host-setup,
+// ── 방장 버튼(대기실 나가기) 여백 ──────────────────────────────────────────────
 #liar-return-lobby { margin-top: 0; }
 
 // ── Alone overlay ─────────────────────────────────────────────────────────────
@@ -907,7 +945,6 @@
 
 // ── 관전 모드: 입력 폼 숨김 ───────────────────────────────────────────────────
 #screen-game.is-spectating #liar-hint-form,
-#screen-game.is-spectating #liar-host-setup,
 #screen-game.is-spectating #liar-vote-continue,
 #screen-game.is-spectating #liar-vote-liar,
 #screen-game.is-spectating #liar-confirm-vote,

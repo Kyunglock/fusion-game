@@ -3,6 +3,11 @@ include ../mixins/lobby
 include ../mixins/waiting
 include ../mixins/overlays
 
+mixin timeoutSelect(id, options)
+  select(id=id)&attributes({class: 'liar-timeout-select'})
+    each sec in options
+      option(value=sec)= `${sec}초`
+
 block overlays
   #error-toast
   #join-toast
@@ -10,34 +15,25 @@ block overlays
 block content
   +lobby({ logoEmoji: '🕵️', title: '라이어 게임', titleClass: 'title-liar', subtitle: '나 혼자만 다른 제시어를 받았다면... 들키지 마라! 🤫' })
 
-  +waitingRoom({ subtext: '방장은 게임에 입장한 뒤 진짜·라이어 제시어를 내고, 참가자들은 힌트로 라이어를 찾습니다' })
-    //- 힌트 제한시간 조절 (방장 전용, 언제든 변경 가능)
-    #liar-hint-timeout-wrap(style="display:none")
+  +waitingRoom({ subtext: '전원 준비를 마치고 방장이 시작하면, 제시어가 자동으로 배정됩니다. 라이어는 자신이 라이어라는 것만 알 뿐 제시어는 받지 못합니다' })
+    //- 제한시간 조절 (방장 전용, 대기실에서 언제든 변경 가능)
+    #liar-timeout-settings(style="display:none")
       label.spectator-toggle-label
         span 힌트 제한시간
-        select#liar-hint-timeout-select.liar-timeout-select
-          each sec in [15, 20, 25, 30, 35, 40, 45, 50, 55, 60]
-            option(value=sec)= `${sec}초`
+        +timeoutSelect('liar-hint-timeout-select', [15, 20, 25, 30, 35, 40, 45, 50, 55, 60])
+      label.spectator-toggle-label
+        span 최후 반론 제한시간
+        +timeoutSelect('liar-defense-timeout-select', [10, 20, 30, 45, 60, 90, 120])
+      label.spectator-toggle-label
+        span 라이어 정답 제한시간
+        +timeoutSelect('liar-guess-timeout-select', [10, 15, 20, 30, 45, 60])
+
+    //- 지난 라운드 결과 + 힌트 기록 (라운드 종료 후 다음 라운드가 시작되기 전까지만 노출)
+    #liar-result-banner-lobby(style="display:none")
+    #liar-hint-log-lobby
 
   #screen-game.screen
     +spectatorGame
-
-    //- 지난 라운드 결과 (다음 제시어 대기 중에만 노출)
-    #liar-result-banner(style="display:none")
-
-    //- 방장: 진짜·라이어 제시어 입력 (wordSetup 단계에서만)
-    #liar-host-setup(style="display:none")
-      label.spectator-toggle-label
-        span 힌트 제한시간
-        select#liar-hint-timeout-select-2.liar-timeout-select
-          each sec in [15, 20, 25, 30, 35, 40, 45, 50, 55, 60]
-            option(value=sec)= `${sec}초`
-      input#input-real-word(type="text" placeholder="진짜 제시어 (예: 사과)" maxlength="20" autocomplete="off")
-      input#input-liar-word(type="text" placeholder="라이어 제시어 (예: 우주선 — 전혀 다른 것)" maxlength="20" autocomplete="off")
-      button#btn-set-words.btn.btn-primary 라운드 시작
-
-    //- 참가자: 방장이 제시어를 준비 중일 때 대기 안내
-    #liar-wait-notice(style="display:none") 방장이 제시어를 준비하고 있습니다…
 
     //- 방장 '대기실로 나가기' (게임 중 상시 노출)
     button#liar-return-lobby.btn.btn-secondary(style="display:none") 대기실로 나가기
@@ -118,6 +114,10 @@ block content
         |  검거되었습니다!
 
     //- 라이어의 마지막 기회 (본인에게만 입력창, 나머지는 실시간으로 입력 내용을 본다)
+    #liar-guess-timer-wrap(style="display:none")
+      #liar-guess-timer-track
+        #liar-guess-timer-bar
+      #liar-guess-timer-num -
     #liar-guess-form(style="display:none")
       p.liar-vote-title 정체가 들켰습니다! 진짜 제시어를 맞혀보세요
       input#liar-guess-input(type="text" placeholder="진짜 제시어 입력" maxlength="20" autocomplete="off")
@@ -125,3 +125,6 @@ block content
     #liar-guess-wait(style="display:none")
       p 라이어가 진짜 제시어를 맞히는 중입니다…
       #liar-guess-live
+
+    //- 게임 시작 알림 토스트
+    #liar-started-toast(style="display:none") 🎮 게임이 시작되었습니다!

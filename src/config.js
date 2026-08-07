@@ -56,7 +56,14 @@ export const CATCHMIND_MAX_STROKES       = 300;    // 획 개수
 export const CATCHMIND_MAX_POINTS        = 12_000; // 전체 점 개수
 export const CATCHMIND_MAX_JSON_BYTES    = 200_000;
 
-export const LIAR_MAX_PLAYERS  = 9; // 방장 + 참가자 최대 8명
-export const LIAR_MIN_PLAYERS  = 4; // 방장 + 참가자 최소 3명 (라이어 1 + 시민 2 이상)
-export const LIAR_HINT_TIMEOUT = 15; // 힌트 제출 제한시간 (초), 못 내면 힌트 없이 다음 차례로
-// 라운드 종료 후 방장이 게임 안에서 직접 다음 제시어를 내므로 자동 복귀 타이머는 없다.
+export const LIAR_MAX_PLAYERS     = 9;  // 최대 9명 (방장도 참가자로 함께 플레이)
+export const LIAR_MIN_PLAYERS     = 3;  // 최소 3명 (방장 포함, 라이어 1 + 시민 2 이상)
+// 라이어 게임은 힌트·투표가 실시간으로 맞물려 돌아가므로 공용 90초 유예(SOCKET_RECONNECT_GRACE_MS)는
+// 너무 길다 — 끊긴 사람 자리를 60초만 붙잡아 두고, 그래도 안 돌아오면 자동으로 내보낸다.
+export const LIAR_RECONNECT_GRACE_MS = 60_000;
+export const LIAR_HINT_TIMEOUT    = 15; // 힌트 제출 제한시간 (초), 못 내면 힌트 없이 다음 차례로
+export const LIAR_DEFENSE_TIMEOUT = 60; // 라이어로 지목된 사람의 최후 반론 제한시간 (초). '반론 종료'로 조기 종료 가능
+export const LIAR_GUESS_TIMEOUT   = 30; // 라이어가 진짜 제시어를 맞힐 제한시간 (초), 못 내면 시민 승리
+// 위 세 시간은 모두 방장이 대기실에서 실시간으로 조절 가능 (set_hint_timeout/set_defense_timeout/set_guess_timeout)
+// 제시어는 대기실에서 게임 시작 시 자동 배정되므로(jamoWords.js 재사용) 방장의 수동 입력 단계가 없다.
+// 라운드 종료 후 대기실로 돌아가 다시 전원 준비 → 게임 시작으로 다음 라운드를 시작한다.
