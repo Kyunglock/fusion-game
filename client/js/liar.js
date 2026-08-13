@@ -520,7 +520,13 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
     tieBannerTimer = setTimeout(() => { tieBanner.style.display = 'none'; }, 3000);
   }
 
-  socket.on('liar_vote_result', ({ result }) => {
+  socket.on('liar_vote_result', ({ result, timedOut }) => {
+    // 확정 투표만은 시간이 끝나도 무르지 않고 그대로 진행한다 — 왜 진행됐는지 알려준다
+    if (result === 'proceed' && timedOut) {
+      appendSystemMessage('⏰ 투표 시간이 끝나 지목을 그대로 진행합니다.');
+      flashTieBanner('⏰ 투표 시간 종료! 지목을 그대로 진행합니다');
+      return;
+    }
     if (result === 'tie') { appendSystemMessage('🤔 투표가 동률이라 다시 투표합니다.'); flashTieBanner(); }
     else if (result === 'timeout') {
       appendSystemMessage('⏰ 투표 시간이 끝났는데 결론이 나지 않아 지목 없이 한 바퀴 더 돕니다.');

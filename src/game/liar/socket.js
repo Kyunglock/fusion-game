@@ -100,6 +100,8 @@ function clearAllTimers(code) {
 // 집계한다(안 낸 사람은 기권). 표가 갈리거나 하나도 없으면 그 단계에서 아무것도
 // 결정되지 않은 것으로 보고 힌트를 한 바퀴 더 돈다 — 재투표로 두면 아무도 없는 방에서
 // 무한히 되풀이된다.
+// 예외는 confirmAccuse(그대로 진행 vs 철회) 하나 — 이미 과반이 지목까지 해 놓은
+// 단계라, 시간이 끝나면 무르지 않고 그대로 진행한다(tallyConfirmVotesIfReady 참고).
 function startVoteTimer(io, room) {
   clearVoteTimer(room.code);
   const timeoutMs = (room.voteTimeout || LIAR_VOTE_TIMEOUT) * 1000;
@@ -267,17 +269,18 @@ function tallyConfirmVotesIfReady(io, room, force = false) {
   const proceedCount  = votes.filter(v => v === 'proceed').length;
   const withdrawCount = votes.filter(v => v === 'withdraw').length;
 
-  if (proceedCount > withdrawCount) {
+  // 이 투표만은 시간이 끝났는데 결론이 안 나도(표가 갈리거나 아무도 안 냄) **그대로 진행**한다 —
+  // 이미 과반이 지목까지 해 놓은 단계라, 가만히 있었다고 지목이 무효가 되는 편이 더 뜻밖이다.
+  const timedOutProceed = force && proceedCount === withdrawCount;
+
+  if (proceedCount > withdrawCount || timedOutProceed) {
     clearVoteTimer(room.code);
     room.voteDeadline = null;
-    io.to(room.code).emit('liar_vote_result', { result: 'proceed' });
+    io.to(room.code).emit('liar_vote_result', { result: 'proceed', timedOut: timedOutProceed });
     resolveAccusation(io, room);
   } else if (withdrawCount > proceedCount) {
     io.to(room.code).emit('liar_vote_result', { result: 'withdraw' });
     backToHint(io, room);
-  } else if (force) {
-    // 시간이 끝났는데 결론이 안 났다 — 지목을 무르고 한 바퀴 더 (사람을 기권으로 몰아내지 않는다)
-    voteTimedOut(io, room);
   } else {
     // 동률 — 재투표 (제한시간도 다시 준다)
     room.confirmVotes = {};
