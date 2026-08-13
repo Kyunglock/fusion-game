@@ -1,18 +1,30 @@
-import { rooms, getRoomOf, safeState, removePlayer, removeSpectator, manager, activeParticipants } from './rooms.js';
-import { LIAR_HINT_TIMEOUT, LIAR_DEFENSE_TIMEOUT, LIAR_GUESS_TIMEOUT, LIAR_RECONNECT_GRACE_MS } from '../../config.js';
+import { rooms, getRoomOf, safeState, removePlayer, removeSpectator, manager, participantsOf, activeParticipants } from './rooms.js';
+import { LIAR_MIN_PLAYERS, LIAR_HINT_TIMEOUT, LIAR_DEFENSE_TIMEOUT, LIAR_GUESS_TIMEOUT, LIAR_RECONNECT_GRACE_MS } from '../../config.js';
 import { registerCommonHandlers } from '../../shared/socketHandlers.js';
 import { recordPlayers } from '../../db/stats.js';
 import { WORD_LIST } from '../../../client/js/jamoWords.js';
 
 // ── 뷰어별 개인화 상태 전송 ──────────────────────────────────────────────────
-// 방장도 이제 참가자이므로 자신의 역할·제시어만 보고, 관전자만 참가자 전원의
-// 역할·제시어를 모두 본다. 라이어는 role만 알 뿐 word는 null로 내려간다(제시어 모름).
+// 참가자는 자신의 역할·제시어만 보고, 관전자와 바보형 방장(진행자)만 참가자 전원의
+// 역할·제시어를 모두 본다.
+//   · 인지형 — 라이어는 role만 알 뿐 word는 null로 내려간다(제시어 모름)
+//   · 바보형 — 라이어에게도 시민인 척(role: 'citizen') 가짜 제시어를 진짜처럼 내려보낸다.
+//     감추는 것은 서버에서 끝내야 한다(플래그만 보내고 화면에서 가리면 개발자 도구로 다 보인다).
+function selfView(room, p) {
+  const disguised = room.liarMode === 'unaware' && p.role === 'liar' && room.state !== 'liarGuess';
+  return { role: disguised ? 'citizen' : p.role, word: p.word };
+}
+
 function emitLiarState(io, room) {
   const inRound = room.state === 'hint' || room.state === 'voteContinue' ||
                   room.state === 'voteLiar' || room.state === 'defense' ||
                   room.state === 'confirmAccuse' || room.state === 'liarGuess';
-  const participants = room.players;
-  const privileged = new Set(room.spectators.map(s => s.id));
+  const participants = participantsOf(room);
+  const privileged = new Set([
+    ...room.spectators.map(s => s.id),
+    // 바보형 방장은 제시어를 직접 낸 진행자다 — 이미 다 아는 사람이라 전원 공개로 본다.
+    ...(room.liarMode === 'unaware' ? room.players.filter(p => p.isHost).map(p => p.id) : []),
+  ]);
   const viewers = [...room.players.map(p => p.id), ...room.spectators.map(s => s.id)];
 
   viewers.forEach(viewerId => {
@@ -23,7 +35,7 @@ function emitLiarState(io, room) {
     } else {
       const me = participants.find(p => p.id === viewerId);
       io.to(viewerId).emit('liar_state', {
-        me: (inRound && me) ? { role: me.role, word: me.word } : null,
+        me: (inRound && me) ? selfView(room, me) : null,
       });
     }
   });
@@ -238,21 +250,26 @@ function startGuessTimer(io, room) {
   }, timeoutMs));
 }
 
-// ── 라운드 시작 (제시어 자동 배정) ───────────────────────────────────────────
-// 방장도 참가자이므로 room.players 전원이 후보다. 자모 워들의 낱말 사전에서
-// 무작위로 제시어를 뽑고, 그중 한 명을 라이어로 정한다 — 라이어는 자신이
-// 라이어라는 사실은 알지만(role) 제시어(word)는 받지 못한다.
-function assignNewRound(io, room) {
-  const participants = room.players;
-  const word      = WORD_LIST[Math.floor(Math.random() * WORD_LIST.length)];
+// ── 라운드 시작 (제시어 배정) ────────────────────────────────────────────────
+// 인지형: 자모 워들의 낱말 사전에서 무작위로 제시어를 뽑고, 참가자(방장 포함) 중 한 명을
+//        라이어로 정한다 — 라이어는 자신이 라이어라는 사실은 알지만(role) 제시어는 못 받는다.
+// 바보형: 방장이 넘긴 진짜/가짜 제시어를 쓰고 방장은 진행자로 빠진다. 라이어는 가짜 제시어를
+//        진짜인 줄 알고 받는다(자기가 라이어인 줄 모른다 — emitLiarState 의 selfView 참고).
+function assignNewRound(io, room, words = null) {
+  const unaware      = room.liarMode === 'unaware';
+  const participants = participantsOf(room);
+  const word      = unaware ? words.realWord : WORD_LIST[Math.floor(Math.random() * WORD_LIST.length)];
   const turnOrder = shuffled(participants.map(p => p.id));
   const liarId    = turnOrder[Math.floor(Math.random() * turnOrder.length)];
 
   room.realWord = word;
+  room.fakeWord = unaware ? words.fakeWord : '';
   room.liarId   = liarId;
+  // 진행자(방장)에게는 역할도 제시어도 없다 — 남아 있던 지난 라운드 값을 지운다.
+  room.players.forEach(p => { p.role = null; p.word = null; });
   participants.forEach(p => {
     p.role = (p.id === liarId) ? 'liar' : 'citizen';
-    p.word = (p.id === liarId) ? null   : word;
+    p.word = (p.id === liarId) ? (unaware ? room.fakeWord : null) : word;
   });
 
   room.turnOrder        = turnOrder;
@@ -274,13 +291,39 @@ function assignNewRound(io, room) {
 }
 
 // ── 라운드 종료 ────────────────────────────────────────────────────────────────
+// 먼저 '라운드 무효' — 라이어(또는 바보형 진행자)가 나가는 등 라운드 자체가 성립하지
+// 않게 된 경우다. 승패를 남기지 않고 대기실로 되돌리며, 결과를 밝힐 수 없으므로 힌트
+// 기록도 함께 지운다(정상 종료인 endRound 는 힌트·결과를 대기실에 남겨둔다).
+function cancelRound(room) {
+  clearAllTimers(room.code);
+  room.state            = 'lobby';
+  room.realWord         = '';
+  room.fakeWord         = '';
+  room.liarId           = null;
+  room.turnOrder        = [];
+  room.currentTurnIndex = 0;
+  room.currentTurn      = null;
+  room.turnDeadline     = null;
+  room.hints            = [];
+  room.cycleCount       = 0;
+  room.continueVotes    = {};
+  room.accuseVotes      = {};
+  room.accusedId        = null;
+  room.defenseDeadline  = null;
+  room.defenseLines     = [];
+  room.confirmVotes     = {};
+  room.guessDeadline    = null;
+  room.lastResult       = null;
+  room.players.forEach(p => { p.ready = false; p.role = null; p.word = null; });
+}
+
 // liarGuess: 라이어가 실제로 제출한 답 (틀린 지목으로 라운드가 끝나 라이어가 답을
 // 낼 기회조차 없었으면 null) — 실시간 미리보기를 놓친 사람도 결과 배너에서 볼 수 있게.
 // 힌트 기록(room.hints)은 여기서 지우지 않는다 — 다음 라운드가 시작될 때(assignNewRound)
 // 비워지므로, 대기실로 돌아간 사이에도 직전 라운드 힌트를 계속 볼 수 있다.
 function endRound(io, room, winnerRole, liarGuess = null) {
   clearAllTimers(room.code);
-  const participants = room.players;
+  const participants = participantsOf(room); // 바보형 진행자(방장)는 전적에 남기지 않는다
   const liar          = room.players.find(p => p.id === room.liarId);
 
   recordPlayers(room.serverId, 'liar', participants,
@@ -297,6 +340,8 @@ function endRound(io, room, winnerRole, liarGuess = null) {
     winnerRole,
     liarName: liar?.name ?? '',
     realWord: room.realWord,
+    // 바보형에서만 채워진다 — 라이어가 진짜인 줄 알고 받았던 낱말도 함께 밝힌다.
+    fakeWord: room.fakeWord || null,
     liarGuess,
   };
 
@@ -326,16 +371,42 @@ export function registerLiarHandlers(io, socket) {
     });
 
   // ── 게임 시작 ───────────────────────────────────────────────────────────────
-  // 전원 준비 완료 후 방장이 누르면, 방장을 포함한 전원에게 곧바로 제시어를 자동 배정하고
-  // 첫 힌트 차례로 들어간다(수동으로 제시어를 입력하는 단계 없음).
-  socket.on('start_game', () => {
+  // 인지형: 전원 준비 완료 후 방장이 누르면 방장을 포함한 전원에게 제시어를 자동 배정한다.
+  // 바보형: 방장이 함께 보낸 진짜/가짜 제시어를 쓴다. 제시어는 여기서만 받고 방 상태로는
+  //        절대 내보내지 않는다(safeState 에 없음) — 대기실에 미리 저장해 두면 새어 나간다.
+  socket.on('start_game', ({ realWord, fakeWord } = {}) => {
     const { ok, room } = validateStartGame();
     if (!ok) return;
 
+    let words = null;
+    if (room.liarMode === 'unaware') {
+      // 방장은 진행자로 빠지므로 최소 인원은 방장을 뺀 참가자 기준으로 센다.
+      if (participantsOf(room).length < LIAR_MIN_PLAYERS) {
+        return err(`바보형은 방장을 뺀 참가자가 ${LIAR_MIN_PLAYERS}명 이상이어야 합니다.`);
+      }
+      const real = String(realWord || '').trim().slice(0, 20);
+      const fake = String(fakeWord || '').trim().slice(0, 20);
+      if (!real || !fake) return err('진짜 제시어와 가짜 제시어를 모두 입력해주세요.');
+      if (real === fake)  return err('진짜 제시어와 가짜 제시어가 서로 달라야 합니다.');
+      words = { realWord: real, fakeWord: fake };
+    }
+
     room.players.forEach(p => { p.wins = 0; });
-    assignNewRound(io, room);
+    assignNewRound(io, room, words);
     broadcastRooms();
     io.to(room.code).emit('game_started');
+  });
+
+  // ── 라이어 유형 (방장, 대기실에서만 변경) ───────────────────────────────────
+  // 유형에 따라 방장이 참가자인지 진행자인지가 갈리므로 라운드 중에는 바꿀 수 없다.
+  socket.on('set_liar_mode', ({ mode } = {}) => {
+    const room   = getRoomOf(socket.id);
+    const player = room?.players.find(p => p.id === socket.id);
+    if (!room || !player?.isHost || room.state !== 'lobby') return;
+    if (mode !== 'aware' && mode !== 'unaware') return;
+
+    room.liarMode = mode;
+    broadcast(room);
   });
 
   // ── 제한시간 조절 (방장, 대기실에서 언제든 변경 가능) ───────────────────────
@@ -390,9 +461,10 @@ export function registerLiarHandlers(io, socket) {
   });
 
   // ── 투표 1: 라이어 지목 vs 한 바퀴 더 ───────────────────────────────────────
+  // (바보형 방장은 진행자라 참가자 목록에 없으므로 투표할 수 없다)
   socket.on('cast_continue_vote', ({ choice } = {}) => {
     const room   = getRoomOf(socket.id);
-    const player = room?.players.find(p => p.id === socket.id);
+    const player = room && participantsOf(room).find(p => p.id === socket.id);
     if (!room || !player)              return;
     if (room.state !== 'voteContinue') return;
     if (choice !== 'accuse' && choice !== 'continue') return;
@@ -404,10 +476,10 @@ export function registerLiarHandlers(io, socket) {
   // ── 투표 2: 라이어로 지목할 사람 ─────────────────────────────────────────────
   socket.on('cast_accuse_vote', ({ targetId } = {}) => {
     const room   = getRoomOf(socket.id);
-    const player = room?.players.find(p => p.id === socket.id);
+    const player = room && participantsOf(room).find(p => p.id === socket.id);
     if (!room || !player)          return;
     if (room.state !== 'voteLiar') return;
-    if (!room.players.some(p => p.id === targetId)) return;
+    if (!participantsOf(room).some(p => p.id === targetId)) return;
 
     room.accuseVotes[socket.id] = targetId;
     tallyAccuseVotesIfReady(io, room);
@@ -416,7 +488,7 @@ export function registerLiarHandlers(io, socket) {
   // ── 투표 3: 지목된 사람의 반론 이후 — 그대로 진행 vs 철회 ───────────────────
   socket.on('cast_confirm_vote', ({ choice } = {}) => {
     const room   = getRoomOf(socket.id);
-    const player = room?.players.find(p => p.id === socket.id);
+    const player = room && participantsOf(room).find(p => p.id === socket.id);
     if (!room || !player)               return;
     if (room.state !== 'confirmAccuse') return;
     if (choice !== 'proceed' && choice !== 'withdraw') return;
@@ -475,16 +547,7 @@ export function registerLiarHandlers(io, socket) {
     const player = room?.players.find(p => p.id === socket.id);
     if (!room || !player?.isHost || room.state === 'lobby') return;
 
-    clearAllTimers(room.code);
-    room.state = 'lobby';
-    room.realWord = ''; room.liarId = null;
-    room.turnOrder = []; room.currentTurnIndex = 0; room.currentTurn = null; room.turnDeadline = null;
-    room.hints = []; room.cycleCount = 0; room.continueVotes = {}; room.accuseVotes = {};
-    room.accusedId = null; room.defenseDeadline = null; room.defenseLines = []; room.confirmVotes = {};
-    room.guessDeadline = null;
-    room.lastResult = null;
-    room.players.forEach(p => { p.ready = false; p.role = null; p.word = null; });
-
+    cancelRound(room);
     broadcast(room);
     broadcastRooms();
   });
@@ -523,17 +586,19 @@ export function registerLiarHandlers(io, socket) {
       return;
     }
 
-    // 라이어가 나가면 라운드 자체가 성립하지 않으므로 무효 처리하고 대기실로 되돌린다.
-    if (wasInRound && result.wasLiar) {
-      clearAllTimers(room.code);
-      room.state = 'lobby';
-      room.currentTurn = null; room.turnDeadline = null;
-      room.hints = []; room.continueVotes = {}; room.accuseVotes = {};
-      room.accusedId = null; room.defenseDeadline = null; room.defenseLines = []; room.confirmVotes = {};
-      room.guessDeadline = null;
-      room.lastResult = null;
-      room.players.forEach(p => { p.ready = false; p.role = null; p.word = null; });
-      io.to(room.code).emit('round_cancelled');
+    // 라운드가 성립하지 않게 되는 경우들 — 승패 기록 없이 대기실로 되돌린다.
+    //   · 라이어가 나감 (정체가 성립하지 않는다)
+    //   · 바보형에서 제시어를 쥐고 있던 진행자(방장)가 나감
+    //   · 바보형에서 방장을 뺀 참가자가 최소 인원 아래로 떨어짐
+    //     (방 인원 기준인 공통 로직의 minPlayers 검사로는 걸리지 않는다)
+    const unaware = room.liarMode === 'unaware';
+    const reason = result.wasLiar ? 'liar'
+                 : (unaware && result.wasHost) ? 'host'
+                 : (unaware && participantsOf(room).length < LIAR_MIN_PLAYERS) ? 'tooFew'
+                 : null;
+    if (wasInRound && reason) {
+      cancelRound(room);
+      io.to(room.code).emit('round_cancelled', { reason });
       io.to(room.code).emit('room_update', safeState(room));
       broadcastRooms();
       return;

@@ -152,6 +152,64 @@
   strong { color: var(--green-light); }
 }
 
+// ── 라이어 유형 안내 · 선택 (대기실 전용) ─────────────────────────────────────
+#liar-mode-badge {
+  width: 100%;
+  max-width: 600px;
+  text-align: center;
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: var(--chip);
+  border: 1px solid var(--border);
+  color: var(--green-pale);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  margin-bottom: 12px;
+
+  strong { color: var(--yellow); }
+}
+
+#liar-mode-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+#liar-word-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  // 라벨('진짜 제시어')이 두 줄로 접히지 않게 하고 남는 폭은 입력창에 준다
+  .spectator-toggle-label > span { white-space: nowrap; }
+}
+
+.liar-word-input {
+  flex: 1;
+  min-width: 0;
+  margin-left: 12px;
+  padding: 6px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 16px; // iOS 포커스 확대 방지
+  font-weight: 700;
+  outline: none;
+  transition: border-color 0.2s;
+
+  &:focus { border-color: var(--green-light); }
+}
+
+.liar-mode-note {
+  font-size: 0.75rem;
+  color: var(--gray);
+  line-height: 1.5;
+  text-align: center;
+}
+
 // ── 힌트 제한시간 selectbox (대기실 전용) ─────────────────────────────────────
 .liar-timeout-select {
   appearance: none;

@@ -15,7 +15,26 @@ block overlays
 block content
   +lobby({ logoEmoji: '🕵️', title: '라이어 게임', titleClass: 'title-liar', subtitle: '나 혼자만 다른 제시어를 받았다면... 들키지 마라! 🤫' })
 
-  +waitingRoom({ subtext: '전원 준비를 마치고 방장이 시작하면, 제시어가 자동으로 배정됩니다. 라이어는 자신이 라이어라는 것만 알 뿐 제시어는 받지 못합니다' })
+  +waitingRoom({ subtext: '전원 준비를 마치면 방장이 게임을 시작합니다. 라이어 유형은 방장이 고를 수 있어요' })
+    //- 라이어 유형 안내 (모두에게 노출)
+    #liar-mode-badge
+
+    //- 라이어 유형 선택 + 바보형 제시어 입력 (방장 전용, 대기실에서만)
+    #liar-mode-settings(style="display:none")
+      label.spectator-toggle-label
+        span 라이어 유형
+        select#liar-mode-select.liar-timeout-select
+          option(value="aware") 인지형 (제시어 자동)
+          option(value="unaware") 바보형 (방장이 제시어 입력)
+      #liar-word-inputs(style="display:none")
+        label.spectator-toggle-label
+          span 진짜 제시어
+          input#liar-real-word.liar-word-input(type="text" maxlength="20" placeholder="예: 사과" autocomplete="off")
+        label.spectator-toggle-label
+          span 가짜 제시어
+          input#liar-fake-word.liar-word-input(type="text" maxlength="20" placeholder="예: 배" autocomplete="off")
+        p.liar-mode-note 라이어에게는 가짜 제시어가 진짜인 것처럼 전달됩니다. 두 낱말을 아는 방장은 진행만 맡고 힌트·투표에는 참여하지 않습니다 (라운드마다 새로 입력)
+
     //- 제한시간 조절 (방장 전용, 대기실에서 언제든 변경 가능)
     #liar-timeout-settings(style="display:none")
       label.spectator-toggle-label
@@ -41,7 +60,7 @@ block content
     //- 내 제시어 (참가자 전용, 라운드 진행 중)
     #liar-my-word(style="display:none")
 
-    //- 방장·관전자 전용: 참가자 전원의 역할·제시어 공개
+    //- 관전자·바보형 방장(진행자) 전용: 참가자 전원의 역할·제시어 공개
     #liar-reveal-panel(style="display:none")
 
     //- 힌트 순서·타이머
