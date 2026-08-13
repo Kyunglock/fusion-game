@@ -32,6 +32,12 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
   const btnStart       = $('btn-start');
   const btnLeaveLobby  = $('btn-leave-lobby');
   const waitingHint    = $('waiting-hint');
+  const modeBadge      = $('liar-mode-badge');
+  const modeSettings   = $('liar-mode-settings');
+  const modeSelect     = $('liar-mode-select');
+  const wordInputsWrap = $('liar-word-inputs');
+  const realWordInput  = $('liar-real-word');
+  const fakeWordInput  = $('liar-fake-word');
   const timeoutSettingsWrap = $('liar-timeout-settings');
   const hintTimeoutSelect     = $('liar-hint-timeout-select');
   const defenseTimeoutSelect  = $('liar-defense-timeout-select');
@@ -213,8 +219,15 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
     return [
       `지난 라운드: <strong>${escHtml(win)} 승리!</strong> · 라이어는 <strong>${nameText(r.liarName)}</strong>님이었습니다`,
       `진짜 제시어 "${escHtml(r.realWord)}"`,
+      // 바보형에서만 — 라이어가 진짜인 줄 알고 받았던 낱말
+      r.fakeWord ? `라이어가 받은 가짜 제시어 "${escHtml(r.fakeWord)}"` : null,
       r.liarGuess ? `라이어가 작성한 답 "${escHtml(r.liarGuess)}"` : null,
     ].filter(Boolean).join('<br>');
+  }
+
+  // 바보형에서는 방장이 진행자라 참가자에서 빠진다 (서버 participantsOf 와 같은 규칙)
+  function participantsOf(state) {
+    return state.liarMode === 'unaware' ? state.players.filter(p => !p.isHost) : state.players;
   }
 
   // ── Render waiting ───────────────────────────────────────────────────────
@@ -223,6 +236,15 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
       myId, socket, playerListEl, btnReady, btnStart, waitingHint,
       avatarIcons: AVATAR_ICONS, playerAvatarEmojis, nameHtml, minPlayers: 3,
     });
+
+    // ── 라이어 유형 (모두에게 안내, 변경은 방장만) ─────────────────────────
+    const mode = state.liarMode === 'unaware' ? 'unaware' : 'aware';
+    modeBadge.innerHTML = mode === 'unaware'
+      ? '🤡 <strong>바보형</strong> — 라이어도 자신이 라이어인 줄 모릅니다. 방장이 진짜·가짜 제시어를 내고 진행만 맡습니다'
+      : '🕵️ <strong>인지형</strong> — 라이어는 자신이 라이어인 것만 알고 제시어는 모릅니다. 제시어는 자동 배정되고 방장도 함께 플레이합니다';
+    modeSettings.style.display = amHost ? '' : 'none';
+    if (document.activeElement !== modeSelect) modeSelect.value = mode;
+    wordInputsWrap.style.display = (amHost && mode === 'unaware') ? '' : 'none';
 
     timeoutSettingsWrap.style.display = amHost ? '' : 'none';
     if (document.activeElement !== hintTimeoutSelect) {
@@ -249,7 +271,9 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
   function renderGame(state) {
     const phase        = state.state;
     const iAmHost       = state.players.find(p => p.id === myId)?.isHost ?? false;
-    const participants  = state.players;
+    const unaware       = state.liarMode === 'unaware';
+    // 바보형 방장은 진행자라 힌트·투표에서 빠지고, 관전자처럼 전원의 역할·제시어를 본다.
+    const participants  = participantsOf(state);
     const iAmParticipant = participants.some(p => p.id === myId);
 
     // ── 방장 '대기실로 나가기' ─────────────────────────────────────────────
@@ -258,23 +282,29 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
     const inRound = phase === 'hint' || phase === 'voteContinue' || phase === 'voteLiar' ||
                     phase === 'defense' || phase === 'confirmAccuse' || phase === 'liarGuess';
 
-    // ── 내 역할·제시어 (참가자 전용 — 방장도 이제 참가자다) ─────────────────
+    // ── 내 역할·제시어 (참가자 전용) ────────────────────────────────────────
+    // 바보형 라이어에게는 서버가 시민으로 위장해 보내므로 여기서 갈릴 일이 없다.
+    // role === 'liar' 로 내려오는 순간은 정체가 들킨 뒤(liarGuess)뿐이다.
     if (inRound && !isSpectator && liarState.me) {
-      myWordEl.innerHTML = liarState.me.role === 'liar'
-        ? `당신은 <strong>라이어</strong>입니다! 제시어를 모릅니다 — 힌트를 듣고 눈치껏 넘어가세요`
-        : `내 제시어 <strong>"${escHtml(liarState.me.word)}"</strong>`;
+      if (liarState.me.role !== 'liar') {
+        myWordEl.innerHTML = `내 제시어 <strong>"${escHtml(liarState.me.word)}"</strong>`;
+      } else if (unaware) {
+        myWordEl.innerHTML = `사실 당신이 <strong>라이어</strong>였습니다! 받은 제시어 "${escHtml(liarState.me.word ?? '')}"는 가짜였어요`;
+      } else {
+        myWordEl.innerHTML = `당신은 <strong>라이어</strong>입니다! 제시어를 모릅니다 — 힌트를 듣고 눈치껏 넘어가세요`;
+      }
       myWordEl.style.display = '';
     } else {
       myWordEl.style.display = 'none';
     }
 
-    // ── 관전자 전용 전체 공개 패널 (방장도 이제 참가자이므로 역할을 모른다) ──
-    if (inRound && isSpectator && liarState.all) {
+    // ── 전체 공개 패널 (관전자 + 바보형 방장 — 서버가 all 을 보내준 뷰어) ────
+    if (inRound && liarState.all) {
       revealPanel.innerHTML = liarState.all.map(p => `
         <div class="liar-reveal-row${p.role === 'liar' ? ' is-liar' : ''}">
           <span class="liar-reveal-name">${nameHtml(p.name)}</span>
           <span class="liar-reveal-role">${p.role === 'liar' ? '🕵️ 라이어' : '🙂 시민'}</span>
-          <span class="liar-reveal-word">${p.word ? `"${escHtml(p.word)}"` : '(제시어 모름)'}</span>
+          <span class="liar-reveal-word">${p.word ? `"${escHtml(p.word)}"${(unaware && p.role === 'liar') ? ' (가짜)' : ''}` : '(제시어 모름)'}</span>
         </div>`).join('');
       revealPanel.style.display = '';
     } else {
@@ -427,6 +457,9 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
 
   let startedToastTimer = null;
   socket.on('game_started', () => {
+    // 다음 라운드에 지난 제시어가 남아 있지 않게 비운다 (바보형은 라운드마다 새로 입력)
+    realWordInput.value = '';
+    fakeWordInput.value = '';
     startedToast.style.display = '';
     startedToast.classList.remove('flash'); void startedToast.offsetWidth; startedToast.classList.add('flash');
     clearTimeout(startedToastTimer);
@@ -481,7 +514,12 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
       : `🙂 시민 승리! 라이어는 ${nameText(liarName)}님이었습니다.`);
   });
 
-  socket.on('round_cancelled', () => appendSystemMessage('⚠️ 라이어가 나가서 이번 라운드는 무효 처리됩니다.'));
+  socket.on('round_cancelled', ({ reason } = {}) => {
+    const msg = reason === 'host'   ? '⚠️ 제시어를 낸 방장이 나가서 이번 라운드는 무효 처리됩니다.'
+              : reason === 'tooFew' ? '⚠️ 참가자가 부족해져 이번 라운드는 무효 처리됩니다.'
+              : '⚠️ 라이어가 나가서 이번 라운드는 무효 처리됩니다.';
+    appendSystemMessage(msg);
+  });
 
   socket.on('error_msg', ({ message }) => showError(message));
 
@@ -505,7 +543,23 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
   });
 
   btnReady.addEventListener('click', () => socket.emit('toggle_ready'));
-  btnStart.addEventListener('click', () => socket.emit('start_game'));
+
+  // 바보형에서는 방장이 낸 진짜·가짜 제시어를 시작할 때 함께 보낸다
+  // (대기실 상태에 미리 담아두면 다른 참가자에게 새어 나간다).
+  btnStart.addEventListener('click', () => {
+    if (roomState?.liarMode !== 'unaware') return socket.emit('start_game');
+
+    const realWord = realWordInput.value.trim();
+    const fakeWord = fakeWordInput.value.trim();
+    if (!realWord) { showError('진짜 제시어를 입력해주세요.'); realWordInput.focus(); return; }
+    if (!fakeWord) { showError('가짜 제시어를 입력해주세요.'); fakeWordInput.focus(); return; }
+    if (realWord === fakeWord) { showError('진짜 제시어와 가짜 제시어가 서로 달라야 합니다.'); fakeWordInput.focus(); return; }
+    socket.emit('start_game', { realWord, fakeWord });
+  });
+
+  modeSelect.addEventListener('change', () => {
+    socket.emit('set_liar_mode', { mode: modeSelect.value });
+  });
 
   $('btn-toggle-spectator').addEventListener('click', () => socket.emit('toggle_spectator_allowed'));
 

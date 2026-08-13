@@ -2,11 +2,20 @@ import { createRoomManager } from '../../shared/roomManager.js';
 import { LIAR_MAX_PLAYERS, LIAR_MIN_PLAYERS, LIAR_HINT_TIMEOUT, LIAR_DEFENSE_TIMEOUT, LIAR_GUESS_TIMEOUT } from '../../config.js';
 
 /**
- * 라이어 게임 — 방장도 끝말잇기처럼 참가자로 함께 플레이한다(진행 전용 역할 없음).
- * 매 라운드 시작 시 전원 중 한 명이 무작위로 라이어가 되어 **제시어를 받지 못한 채**
- * (자신이 라이어라는 사실만 안다) 힌트를 내야 하고, 나머지는 진짜 제시어를 받는다.
- * 제시어는 방장이 입력하지 않고 자모 워들의 낱말 사전(jamoWords.js WORD_LIST)에서
- * 자동으로 무작위 배정한다. room.state 로 라운드 진행 단계를 표현한다:
+ * 라이어 게임 — 라이어 유형(room.liarMode)을 방장이 대기실에서 고른다.
+ *
+ *  · 인지형(aware, 기본) — 방장도 끝말잇기처럼 참가자로 함께 플레이한다(진행 전용 역할 없음).
+ *    라운드 시작 시 전원 중 한 명이 무작위로 라이어가 되어 **제시어를 받지 못한 채**
+ *    (자신이 라이어라는 사실만 안다) 힌트를 내야 하고, 나머지는 진짜 제시어를 받는다.
+ *    제시어는 방장이 입력하지 않고 자모 워들의 낱말 사전(jamoWords.js WORD_LIST)에서
+ *    자동으로 무작위 배정한다.
+ *  · 바보형(unaware) — 라이어도 자신이 라이어인 줄 모른다. 라이어에게는 진짜 대신
+ *    **가짜 제시어**가 진짜인 것처럼 전달된다. 두 낱말은 방장이 직접 입력하므로
+ *    (자동으로 뽑으면 서로 무관한 낱말이 걸려 첫 힌트에서 티가 난다) 제시어를 아는
+ *    방장은 자모 워들처럼 **진행자로 빠진다** — 힌트·투표·전적에서 모두 제외된다.
+ *    그래서 최소 인원도 방장을 뺀 참가자 기준(= 방 인원 LIAR_MIN_PLAYERS + 1)이다.
+ *
+ * room.state 로 라운드 진행 단계를 표현한다:
  *
  *   lobby(대기실, 전원 준비 → 방장이 게임 시작) → hint(순서대로 힌트) →
  *   voteContinue(한 바퀴 더 vs 라이어 지목) → [voteLiar(지목 투표) → defense(최후 반론)
@@ -14,14 +23,26 @@ import { LIAR_MAX_PLAYERS, LIAR_MIN_PLAYERS, LIAR_HINT_TIMEOUT, LIAR_DEFENSE_TIM
  *   → 다시 lobby(결과·직전 라운드 힌트 기록 공개, 전원 재준비 대기)
  *
  * 참가자의 역할(role)·제시어(word)는 뷰어별로 감춰야 하므로 safeState 에는 넣지 않고
- * socket.js 의 emitLiarState 가 개인화된 이벤트로 따로 보낸다(관전자만 전원 공개로 봄,
- * 방장도 이제 참가자이므로 자신의 역할만 본다).
+ * socket.js 의 emitLiarState 가 개인화된 이벤트로 따로 보낸다(관전자와 바보형 방장만
+ * 전원 공개로 보고, 참가자는 자신의 역할만 본다 — 바보형 라이어에게는 그 '자신의 역할'
+ * 마저 시민으로 위장해서 내려간다).
  *
  * 투표 집계(votesIn/votesNeeded)는 재접속 유예 중(disconnected)인 사람을 분모에서
  * 뺀다 — 안 그러면 끊긴 사람 몫만큼 영원히 채워지지 않아 투표가 멈춘 것처럼 보인다.
  */
+
+/** 이번 라운드를 실제로 플레이하는 사람 (바보형에서는 진행자인 방장이 빠진다) */
+function participantsOf(room) {
+  return room.liarMode === 'unaware' ? room.players.filter(p => !p.isHost) : room.players;
+}
+
 function activeParticipants(room) {
-  return room.players.filter(p => !p.disconnected);
+  return participantsOf(room).filter(p => !p.disconnected);
+}
+
+/** 게임을 시작할 수 있는 방 인원 — 바보형은 진행자(방장) 한 자리가 더 필요하다 */
+function minPlayersFor(room) {
+  return room.liarMode === 'unaware' ? LIAR_MIN_PLAYERS + 1 : LIAR_MIN_PLAYERS;
 }
 
 const manager = createRoomManager({
@@ -31,7 +52,9 @@ const manager = createRoomManager({
     hintTimeout:      LIAR_HINT_TIMEOUT,    // 방장이 대기실에서 조절 가능 (초)
     defenseTimeout:   LIAR_DEFENSE_TIMEOUT, // 〃 최후 반론 제한시간 (초)
     guessTimeout:     LIAR_GUESS_TIMEOUT,   // 〃 라이어 정답 제한시간 (초)
+    liarMode:         'aware', // 'aware'(인지형: 라이어가 자기 정체를 안다) | 'unaware'(바보형: 모른다) — 방장이 대기실에서 변경
     realWord:         '',
+    fakeWord:         '',   // 바보형에서 라이어에게 진짜인 것처럼 건네는 가짜 제시어 (방장 입력)
     liarId:           null,
     turnOrder:        [],   // 참가자 id 배열 (라운드 시작 시 무작위 셔플, 시계방향 순서)
     currentTurnIndex: 0,
@@ -60,7 +83,9 @@ const manager = createRoomManager({
                     : room.state === 'confirmAccuse'  ? room.confirmVotes
                     : null;
     return {
-      minPlayers:     LIAR_MIN_PLAYERS,
+      // 제시어(realWord/fakeWord)는 어떤 경우에도 safeState 에 싣지 않는다.
+      minPlayers:     minPlayersFor(room),
+      liarMode:       room.liarMode,
       hintTimeout:    room.hintTimeout,
       defenseTimeout: room.defenseTimeout,
       guessTimeout:   room.guessTimeout,
@@ -105,6 +130,8 @@ const manager = createRoomManager({
   onPlayerLeave: (room, socketId) => {
     const wasLiar        = room.liarId      === socketId;
     const wasCurrentTurn = room.currentTurn === socketId;
+    // 바보형에서 진행자(방장)가 나가면 제시어를 아는 사람이 없어져 라운드가 성립하지 않는다.
+    const wasHost        = !!room.players.find(p => p.id === socketId)?.isHost;
     room.turnOrder = room.turnOrder.filter(id => id !== socketId);
     delete room.continueVotes[socketId];
     delete room.confirmVotes[socketId];
@@ -112,10 +139,11 @@ const manager = createRoomManager({
     for (const [voter, target] of Object.entries(room.accuseVotes)) {
       if (target === socketId) delete room.accuseVotes[voter];
     }
-    return { wasLiar, wasCurrentTurn };
+    return { wasLiar, wasCurrentTurn, wasHost };
   },
   resetGameState: (room) => {
     room.realWord         = '';
+    room.fakeWord         = '';
     room.liarId           = null;
     room.turnOrder        = [];
     room.currentTurnIndex = 0;
@@ -136,5 +164,5 @@ const manager = createRoomManager({
 });
 
 export const { rooms, createRoom, getRoomOf, getRoomOfSpectator, getRooms, safeState, removePlayer, removeSpectator } = manager;
-export { activeParticipants };
+export { participantsOf, activeParticipants, minPlayersFor };
 export { manager };
