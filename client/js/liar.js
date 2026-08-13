@@ -15,6 +15,7 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
   let amHost      = false;
   let isSpectator = false;
   let hintTime    = 15; // 방장이 조절 가능. state.hintTimeout으로 매번 갱신
+  let voteTime    = 30; // 〃 state.voteTimeout으로 매번 갱신 (투표 3단계 공용)
   let defenseTime = 60; // 〃 state.defenseTimeout으로 매번 갱신
   let guessTime   = 30; // 〃 state.guessTimeout으로 매번 갱신
   // 개인화 상태(liar_state): 참가자는 { me: { role, word } }, 방장·관전자는 { all: [{ id,name,role,word }] }
@@ -40,6 +41,7 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
   const fakeWordInput  = $('liar-fake-word');
   const timeoutSettingsWrap = $('liar-timeout-settings');
   const hintTimeoutSelect     = $('liar-hint-timeout-select');
+  const voteTimeoutSelect     = $('liar-vote-timeout-select');
   const defenseTimeoutSelect  = $('liar-defense-timeout-select');
   const guessTimeoutSelect    = $('liar-guess-timeout-select');
 
@@ -55,6 +57,9 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
   const hintLog        = $('liar-hint-log');
   const hintForm       = $('liar-hint-form');
   const hintInput      = $('liar-hint-input');
+  const voteTimerWrap  = $('liar-vote-timer-wrap');
+  const voteTimerBar   = $('liar-vote-timer-bar');
+  const voteTimerNum   = $('liar-vote-timer-num');
   const voteContinueEl = $('liar-vote-continue');
   const voteAccuseBtn  = $('liar-vote-accuse');
   const voteMoreBtn    = $('liar-vote-more');
@@ -119,6 +124,7 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
       screens.game.classList.remove('is-spectating');
       roomState = null;
       stopTimer();
+      stopVoteTimer();
       stopDefenseTimer();
       stopGuessTimer();
       showScreen('lobby');
@@ -150,6 +156,29 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
     };
     tick();
     timerInterval = setInterval(tick, 100);
+  }
+
+  // ── 투표 타이머 (세 투표 단계 공용. 시간이 끝나면 서버가 낸 표로 집계한다) ──
+  let voteInterval = null;
+
+  function stopVoteTimer() {
+    clearInterval(voteInterval);
+    voteInterval = null;
+    voteTimerWrap.style.display = 'none';
+  }
+
+  function startVoteTimer(deadline) {
+    clearInterval(voteInterval);
+    voteTimerWrap.style.display = 'flex';
+    const tick = () => {
+      const rem = Math.max(0, deadline - Date.now());
+      voteTimerNum.textContent = Math.ceil(rem / 1000);
+      voteTimerBar.style.width = `${Math.min(100, (rem / (voteTime * 1000)) * 100)}%`;
+      voteTimerBar.classList.toggle('urgent', rem <= 5000);
+      if (rem <= 0) clearInterval(voteInterval);
+    };
+    tick();
+    voteInterval = setInterval(tick, 100);
   }
 
   // ── 최후 반론 타이머 (방장이 조절 가능. state.defenseTimeout으로 매번 갱신) ──
@@ -250,6 +279,9 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
     if (document.activeElement !== hintTimeoutSelect) {
       hintTimeoutSelect.value = String(state.hintTimeout ?? 15);
     }
+    if (document.activeElement !== voteTimeoutSelect) {
+      voteTimeoutSelect.value = String(state.voteTimeout ?? 30);
+    }
     if (document.activeElement !== defenseTimeoutSelect) {
       defenseTimeoutSelect.value = String(state.defenseTimeout ?? 60);
     }
@@ -291,7 +323,11 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
       } else if (unaware) {
         myWordEl.innerHTML = `사실 당신이 <strong>라이어</strong>였습니다! 받은 제시어 "${escHtml(liarState.me.word ?? '')}"는 가짜였어요`;
       } else {
-        myWordEl.innerHTML = `당신은 <strong>라이어</strong>입니다! 제시어를 모릅니다 — 힌트를 듣고 눈치껏 넘어가세요`;
+        // 인지형 라이어는 제시어 대신 카테고리만 받는다
+        const cat = liarState.me.category
+          ? ` 제시어는 <strong>${escHtml(liarState.me.category)}</strong> 갈래입니다 — 눈치껏 힌트를 내세요`
+          : ` 제시어를 모릅니다 — 힌트를 듣고 눈치껏 넘어가세요`;
+        myWordEl.innerHTML = `당신은 <strong>라이어</strong>입니다!${cat}`;
       }
       myWordEl.style.display = '';
     } else {
@@ -304,7 +340,9 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
         <div class="liar-reveal-row${p.role === 'liar' ? ' is-liar' : ''}">
           <span class="liar-reveal-name">${nameHtml(p.name)}</span>
           <span class="liar-reveal-role">${p.role === 'liar' ? '🕵️ 라이어' : '🙂 시민'}</span>
-          <span class="liar-reveal-word">${p.word ? `"${escHtml(p.word)}"${(unaware && p.role === 'liar') ? ' (가짜)' : ''}` : '(제시어 모름)'}</span>
+          <span class="liar-reveal-word">${p.word
+            ? `"${escHtml(p.word)}"${(unaware && p.role === 'liar') ? ' (가짜)' : ''}`
+            : (p.category ? `카테고리 힌트 "${escHtml(p.category)}"` : '(제시어 모름)')}</span>
         </div>`).join('');
       revealPanel.style.display = '';
     } else {
@@ -349,6 +387,11 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
     // ── 타이머 ─────────────────────────────────────────────────────────────
     if (phase === 'hint' && state.turnDeadline) startTimer(state.turnDeadline);
     else stopTimer();
+
+    // ── 투표 타이머 (세 투표 단계 공용) ────────────────────────────────────
+    const votingPhase = phase === 'voteContinue' || phase === 'voteLiar' || phase === 'confirmAccuse';
+    if (votingPhase && state.voteDeadline) startVoteTimer(state.voteDeadline);
+    else stopVoteTimer();
 
     // ── 투표 1: 지목 vs 한 바퀴 더 (현황은 방장·관전자도, 버튼은 참가자만) ──────
     voteContinueEl.style.display = (phase === 'voteContinue' && !isSpectator) ? '' : 'none';
@@ -418,6 +461,7 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
     roomState = state;
     if (state.hintTimeout)    hintTime    = state.hintTimeout;
     if (state.defenseTimeout) defenseTime = state.defenseTimeout;
+    if (state.voteTimeout)    voteTime    = state.voteTimeout;
     if (state.guessTimeout)   guessTime   = state.guessTimeout;
     if (isSpectator) {
       if (state.state === 'lobby') {
@@ -431,6 +475,7 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
     }
     if (state.state === 'lobby') {
       stopTimer();
+      stopVoteTimer();
       showScreen('waiting');
       renderWaiting(state);
     } else {
@@ -467,7 +512,8 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
   });
 
   let tieBannerTimer = null;
-  function flashTieBanner() {
+  function flashTieBanner(text) {
+    tieBanner.textContent = text ?? '🤔 투표가 동률이에요! 다시 투표해주세요';
     tieBanner.style.display = '';
     tieBanner.classList.remove('flash'); void tieBanner.offsetWidth; tieBanner.classList.add('flash');
     clearTimeout(tieBannerTimer);
@@ -476,6 +522,10 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
 
   socket.on('liar_vote_result', ({ result }) => {
     if (result === 'tie') { appendSystemMessage('🤔 투표가 동률이라 다시 투표합니다.'); flashTieBanner(); }
+    else if (result === 'timeout') {
+      appendSystemMessage('⏰ 투표 시간이 끝났는데 결론이 나지 않아 지목 없이 한 바퀴 더 돕니다.');
+      flashTieBanner('⏰ 투표 시간 종료! 결론이 나지 않아 한 바퀴 더 돕니다');
+    }
     else if (result === 'accuse') appendSystemMessage('👉 과반이 라이어 지목에 찬성했습니다.');
     else if (result === 'continue') appendSystemMessage('🔁 한 바퀴 더 돕니다.');
     else if (result === 'proceed') appendSystemMessage('👉 지목을 그대로 진행합니다.');
@@ -531,7 +581,7 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
   });
 
   socket.on('alone_in_room', ({ message }) => {
-    showAloneOverlay(message, () => { stopTimer(); stopDefenseTimer(); stopGuessTimer(); });
+    showAloneOverlay(message, () => { stopTimer(); stopVoteTimer(); stopDefenseTimer(); stopGuessTimer(); });
   });
 
   // ── UI event listeners ────────────────────────────────────────────────────
@@ -565,6 +615,9 @@ import { initStatsDockButton, refreshStatsIfOpen } from './shared/statsModal.js'
 
   hintTimeoutSelect.addEventListener('change', () => {
     socket.emit('set_hint_timeout', { seconds: parseInt(hintTimeoutSelect.value, 10) });
+  });
+  voteTimeoutSelect.addEventListener('change', () => {
+    socket.emit('set_vote_timeout', { seconds: parseInt(voteTimeoutSelect.value, 10) });
   });
   defenseTimeoutSelect.addEventListener('change', () => {
     socket.emit('set_defense_timeout', { seconds: parseInt(defenseTimeoutSelect.value, 10) });

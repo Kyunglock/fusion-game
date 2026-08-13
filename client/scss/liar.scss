@@ -309,8 +309,9 @@
   50%       { box-shadow: 0 0 36px rgba(74, 184, 102, 0.85); }
 }
 
-// ── 힌트 타이머 ────────────────────────────────────────────────────────────────
-#liar-timer-wrap {
+// ── 힌트 타이머 (투표 타이머도 같은 모양을 쓴다) ───────────────────────────────
+#liar-timer-wrap,
+#liar-vote-timer-wrap {
   width: 100%;
   max-width: 600px;
   display: flex;
@@ -318,7 +319,10 @@
   gap: 10px;
 }
 
-#liar-timer-track {
+#liar-vote-timer-wrap { margin-bottom: -4px; }
+
+#liar-timer-track,
+#liar-vote-timer-track {
   flex: 1;
   height: 12px;
   background: var(--bg);
