@@ -309,8 +309,9 @@
   50%       { box-shadow: 0 0 36px rgba(74, 184, 102, 0.85); }
 }
 
-// ── 힌트 타이머 ────────────────────────────────────────────────────────────────
-#liar-timer-wrap {
+// ── 힌트 타이머 (투표 타이머도 같은 모양을 쓴다) ───────────────────────────────
+#liar-timer-wrap,
+#liar-vote-timer-wrap {
   width: 100%;
   max-width: 600px;
   display: flex;
@@ -318,7 +319,10 @@
   gap: 10px;
 }
 
-#liar-timer-track {
+#liar-vote-timer-wrap { margin-bottom: -4px; }
+
+#liar-timer-track,
+#liar-vote-timer-track {
   flex: 1;
   height: 12px;
   background: var(--bg);
@@ -999,6 +1003,22 @@
   .card { padding: 22px 18px; }
   #chat-panel { width: 280px; }
   #liar-hint-form button { padding: 12px 18px; }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 모바일 하단 고정 위젯 회피
+// 채팅 FAB(좌하단)·접속자/테마/흐리기 도크(우하단)가 화면 맨 아래 버튼을 덮어
+// '나가기' 탭이 위젯에 먹히던 문제 → 화면 아래에 위젯 높이만큼 여백을 확보한다.
+// 도크 높이는 themeManager 가 --pg-dock-space 로 측정해 준다(필이 줄바꿈되면 커짐).
+// 채팅 FAB 은 52px + bottom 20px = 72px 로 고정이라 상수로 둔다.
+// (자모 워들에 먼저 넣은 것과 같은 처리)
+// ══════════════════════════════════════════════════════════════════════════════
+@media (max-width: 500px) {
+  #screen-lobby,
+  #screen-waiting,
+  #screen-game {
+    padding-bottom: calc(max(var(--pg-dock-space, 56px), 72px) + 10px);
+  }
 }
 
 // ── 관전 모드: 입력 폼 숨김 ───────────────────────────────────────────────────

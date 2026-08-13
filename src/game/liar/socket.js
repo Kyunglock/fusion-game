@@ -1,8 +1,11 @@
 import { rooms, getRoomOf, safeState, removePlayer, removeSpectator, manager, participantsOf, activeParticipants } from './rooms.js';
-import { LIAR_MIN_PLAYERS, LIAR_HINT_TIMEOUT, LIAR_DEFENSE_TIMEOUT, LIAR_GUESS_TIMEOUT, LIAR_RECONNECT_GRACE_MS } from '../../config.js';
+import { LIAR_MIN_PLAYERS, LIAR_HINT_TIMEOUT, LIAR_DEFENSE_TIMEOUT, LIAR_GUESS_TIMEOUT, LIAR_VOTE_TIMEOUT, LIAR_RECONNECT_GRACE_MS } from '../../config.js';
 import { registerCommonHandlers } from '../../shared/socketHandlers.js';
 import { recordPlayers } from '../../db/stats.js';
-import { WORD_LIST } from '../../../client/js/jamoWords.js';
+// 인지형 제시어는 캐치마인드 사전을 재사용한다 — 낱말마다 카테고리가 붙어 있어
+// 라이어에게 '동물'·'음식' 같은 힌트를 줄 수 있고, 전부 눈에 보이는 사물이라
+// 힌트를 내기도 좋다(자모 워들 사전은 '희망'·'역사' 같은 추상어까지 섞여 있다).
+import { ALL_WORDS, categoryOf } from '../catchmind/words.js';
 
 // ── 뷰어별 개인화 상태 전송 ──────────────────────────────────────────────────
 // 참가자는 자신의 역할·제시어만 보고, 관전자와 바보형 방장(진행자)만 참가자 전원의
@@ -12,7 +15,15 @@ import { WORD_LIST } from '../../../client/js/jamoWords.js';
 //     감추는 것은 서버에서 끝내야 한다(플래그만 보내고 화면에서 가리면 개발자 도구로 다 보인다).
 function selfView(room, p) {
   const disguised = room.liarMode === 'unaware' && p.role === 'liar' && room.state !== 'liarGuess';
-  return { role: disguised ? 'citizen' : p.role, word: p.word };
+  return { role: disguised ? 'citizen' : p.role, word: p.word, ...liarHint(room, p) };
+}
+
+// 인지형 라이어에게만 주는 카테고리 힌트 — 제시어를 아예 모른 채 힌트를 지어내는 것은
+// 너무 불리해서, 낱말이 어느 갈래인지(동물·음식 …)까지만 알려준다.
+// 시민에게는 붙이지 않는다(어차피 제시어를 알고 있어 의미가 없다).
+function liarHint(room, p) {
+  if (p.role !== 'liar' || room.liarMode !== 'aware' || !room.wordCategory) return {};
+  return { category: room.wordCategory };
 }
 
 function emitLiarState(io, room) {
@@ -30,7 +41,7 @@ function emitLiarState(io, room) {
   viewers.forEach(viewerId => {
     if (privileged.has(viewerId)) {
       io.to(viewerId).emit('liar_state', {
-        all: inRound ? participants.map(p => ({ id: p.id, name: p.name, role: p.role, word: p.word })) : [],
+        all: inRound ? participants.map(p => ({ id: p.id, name: p.name, role: p.role, word: p.word, ...liarHint(room, p) })) : [],
       });
     } else {
       const me = participants.find(p => p.id === viewerId);
@@ -50,14 +61,20 @@ function shuffled(arr) {
   return a;
 }
 
-// ── 타이머 관리 (힌트 제출 · 최후 반론 · 라이어 정답 제한시간) ────────────────
+// ── 타이머 관리 (힌트 제출 · 투표 · 최후 반론 · 라이어 정답 제한시간) ─────────
 const hintTimers    = new Map();
+const voteTimers    = new Map();
 const defenseTimers = new Map();
 const guessTimers   = new Map();
 
 function clearHintTimer(code) {
   clearTimeout(hintTimers.get(code));
   hintTimers.delete(code);
+}
+
+function clearVoteTimer(code) {
+  clearTimeout(voteTimers.get(code));
+  voteTimers.delete(code);
 }
 
 function clearDefenseTimer(code) {
@@ -72,8 +89,38 @@ function clearGuessTimer(code) {
 
 function clearAllTimers(code) {
   clearHintTimer(code);
+  clearVoteTimer(code);
   clearDefenseTimer(code);
   clearGuessTimer(code);
+}
+
+// ── 투표 제한시간 ─────────────────────────────────────────────────────────────
+// 세 투표(voteContinue/voteLiar/confirmAccuse) 공통. 한 명이 자리를 비우면 투표가
+// 영원히 채워지지 않아 판이 멈추므로 시간을 두고, 시간이 끝나면 **그때까지 낸 표만으로**
+// 집계한다(안 낸 사람은 기권). 표가 갈리거나 하나도 없으면 그 단계에서 아무것도
+// 결정되지 않은 것으로 보고 힌트를 한 바퀴 더 돈다 — 재투표로 두면 아무도 없는 방에서
+// 무한히 되풀이된다.
+// 예외는 confirmAccuse(그대로 진행 vs 철회) 하나 — 이미 과반이 지목까지 해 놓은
+// 단계라, 시간이 끝나면 무르지 않고 그대로 진행한다(tallyConfirmVotesIfReady 참고).
+function startVoteTimer(io, room) {
+  clearVoteTimer(room.code);
+  const timeoutMs = (room.voteTimeout || LIAR_VOTE_TIMEOUT) * 1000;
+  room.voteDeadline = Date.now() + timeoutMs;
+  io.to(room.code).emit('room_update', safeState(room));
+
+  voteTimers.set(room.code, setTimeout(() => {
+    const r = rooms.get(room.code);
+    if (!r) return;
+    if      (r.state === 'voteContinue')  tallyContinueVotesIfReady(io, r, true);
+    else if (r.state === 'voteLiar')      tallyAccuseVotesIfReady(io, r, true);
+    else if (r.state === 'confirmAccuse') tallyConfirmVotesIfReady(io, r, true);
+  }, timeoutMs));
+}
+
+// 시간이 끝났는데 결론이 나지 않은 경우 — 지목 없이 한 바퀴 더 돈다.
+function voteTimedOut(io, room) {
+  io.to(room.code).emit('liar_vote_result', { result: 'timeout' });
+  backToHint(io, room);
 }
 
 function startHintTimer(io, room) {
@@ -101,70 +148,85 @@ function advanceTurn(io, room) {
     room.currentTurn   = null;
     room.turnDeadline  = null;
     room.continueVotes = {};
-    io.to(room.code).emit('room_update', safeState(room));
+    startVoteTimer(io, room); // room_update 브로드캐스트 포함
     return;
   }
   room.currentTurn = room.turnOrder[room.currentTurnIndex];
   startHintTimer(io, room);
 }
 
-// 한 바퀴를 다시 돈다 (한 바퀴 더 / 지목 철회 공통 처리)
+// 한 바퀴를 다시 돈다 (한 바퀴 더 / 지목 철회 / 투표 시간 초과 공통 처리)
 function backToHint(io, room) {
+  clearVoteTimer(room.code);
   room.state            = 'hint';
   room.currentTurnIndex = 0;
   room.currentTurn      = room.turnOrder[0];
   room.accusedId        = null;
+  room.voteDeadline     = null;
   startHintTimer(io, room);
 }
 
 // ── 투표 집계 ────────────────────────────────────────────────────────────────
-function tallyContinueVotesIfReady(io, room) {
+// force=true 는 제한시간이 끝나 그때까지 낸 표만으로 집계하는 경우다(안 낸 사람은 기권).
+// 전원이 냈을 때는 '많이 나온 쪽'과 '과반'이 같은 뜻이라, 기권을 뺀 득표 비교로 통일한다.
+function tallyContinueVotesIfReady(io, room, force = false) {
   const participants = activeParticipants(room);
-  if (Object.keys(room.continueVotes).length < participants.length) {
+  const votes        = Object.values(room.continueVotes);
+  if (!force && votes.length < participants.length) {
     io.to(room.code).emit('room_update', safeState(room));
     return;
   }
 
-  const accuseCount   = Object.values(room.continueVotes).filter(v => v === 'accuse').length;
-  const continueCount = participants.length - accuseCount;
+  const accuseCount   = votes.filter(v => v === 'accuse').length;
+  const continueCount = votes.filter(v => v === 'continue').length;
 
-  if (accuseCount * 2 > participants.length) {
+  if (accuseCount > continueCount) {
+    clearVoteTimer(room.code);
     room.state       = 'voteLiar';
     room.accuseVotes = {};
     io.to(room.code).emit('liar_vote_result', { result: 'accuse', accuseCount, continueCount });
-    io.to(room.code).emit('room_update', safeState(room));
-  } else if (continueCount * 2 > participants.length) {
+    startVoteTimer(io, room);
+  } else if (continueCount > accuseCount) {
     io.to(room.code).emit('liar_vote_result', { result: 'continue', accuseCount, continueCount });
     backToHint(io, room);
+  } else if (force) {
+    voteTimedOut(io, room);
   } else {
-    // 동률 — 재투표
+    // 동률 — 재투표 (제한시간도 다시 준다)
     room.continueVotes = {};
     io.to(room.code).emit('liar_vote_result', { result: 'tie', accuseCount, continueCount });
-    io.to(room.code).emit('room_update', safeState(room));
+    startVoteTimer(io, room);
   }
 }
 
-function tallyAccuseVotesIfReady(io, room) {
+function tallyAccuseVotesIfReady(io, room, force = false) {
   const participants = activeParticipants(room);
-  if (Object.keys(room.accuseVotes).length < participants.length) {
+  const votes        = Object.values(room.accuseVotes);
+  if (!force && votes.length < participants.length) {
     io.to(room.code).emit('room_update', safeState(room));
     return;
   }
 
+  // 시간이 끝났는데 아무도 지목하지 않았으면 지목 없이 한 바퀴 더 돈다.
+  if (votes.length === 0) return voteTimedOut(io, room);
+
   const counts = new Map();
-  Object.values(room.accuseVotes).forEach(targetId => counts.set(targetId, (counts.get(targetId) || 0) + 1));
+  votes.forEach(targetId => counts.set(targetId, (counts.get(targetId) || 0) + 1));
   const max = Math.max(...counts.values());
   const topTargets = [...counts.entries()].filter(([, c]) => c === max).map(([id]) => id);
 
   if (topTargets.length > 1) {
-    // 동률 — 재투표
+    if (force) return voteTimedOut(io, room);
+    // 동률 — 재투표 (제한시간도 다시 준다)
     room.accuseVotes = {};
     io.to(room.code).emit('liar_vote_result', { result: 'tie' });
-    io.to(room.code).emit('room_update', safeState(room));
+    startVoteTimer(io, room);
     return;
   }
 
   const [accusedId] = topTargets;
+  clearVoteTimer(room.code);
+  room.voteDeadline = null;
   room.accusedId    = accusedId;
   room.defenseLines = [];
   const accused = room.players.find(p => p.id === accusedId);
@@ -193,30 +255,37 @@ function startConfirmVote(io, room) {
   room.state          = 'confirmAccuse';
   room.defenseDeadline = null;
   room.confirmVotes    = {};
-  io.to(room.code).emit('room_update', safeState(room));
+  startVoteTimer(io, room); // room_update 브로드캐스트 포함
 }
 
-function tallyConfirmVotesIfReady(io, room) {
+function tallyConfirmVotesIfReady(io, room, force = false) {
   const participants = activeParticipants(room);
-  if (Object.keys(room.confirmVotes).length < participants.length) {
+  const votes        = Object.values(room.confirmVotes);
+  if (!force && votes.length < participants.length) {
     io.to(room.code).emit('room_update', safeState(room));
     return;
   }
 
-  const proceedCount  = Object.values(room.confirmVotes).filter(v => v === 'proceed').length;
-  const withdrawCount = participants.length - proceedCount;
+  const proceedCount  = votes.filter(v => v === 'proceed').length;
+  const withdrawCount = votes.filter(v => v === 'withdraw').length;
 
-  if (proceedCount * 2 > participants.length) {
-    io.to(room.code).emit('liar_vote_result', { result: 'proceed' });
+  // 이 투표만은 시간이 끝났는데 결론이 안 나도(표가 갈리거나 아무도 안 냄) **그대로 진행**한다 —
+  // 이미 과반이 지목까지 해 놓은 단계라, 가만히 있었다고 지목이 무효가 되는 편이 더 뜻밖이다.
+  const timedOutProceed = force && proceedCount === withdrawCount;
+
+  if (proceedCount > withdrawCount || timedOutProceed) {
+    clearVoteTimer(room.code);
+    room.voteDeadline = null;
+    io.to(room.code).emit('liar_vote_result', { result: 'proceed', timedOut: timedOutProceed });
     resolveAccusation(io, room);
-  } else if (withdrawCount * 2 > participants.length) {
+  } else if (withdrawCount > proceedCount) {
     io.to(room.code).emit('liar_vote_result', { result: 'withdraw' });
     backToHint(io, room);
   } else {
-    // 동률 — 재투표
+    // 동률 — 재투표 (제한시간도 다시 준다)
     room.confirmVotes = {};
     io.to(room.code).emit('liar_vote_result', { result: 'tie' });
-    io.to(room.code).emit('room_update', safeState(room));
+    startVoteTimer(io, room);
   }
 }
 
@@ -251,17 +320,20 @@ function startGuessTimer(io, room) {
 }
 
 // ── 라운드 시작 (제시어 배정) ────────────────────────────────────────────────
-// 인지형: 자모 워들의 낱말 사전에서 무작위로 제시어를 뽑고, 참가자(방장 포함) 중 한 명을
-//        라이어로 정한다 — 라이어는 자신이 라이어라는 사실은 알지만(role) 제시어는 못 받는다.
+// 인지형: 캐치마인드 사전에서 무작위로 제시어를 뽑고, 참가자(방장 포함) 중 한 명을
+//        라이어로 정한다 — 라이어는 제시어 대신 그 낱말의 **카테고리**만 받는다.
 // 바보형: 방장이 넘긴 진짜/가짜 제시어를 쓰고 방장은 진행자로 빠진다. 라이어는 가짜 제시어를
 //        진짜인 줄 알고 받는다(자기가 라이어인 줄 모른다 — emitLiarState 의 selfView 참고).
 function assignNewRound(io, room, words = null) {
   const unaware      = room.liarMode === 'unaware';
   const participants = participantsOf(room);
-  const word      = unaware ? words.realWord : WORD_LIST[Math.floor(Math.random() * WORD_LIST.length)];
+  const word      = unaware ? words.realWord : ALL_WORDS[Math.floor(Math.random() * ALL_WORDS.length)];
   const turnOrder = shuffled(participants.map(p => p.id));
   const liarId    = turnOrder[Math.floor(Math.random() * turnOrder.length)];
 
+  // 방장이 낸 낱말은 사전 밖일 수 있으므로 카테고리가 없을 수 있다(바보형은 힌트도 없다).
+  const category = unaware ? null : categoryOf(word);
+  room.wordCategory = category ? `${category.emoji} ${category.label}` : null;
   room.realWord = word;
   room.fakeWord = unaware ? words.fakeWord : '';
   room.liarId   = liarId;
@@ -299,6 +371,7 @@ function cancelRound(room) {
   room.state            = 'lobby';
   room.realWord         = '';
   room.fakeWord         = '';
+  room.wordCategory     = null;
   room.liarId           = null;
   room.turnOrder        = [];
   room.currentTurnIndex = 0;
@@ -312,9 +385,11 @@ function cancelRound(room) {
   room.defenseDeadline  = null;
   room.defenseLines     = [];
   room.confirmVotes     = {};
+  room.voteDeadline     = null;
   room.guessDeadline    = null;
   room.lastResult       = null;
-  room.players.forEach(p => { p.ready = false; p.role = null; p.word = null; });
+  // 준비 상태는 유지한다 — 라운드를 이어서 도는 게임이라 매판 다시 누르게 하면 번거롭다.
+  room.players.forEach(p => { p.role = null; p.word = null; });
 }
 
 // liarGuess: 라이어가 실제로 제출한 답 (틀린 지목으로 라운드가 끝나 라이어가 답을
@@ -354,8 +429,11 @@ function endRound(io, room, winnerRole, liarGuess = null) {
   room.defenseDeadline = null;
   room.defenseLines    = [];
   room.confirmVotes    = {};
+  room.voteDeadline    = null;
   room.guessDeadline   = null;
-  room.players.forEach(p => { p.ready = false; p.role = null; p.word = null; });
+  // 준비 상태는 그대로 둔다 — 대기실로 돌아온 즉시 방장이 다음 라운드를 시작할 수 있게.
+  // (새로 들어온 사람만 준비를 눌러야 하고, 빠지고 싶으면 준비를 취소하면 된다)
+  room.players.forEach(p => { p.role = null; p.word = null; });
 
   io.to(room.code).emit('liar_result', room.lastResult);
   io.to(room.code).emit('room_update', safeState(room));
@@ -431,6 +509,18 @@ export function registerLiarHandlers(io, socket) {
     if (!Number.isFinite(value) || value < 10 || value > 120) return err('반론 제한시간은 10~120초 사이여야 합니다.');
 
     room.defenseTimeout = Math.round(value);
+    broadcast(room);
+  });
+
+  socket.on('set_vote_timeout', ({ seconds } = {}) => {
+    const room   = getRoomOf(socket.id);
+    const player = room?.players.find(p => p.id === socket.id);
+    if (!room || !player?.isHost) return;
+
+    const value = Number(seconds);
+    if (!Number.isFinite(value) || value < 10 || value > 120) return err('투표 제한시간은 10~120초 사이여야 합니다.');
+
+    room.voteTimeout = Math.round(value);
     broadcast(room);
   });
 

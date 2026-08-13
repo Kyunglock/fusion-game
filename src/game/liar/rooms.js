@@ -1,14 +1,14 @@
 import { createRoomManager } from '../../shared/roomManager.js';
-import { LIAR_MAX_PLAYERS, LIAR_MIN_PLAYERS, LIAR_HINT_TIMEOUT, LIAR_DEFENSE_TIMEOUT, LIAR_GUESS_TIMEOUT } from '../../config.js';
+import { LIAR_MAX_PLAYERS, LIAR_MIN_PLAYERS, LIAR_HINT_TIMEOUT, LIAR_DEFENSE_TIMEOUT, LIAR_GUESS_TIMEOUT, LIAR_VOTE_TIMEOUT } from '../../config.js';
 
 /**
  * 라이어 게임 — 라이어 유형(room.liarMode)을 방장이 대기실에서 고른다.
  *
  *  · 인지형(aware, 기본) — 방장도 끝말잇기처럼 참가자로 함께 플레이한다(진행 전용 역할 없음).
  *    라운드 시작 시 전원 중 한 명이 무작위로 라이어가 되어 **제시어를 받지 못한 채**
- *    (자신이 라이어라는 사실만 안다) 힌트를 내야 하고, 나머지는 진짜 제시어를 받는다.
- *    제시어는 방장이 입력하지 않고 자모 워들의 낱말 사전(jamoWords.js WORD_LIST)에서
- *    자동으로 무작위 배정한다.
+ *    (낱말의 카테고리만 힌트로 받는다) 힌트를 내야 하고, 나머지는 진짜 제시어를 받는다.
+ *    제시어는 방장이 입력하지 않고 캐치마인드 낱말 사전(catchmind/words.js)에서
+ *    자동으로 무작위 배정한다 — 낱말마다 카테고리가 붙어 있어 힌트를 줄 수 있다.
  *  · 바보형(unaware) — 라이어도 자신이 라이어인 줄 모른다. 라이어에게는 진짜 대신
  *    **가짜 제시어**가 진짜인 것처럼 전달된다. 두 낱말은 방장이 직접 입력하므로
  *    (자동으로 뽑으면 서로 무관한 낱말이 걸려 첫 힌트에서 티가 난다) 제시어를 아는
@@ -52,9 +52,11 @@ const manager = createRoomManager({
     hintTimeout:      LIAR_HINT_TIMEOUT,    // 방장이 대기실에서 조절 가능 (초)
     defenseTimeout:   LIAR_DEFENSE_TIMEOUT, // 〃 최후 반론 제한시간 (초)
     guessTimeout:     LIAR_GUESS_TIMEOUT,   // 〃 라이어 정답 제한시간 (초)
+    voteTimeout:      LIAR_VOTE_TIMEOUT,    // 〃 투표 3단계 공통 제한시간 (초)
     liarMode:         'aware', // 'aware'(인지형: 라이어가 자기 정체를 안다) | 'unaware'(바보형: 모른다) — 방장이 대기실에서 변경
     realWord:         '',
     fakeWord:         '',   // 바보형에서 라이어에게 진짜인 것처럼 건네는 가짜 제시어 (방장 입력)
+    wordCategory:     null, // 인지형 라이어에게만 주는 카테고리 힌트 ('🐾 동물')
     liarId:           null,
     turnOrder:        [],   // 참가자 id 배열 (라운드 시작 시 무작위 셔플, 시계방향 순서)
     currentTurnIndex: 0,
@@ -62,6 +64,7 @@ const manager = createRoomManager({
     turnDeadline:     null,
     hints:            [],   // [{ playerId, playerName, text, skipped }] — 라운드 시작 시에만 비우고, 라운드 종료 후에는 다음 라운드 시작 전까지 남겨둔다
     cycleCount:       0,    // 몇 바퀴를 돌았는지
+    voteDeadline:     null, // 투표 마감 시각 (세 투표 단계에서만 공개)
     continueVotes:    {},   // playerId → 'accuse' | 'continue'
     accuseVotes:      {},   // playerId → 지목한 대상 playerId
     accusedId:        null, // voteLiar 결과로 지목된 사람 (defense~liarGuess 단계에서 공개)
@@ -89,6 +92,8 @@ const manager = createRoomManager({
       hintTimeout:    room.hintTimeout,
       defenseTimeout: room.defenseTimeout,
       guessTimeout:   room.guessTimeout,
+      voteTimeout:    room.voteTimeout,
+      voteDeadline:   votesMap ? room.voteDeadline : null,
       // 힌트 기록·직전 결과는 그 자체로 비밀 정보가 아니며, 다음 라운드가 시작될 때
       // (assignNewRound) 비워지므로 언제 내려줘도 안전하다 — 대기실에서도 그대로 보인다.
       hints:        room.hints,
@@ -144,6 +149,7 @@ const manager = createRoomManager({
   resetGameState: (room) => {
     room.realWord         = '';
     room.fakeWord         = '';
+    room.wordCategory     = null;
     room.liarId           = null;
     room.turnOrder        = [];
     room.currentTurnIndex = 0;
@@ -151,6 +157,7 @@ const manager = createRoomManager({
     room.turnDeadline     = null;
     room.hints            = [];
     room.cycleCount       = 0;
+    room.voteDeadline     = null;
     room.continueVotes    = {};
     room.accuseVotes      = {};
     room.accusedId        = null;

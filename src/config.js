@@ -67,6 +67,7 @@ export const LIAR_RECONNECT_GRACE_MS = 60_000;
 export const LIAR_HINT_TIMEOUT    = 15; // 힌트 제출 제한시간 (초), 못 내면 힌트 없이 다음 차례로
 export const LIAR_DEFENSE_TIMEOUT = 60; // 라이어로 지목된 사람의 최후 반론 제한시간 (초). '반론 종료'로 조기 종료 가능
 export const LIAR_GUESS_TIMEOUT   = 30; // 라이어가 진짜 제시어를 맞힐 제한시간 (초), 못 내면 시민 승리
-// 위 세 시간은 모두 방장이 대기실에서 실시간으로 조절 가능 (set_hint_timeout/set_defense_timeout/set_guess_timeout)
+export const LIAR_VOTE_TIMEOUT    = 30; // 투표 3단계 공통 제한시간 (초), 끝나면 그때까지 낸 표로 집계
+// 위 네 시간은 모두 방장이 대기실에서 실시간으로 조절 가능 (set_hint_timeout/set_defense_timeout/set_guess_timeout/set_vote_timeout)
 // 제시어는 대기실에서 게임 시작 시 자동 배정되므로(jamoWords.js 재사용) 방장의 수동 입력 단계가 없다.
 // 라운드 종료 후 대기실로 돌아가 다시 전원 준비 → 게임 시작으로 다음 라운드를 시작한다.

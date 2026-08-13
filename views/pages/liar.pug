@@ -41,6 +41,9 @@ block content
         span 힌트 제한시간
         +timeoutSelect('liar-hint-timeout-select', [15, 20, 25, 30, 35, 40, 45, 50, 55, 60])
       label.spectator-toggle-label
+        span 투표 제한시간
+        +timeoutSelect('liar-vote-timeout-select', [10, 15, 20, 30, 45, 60, 90, 120])
+      label.spectator-toggle-label
         span 최후 반론 제한시간
         +timeoutSelect('liar-defense-timeout-select', [10, 20, 30, 45, 60, 90, 120])
       label.spectator-toggle-label
@@ -80,6 +83,12 @@ block content
 
     //- 동률 알림 (모두에게 노출되는 토스트)
     #liar-tie-banner(style="display:none") 🤔 투표가 동률이에요! 다시 투표해주세요
+
+    //- 투표 제한시간 (세 투표 단계 공용) — 시간이 끝나면 그때까지 낸 표로 집계
+    #liar-vote-timer-wrap(style="display:none")
+      #liar-vote-timer-track
+        #liar-vote-timer-bar
+      #liar-vote-timer-num -
 
     //- 투표 1: 라이어 지목 vs 한 바퀴 더 (버튼은 참가자만, 진행 현황은 방장·관전자도 봄)
     #liar-vote-continue(style="display:none")
