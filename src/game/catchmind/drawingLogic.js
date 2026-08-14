@@ -7,6 +7,8 @@ import {
   CATCHMIND_MAX_STROKES,
   CATCHMIND_MAX_POINTS,
   CATCHMIND_MAX_JSON_BYTES,
+  CATCHMIND_WORD_MIN_LEN,
+  CATCHMIND_WORD_MAX_LEN,
 } from '../../config.js';
 
 // ── 초성 ──────────────────────────────────────────────────────────────────────
@@ -43,6 +45,42 @@ export function normalizeGuess(raw) {
 export function isCorrect(guess, answer) {
   const g = normalizeGuess(guess);
   return g.length > 0 && g === normalizeGuess(answer);
+}
+
+// ── 직접 적는 제시어 ──────────────────────────────────────────────────────────
+/**
+ * 그리는 사람이 직접 적은 제시어를 검증한다.
+ *
+ * 사전에서 배정한 제시어와 달리 이쪽은 아무 글자나 들어올 수 있으므로,
+ * **맞히는 쪽이 답을 적어낼 수 있는 모양**인지만 본다.
+ *  - 완성형 한글만 — 영문·숫자·기호가 섞이면 정답이 완전 일치라 맞히기가 운이 된다
+ *    (`normalizeGuess`가 걷어내는 것은 공백·문장부호뿐이다).
+ *  - 자모(ㄱ·ㅏ)는 막는다 — 초성 힌트가 그대로 정답이 되어 버린다.
+ *  - 글자 수는 CATCHMIND_WORD_MIN_LEN~MAX_LEN. 문장처럼 길면 30초 안에 그릴 수 없다.
+ *
+ * 부적절한 낱말까지 여기서 거르지는 않는다 — 그 몫은 신고(누적되면 자동으로
+ * 출제 제외)에 있고, 낱말 목록으로 막으려 들면 끝이 없다.
+ *
+ * @returns {{ ok: true, word: string } | { ok: false, error: string }}
+ */
+export function validateCustomWord(raw) {
+  // 띄어쓰기는 정답 판정에서 어차피 무시되므로(`normalizeGuess`) 저장 전에 걷어낸다
+  // — '눈 사람'으로 올려두고 '눈사람'으로 맞히는 것이 정상 동작이라 표기를 하나로 모은다.
+  const word = String(raw ?? '').replace(/\s+/g, '');
+  const len  = [...word].length;
+
+  if (len === 0) return { ok: false, error: '제시어를 적어주세요.' };
+  if (len < CATCHMIND_WORD_MIN_LEN || len > CATCHMIND_WORD_MAX_LEN) {
+    return {
+      ok: false,
+      error: `제시어는 ${CATCHMIND_WORD_MIN_LEN}~${CATCHMIND_WORD_MAX_LEN}글자로 적어주세요.`,
+    };
+  }
+  if (!/^[가-힣]+$/u.test(word)) {
+    return { ok: false, error: '제시어는 한글로만 적어주세요 (자음·모음 낱개는 안 돼요).' };
+  }
+
+  return { ok: true, word };
 }
 
 // ── 그림(획) 데이터 ───────────────────────────────────────────────────────────
