@@ -5,8 +5,16 @@ import {
   CATCHMIND_HINT_AFTER_ATTEMPTS,
   CATCHMIND_REPORTS_TO_HIDE,
   CATCHMIND_SKIP_MEMORY,
+  CATCHMIND_WORD_MIN_LEN,
+  CATCHMIND_WORD_MAX_LEN,
 } from '../config.js';
-import { chosungOf, isCorrect, sanitizeStrokes, parseStrokes } from '../game/catchmind/drawingLogic.js';
+import {
+  chosungOf,
+  isCorrect,
+  sanitizeStrokes,
+  parseStrokes,
+  validateCustomWord,
+} from '../game/catchmind/drawingLogic.js';
 import { pickWord, categoryOf, isKnownWord } from '../game/catchmind/words.js';
 import * as store from '../db/catchmind.js';
 
@@ -69,14 +77,38 @@ router.get('/word', (req, res) => {
   const word = pickWord(store.drawingCounts(req.session.serverId), exclude);
   req.session.catchmindWord = word;
 
-  res.json({ word, category: categoryOf(word) });
+  res.json({
+    word,
+    category: categoryOf(word),
+    // 직접 적을 때의 글자 수 한도. 화면 안내문·입력창 제한을 서버 값 하나로 맞추려고
+    // 제시어를 받을 때 함께 내려준다(클라이언트에 같은 숫자를 또 적어두지 않도록).
+    wordLimits: { min: CATCHMIND_WORD_MIN_LEN, max: CATCHMIND_WORD_MAX_LEN },
+  });
 });
 
-/** POST /api/catchmind/drawings — 그림 저장. 제시어는 세션에 배정된 것을 쓴다. */
+/**
+ * POST /api/catchmind/drawings — 그림 저장
+ *
+ * 제시어는 두 갈래다.
+ *  - **배정받은 것**(기본): 세션에 넣어둔 값을 쓰고 몸통의 제시어는 보지 않는다.
+ *    클라이언트가 보낸 것을 믿으면 사전에 없는 아무 단어나 정답으로 만들 수 있다.
+ *  - **직접 적은 것**(`body.word`): 그 값을 검증만 하고 그대로 쓴다. 이쪽은 애초에
+ *    그리는 사람이 정하는 것이라 클라이언트 말을 믿어도 잃을 것이 없다 —
+ *    맞히는 쪽이 답을 적어낼 수 있는 모양인지(`validateCustomWord`)만 본다.
+ */
 router.post('/drawings', (req, res) => {
-  const word = req.session.catchmindWord;
-  if (!word || !isKnownWord(word)) {
-    return res.status(409).json({ error: '제시어가 만료되었습니다. 새로 받아주세요.' });
+  const custom = req.body?.word != null && String(req.body.word).trim() !== '';
+
+  let word;
+  if (custom) {
+    const checked = validateCustomWord(req.body.word);
+    if (!checked.ok) return res.status(400).json({ error: checked.error });
+    word = checked.word;
+  } else {
+    word = req.session.catchmindWord;
+    if (!word || !isKnownWord(word)) {
+      return res.status(409).json({ error: '제시어가 만료되었습니다. 새로 받아주세요.' });
+    }
   }
 
   const clean = sanitizeStrokes(req.body?.strokes);
@@ -91,8 +123,10 @@ router.post('/drawings', (req, res) => {
   });
 
   // 한 제시어로 두 번 저장되지 않도록 배정을 비운다.
-  req.session.catchmindWord = null;
-  res.json({ id, word });
+  // 직접 적어 올린 경우에는 배정을 쓰지 않았으므로 그대로 둔다
+  // (랜덤으로 돌아왔을 때 받아둔 제시어가 그대로 살아 있어야 한다).
+  if (!custom) req.session.catchmindWord = null;
+  res.json({ id, word, custom });
 });
 
 // ── 홈 요약 ───────────────────────────────────────────────────────────────────

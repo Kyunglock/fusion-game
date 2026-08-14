@@ -247,6 +247,10 @@ const drawCanvas = createCanvas($('draw-canvas'), {
 });
 
 let assignedWord = null;
+/** 제시어를 직접 적는 중인지 (끄면 서버가 배정한 제시어로 돌아간다) */
+let customMode = false;
+/** 직접 적을 때의 글자 수 한도 — 서버가 제시어를 줄 때 함께 내려준다 */
+let wordLimits = { min: 1, max: 8 };
 
 function renderTools() {
   const palette = $('draw-palette');
@@ -299,16 +303,48 @@ async function loadWord(refresh = false) {
   try {
     const data = await api(`/api/catchmind/word${refresh ? '?refresh=1' : ''}`);
     assignedWord = data.word;
+    if (data.wordLimits) wordLimits = data.wordLimits;
     $('draw-word').textContent     = data.word;
     $('draw-category').textContent = data.category ? `${data.category.emoji} ${data.category.label}` : '';
+    $('draw-word-input').maxLength = wordLimits.max;
   } catch (e) {
     showError(e.message);
   }
 }
 
+/** 그리기 화면 안내문 — 지금 어느 쪽 제시어로 올리게 되는지 알려준다 */
+function drawNote(text) {
+  $('draw-note').textContent = text ?? (customMode
+    ? `직접 적은 낱말로 문제가 나갑니다 (한글 ${wordLimits.min}~${wordLimits.max}글자)`
+    : '올린 그림은 다른 사람에게 문제로 나갑니다');
+}
+
+/**
+ * 제시어를 직접 적는 모드 켜기/끄기.
+ * 배정받은 제시어와 입력창은 같은 자리를 쓰므로 한쪽만 보인다.
+ */
+function setCustomMode(on) {
+  const was = customMode;
+  customMode = on;
+  $('draw-word').hidden       = on;
+  $('draw-category').hidden   = on;
+  $('draw-word-input').hidden = !on;
+  $('draw-reroll').hidden     = on;
+  $('draw-custom').textContent = on ? '🎲 제시어 받기' : '✏️ 직접 쓰기';
+  drawNote();
+
+  if (on) {
+    $('draw-word-input').focus();
+  } else if (was && !assignedWord) {
+    // 직접 쓰기로만 올리다가 돌아왔는데 배정이 비어 있으면 지금 받는다
+    // (화면에 처음 들어올 때는 openDraw 가 어차피 부르므로 두 번 부르지 않는다).
+    loadWord();
+  }
+}
+
 async function openDraw() {
   drawCanvas.clear();
-  $('draw-note').textContent = '올린 그림은 다른 사람에게 문제로 나갑니다';
+  setCustomMode(false);
   showScreen('draw');
   drawCanvas.resize();
   await loadWord();
@@ -320,17 +356,43 @@ $('draw-reroll').addEventListener('click', () => {
   loadWord(true);
 });
 
+$('draw-custom').addEventListener('click', () => setCustomMode(!customMode));
+$('draw-word-input').addEventListener('keydown', (e) => {
+  // 입력창에서 엔터를 치면 바로 올린다 (그림은 이미 그려둔 상태일 테니).
+  if (e.key === 'Enter' && !$('draw-save').disabled) $('draw-save').click();
+});
+
 $('draw-save').addEventListener('click', async () => {
   if (drawCanvas.isEmpty) return;
+
+  // 직접 쓰기인데 칸이 비어 있으면 배정받은 제시어로 올라가 버린다 — 여기서 막는다.
+  // 그 밖의 검증(글자 수·한글 여부)은 서버 판정을 그대로 보여준다.
+  const typed = customMode ? $('draw-word-input').value.trim() : '';
+  if (customMode && !typed) {
+    showError('제시어를 적어주세요.');
+    $('draw-word-input').focus();
+    return;
+  }
+
   const btn = $('draw-save');
   btn.disabled = true;
   btn.textContent = '올리는 중…';
 
   try {
-    await api('/api/catchmind/drawings', { method: 'POST', body: { strokes: drawCanvas.strokes } });
-    $('draw-note').textContent = `✅ '${assignedWord}' 그림을 올렸습니다! 다음 제시어를 받았어요`;
+    const saved = await api('/api/catchmind/drawings', {
+      method: 'POST',
+      body: { strokes: drawCanvas.strokes, ...(customMode ? { word: typed } : {}) },
+    });
     drawCanvas.clear();
-    await loadWord();
+
+    if (saved.custom) {
+      $('draw-word-input').value = '';
+      drawNote(`✅ '${saved.word}' 그림을 올렸습니다! 다음 낱말을 적어보세요`);
+      $('draw-word-input').focus();
+    } else {
+      drawNote(`✅ '${saved.word}' 그림을 올렸습니다! 다음 제시어를 받았어요`);
+      await loadWord();
+    }
   } catch (e) {
     showError(e.message);
     btn.disabled = false;

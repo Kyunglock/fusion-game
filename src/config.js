@@ -51,6 +51,11 @@ export const CATCHMIND_REPORTS_TO_HIDE   = 3; // 이만큼 신고가 쌓이면 �
 export const CATCHMIND_HINT_AFTER_ATTEMPTS = 4;
 // 초성 공개 여부는 시도 횟수로만 갈리므로 맞혔을 때 점수는 하나뿐이다.
 export const CATCHMIND_SCORE_SOLVE       = 3;
+// 그리는 사람이 제시어를 직접 적을 때의 글자 수 한도(완성형 한글 기준).
+// 사전에는 '해'(1자)부터 '스케이트보드'(6자)까지 있어 그 폭을 조금 넉넉히 잡았다.
+// 길어질수록 맞히는 쪽이 글자 수 칸만 보고도 질려버리므로 위쪽만 조인다.
+export const CATCHMIND_WORD_MIN_LEN      = 1;
+export const CATCHMIND_WORD_MAX_LEN      = 8;
 // '다음에 풀기'로 넘긴 그림을 몇 장까지 기억해 당장 다시 주지 않을지 (세션 안에서만).
 // 이만큼 넘기면 가장 먼저 넘긴 것부터 다시 나온다.
 export const CATCHMIND_SKIP_MEMORY       = 20;

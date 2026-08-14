@@ -158,6 +158,32 @@
 
 .cm-word-cat { font-size: 0.7rem; color: var(--muted); }
 
+// 제시어를 직접 적을 때 — 배정 제시어와 같은 자리를 쓰므로 크기·색을 맞춘다.
+.cm-word-input {
+  width: 100%;
+  max-width: 260px;
+  padding: 4px 10px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: var(--sunken);
+  color: var(--green-light);
+  font-size: clamp(1.1rem, 4vw, 1.5rem);
+  font-weight: 800;
+  text-align: center;
+
+  &:focus {
+    outline: none;
+    border-color: var(--green-light);
+  }
+}
+
+// 제시어 버튼 둘(다른 제시어 · 직접 쓰기)은 좁은 화면에서 세로로 접힌다.
+.cm-word-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 // ── 캔버스 ────────────────────────────────────────────────────────────────────
 .cm-canvas-wrap {
   position: relative;

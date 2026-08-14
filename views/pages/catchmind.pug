@@ -54,9 +54,13 @@ block content
       button#draw-exit.btn.btn-secondary ← 나가기
       .cm-word-box
         span.cm-word-label 제시어
+        //- 배정받은 제시어 / 직접 적기 — 둘 중 하나만 보인다
         span.cm-word#draw-word …
         span.cm-word-cat#draw-category
-      button#draw-reroll.btn.btn-secondary 다른 제시어
+        input#draw-word-input.cm-word-input(type="text" placeholder="그릴 낱말" autocomplete="off" enterkeyhint="done" hidden)
+      .cm-word-btns
+        button#draw-reroll.btn.btn-secondary 다른 제시어
+        button#draw-custom.btn.btn-secondary(title="제시어를 직접 적기") ✏️ 직접 쓰기
 
     .cm-canvas-wrap
       canvas#draw-canvas
