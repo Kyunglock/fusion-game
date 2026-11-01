@@ -253,6 +253,8 @@
 
   &-new  { background: linear-gradient(135deg, var(--green-mid), var(--green-dark)); color: var(--white); }
   &-soon { background: var(--chip); color: var(--muted); border: 1px solid var(--border); }
+  // 바깥 사이트로 나가는 카드(투자 시뮬레이션). NEW 와 색을 달리해 "여기 게임이 아니다"를 알린다.
+  &-ext  { background: var(--chip); color: var(--text); border: 1px solid var(--green-light); }
 }
 
 // ── 서버(채널) 선택 ───────────────────────────────────────────────────────────

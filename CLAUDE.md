@@ -36,7 +36,7 @@
 - **캐치마인드 그림도 갈린다**: 방이 없는 게임이라 소켓이 아니라 `catchmind_drawings.server_id` 로 가른다 → 아래 '캐치마인드' 참고
 - **전적·등급도 갈린다**: `game_stats`·`game_results`에 `server_id` 가 붙어 서버마다 따로 쌓이고, 등급(백분위 티어)도 그 서버 안에서만 매겨진다 → 아래 '계정 · 전적 · 등급' 참고
 - **갈리지 않는 것**: 계정(닉네임·아바타)뿐이다. 같은 닉네임은 두 서버에서 같은 계정이고, 프로필을 한 번만 바꾸면 양쪽에 반영된다
-- 화면: `client/index.html` 의 `#page-server`(서버 카드 + 비밀번호) → `#page-auth` → `#page-select`. 홈의 방 개수 소켓은 서버가 정해진 뒤에 연결한다(`startRoomCounts`). 서버 이름이 화면에 나오는 곳은 전적 모달 맨 위 한 줄(`.stats-server-note`)뿐이다 — 어느 서버 기준의 전적인지 밝히려는 것이라 남겨두었다
+- 화면: `client/index.html` 의 `#page-server`(서버 카드 + 비밀번호) → `#page-auth` → `#page-select`. 게임 목록 마지막 카드 **투자 시뮬레이션**은 이 서버의 게임이 아니라 별도 사이트(`https://game.kwaklabs.com`, investor-game)로 나가는 외부 링크다 — 새 창(`target=_blank`)으로 열고 `badge-ext` 배지로 구분하며, 방 개수·전적·서버 관문과 무관하다. 홈의 방 개수 소켓은 서버가 정해진 뒤에 연결한다(`startRoomCounts`). 서버 이름이 화면에 나오는 곳은 전적 모달 맨 위 한 줄(`.stats-server-note`)뿐이다 — 어느 서버 기준의 전적인지 밝히려는 것이라 남겨두었다
 
 ## 계정 · 전적 · 등급 (DB)
 
